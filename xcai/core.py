@@ -3,11 +3,14 @@
 # %% auto 0
 __all__ = ['ranks', 'suits', 'Card']
 
-# %% ../nbs/00_core.ipynb 4
+# %% ../nbs/00_core.ipynb 2
+from fastcore.utils import *
+
+# %% ../nbs/00_core.ipynb 5
 ranks = [1, 2, 3, 4]
 suits = ['😀', '😆', '😎', '😍']
 
-# %% ../nbs/00_core.ipynb 5
+# %% ../nbs/00_core.ipynb 6
 class Card:
     "A playing card"
     def __init__(self, 
@@ -21,6 +24,6 @@ class Card:
 
     
 
-# %% ../nbs/00_core.ipynb 10
+# %% ../nbs/00_core.ipynb 11
 @patch
 def __eq__(self:Card, a:Card): return (self.rank, self.suit) == (a.rank, a.suit)
