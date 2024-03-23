@@ -1,0 +1,52 @@
+[
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "xcai",
+    "section": "",
+    "text": "This file will become your README and also the index of your documentation.",
+    "crumbs": [
+      "xcai"
+    ]
+  },
+  {
+    "objectID": "index.html#install",
+    "href": "index.html#install",
+    "title": "xcai",
+    "section": "Install",
+    "text": "Install\npip install xcai",
+    "crumbs": [
+      "xcai"
+    ]
+  },
+  {
+    "objectID": "index.html#how-to-use",
+    "href": "index.html#how-to-use",
+    "title": "xcai",
+    "section": "How to use",
+    "text": "How to use\nFill me in please! Don’t forget code examples:\n\n1+1\n\n2",
+    "crumbs": [
+      "xcai"
+    ]
+  },
+  {
+    "objectID": "core.html",
+    "href": "core.html",
+    "title": "core",
+    "section": "",
+    "text": "Here is an example of creating and displaying a card.\nc = Card(1, 2)\nc\n\n2😎\nsource",
+    "crumbs": [
+      "core"
+    ]
+  },
+  {
+    "objectID": "core.html#comparison-operators",
+    "href": "core.html#comparison-operators",
+    "title": "core",
+    "section": "Comparison operators",
+    "text": "Comparison operators",
+    "crumbs": [
+      "core"
+    ]
+  }
+]
