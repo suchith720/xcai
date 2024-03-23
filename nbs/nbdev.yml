@@ -1,0 +1,9 @@
+project:
+  output-dir: _docs
+
+website:
+  title: "xcai"
+  site-url: "https://suchith720.github.io/xcai"
+  description: "Library for Extreme Classification"
+  repo-branch: main
+  repo-url: "https://github.com/suchith720/xcai"
