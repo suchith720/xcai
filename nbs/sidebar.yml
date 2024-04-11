@@ -3,3 +3,13 @@ website:
     contents:
       - index.ipynb
       - 00_core.ipynb
+      - 01_transform.ipynb
+      - 02_data.ipynb
+      - 03_test_utils.ipynb
+      - 04_losses.ipynb
+      - 05_models.BT000X.ipynb
+      - 06_learner.ipynb
+      - 07_torch_core.ipynb
+      - 08_generation.trie.ipynb
+      - 09_generation.generate.ipynb
+      - 10_metrics.ipynb
