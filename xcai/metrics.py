@@ -37,11 +37,15 @@ class XCMetric:
 
     def get_pred(self, output):
         data = (output['pred_score'], output['pred_idx'], output['pred_ptr'])
-        return self.apply_filter(sparse.csr_matrix(data, shape=(len(data[2])-1, self.n_lbl)))
+        pred = sparse.csr_matrix(data, shape=(len(data[2])-1, self.n_lbl))
+        pred.sum_duplicates()
+        return self.apply_filter(pred)
 
     def get_targ(self, output):
         data = (torch.full((len(output['targ_idx']),), 1), output['targ_idx'], output['targ_ptr'])
-        return self.apply_filter(sparse.csr_matrix(data, shape=(len(data[2])-1, self.n_lbl)))
+        targ = sparse.csr_matrix(data, shape=(len(data[2])-1, self.n_lbl))
+        targ.sum_duplicates()
+        return self.apply_filter(targ)
     
     @property
     def value(self):

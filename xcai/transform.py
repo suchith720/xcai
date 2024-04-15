@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['PadTfm', 'CollapseTfm', 'PadFeatTfm', 'AlignInputIdsTfm', 'XCPadFeatTfm', 'XCPadOutputTfm', 'TfmPipeline',
-           'TriePruneInputIdsTfm', 'AugmentMetaInputIdsTfm']
+           'AugmentMetaInputIdsTfm', 'TriePruneInputIdsTfm']
 
 # %% ../nbs/01_transform.ipynb 2
 from tqdm.auto import tqdm
@@ -13,6 +13,7 @@ from fastcore.meta import *
 from fastcore.dispatch import *
 from transformers import AutoTokenizer, BatchEncoding
 from itertools import chain
+from fastprogress.fastprogress import master_bar, progress_bar
 
 from .core import *
 from .generation.trie import *
@@ -198,7 +199,8 @@ class AlignInputIdsTfm:
                 else: attr.append(x[k])
             return attr
             
-        inp_ids, targ_ids = get_attr(x, f'{self.inp}_input_ids,{self.targ}_input_ids', required=True) 
+        inp_ids, targ_ids = get_attr(x, f'{self.inp}_input_ids,{self.targ}_input_ids')
+        if inp_ids is None or targ_ids is None: return x
         targ_mask, targ_tok = get_attr(x, f'{self.targ}_attention_mask,{self.targ}_token_type_ids') 
         ptr = None if self.ptr is None else x[self.ptr]
         
@@ -222,12 +224,14 @@ class XCPadFeatTfm:
 
     def extract_ptr(self, x:Dict, suffix:str):
         ptr_name = [k for k in x if re.match(f'.*{suffix}$',k)]
-        return [x.pop(k) for k in ptr_name][0]
+        ptr = [x.pop(k) for k in ptr_name]
+        return ptr[0] if len(ptr) else None
 
     def __call__(self, x):
         meta_name = set([k.split('_',maxsplit=1)[0].split('2')[0] for k in x[0]]).difference(['lbl', 'data'])
         out = self.tfm(x, prefix='lbl2data', lev=1, in_place=True, drop=True)
-        out['lbl2data_data2ptr'] = self.extract_ptr(out, 'ptr-1')
+        lbl2data_data2ptr = self.extract_ptr(out, 'ptr-1')
+        if lbl2data_data2ptr is not None: out['lbl2data_data2ptr'] = lbl2data_data2ptr
         out.update(self.tfm(x, prefix='data', lev=0, in_place=True, drop=True))
         for k in meta_name:
             o = self.tfm(x, prefix=f'{k}2lbl2data', lev=2, in_place=True, drop=True)
@@ -269,65 +273,15 @@ class TfmPipeline:
         return x
         
 
-# %% ../nbs/01_transform.ipynb 58
-class TriePruneInputIdsTfm:
-
-    def __init__(self, prefix:str='lbl2data'):
-        self.prefix = prefix
-
-    @staticmethod
-    def _flatten(x:List, o:List):
-        if not isinstance(x[0], list): o.append(x)
-        else: 
-            for i in x: TriePruneInputIdsTfm._flatten(i, o)
-
-    @staticmethod
-    def flatten(x:List):
-        flat_x = []
-        TriePruneInputIdsTfm._flatten(x, flat_x)
-        return flat_x
-        
-    @staticmethod
-    def _prune_feature(x:List, trie:Trie):
-        if not isinstance(x[0], list): return trie.prefix(x)
-        return [TriePruneInputIdsTfm._prune_feature(o, trie) for o in x]
-
-    def prune_feature(self, x:Dict, fld:str):
-        if fld not in x: raise ValueError(f'`{fld}` not in `x`')
-        v = self.flatten(x[fld])
-        trie = Trie.from_list(v)
-        trie.prune()
-        x[fld] = self._prune_feature(x[fld], trie)
-
-    @staticmethod
-    def _align_feature(inp:List, targ:List):
-        if not isinstance(inp[0], list): return targ[:len(inp)]
-        for i,(p,q) in enumerate(zip(inp, targ)): targ[i] = TriePruneInputIdsTfm._align_feature(p,q)
-        return targ
-
-    def align_feature(self, x:Dict, inp:str, targ:str):
-        if targ not in x: return
-        self._align_feature(x[inp], x[targ])
-        
-    def __call__(self, x:Dict, 
-                 prefix:Optional[str]=None):
-        self.prefix = self.prefix if prefix is None else prefix
-        
-        self.prune_feature(x, f'{self.prefix}_input_ids')
-        self.align_feature(x, f'{self.prefix}_input_ids', f'{self.prefix}_attention_mask')
-        self.align_feature(x, f'{self.prefix}_input_ids', f'{self.prefix}_token_type_ids')
-        return x
-
-
-# %% ../nbs/01_transform.ipynb 72
+# %% ../nbs/01_transform.ipynb 73
 class AugmentMetaInputIdsTfm:
 
     def __init__(self, meta:str, max_len:Optional[int]=None):
         self.meta, self.max_len = meta, max_len
     
-    def proc(self, data_ids:List, data_meta:sparse.csr_matrix, meta_ids:List):
+    def augment(self, data_ids:List, data_meta:sparse.csr_matrix, meta_ids:List):
         meta2data_ids = []
-        for d_ids, d_meta in tqdm(zip(data_ids, data_meta), total=len(data_ids)):
+        for d_ids, d_meta in progress_bar(zip(data_ids, data_meta), total=len(data_ids)):
             m2d_ids = d_ids.copy()
             for o in d_meta.indices:
                 m2d_ids.extend(meta_ids[o][1:])
@@ -335,22 +289,50 @@ class AugmentMetaInputIdsTfm:
             meta2data_ids.append(m2d_ids)
         return meta2data_ids
 
-    def feature(self, block:BaseXCDataBlock, fld:str):
-        if fld in block.dset.data.data_info:
-            data_ids = block.dset.data.data_info[fld]
-            meta_ids = block.dset.meta[self.meta].meta_info[fld]
-            data_meta = block.dset.meta[self.meta].data_meta
-            block.dset.data.data_info[fld] = self.proc(data_ids, data_meta, meta_ids)
+    def proc(self, block:XCDataBlock, split:str, fld:str):
+        if fld in get_attr(block, f'{split}.dset.data.data_info'):
+            data_ids = get_attr(block, f'{split}.dset.data.data_info')[fld]
+            meta_ids = get_attr(block, f'{split}.dset.meta.{self.meta}.meta_info')[fld]
+            data_meta = get_attr(block, f'{split}.dset.meta.{self.meta}.data_meta')
+            get_attr(block, f'{split}.dset.data.data_info')[f'{fld}_aug_{self.meta.split("_")[0]}'] = self.augment(data_ids, data_meta, meta_ids)
 
-    def split(self, block:XCDataBlock, split:str):
-        split = getattr(block, split)
-        if split is None: return
-        if self.meta is None or self.meta not in split.dset.meta: raise ValueError(f'`{self.meta}` not in `block`')
-        for fld in ['input_ids', 'attention_mask', 'token_type_ids']: self.feature(split, fld)
-
+    def __call__(self, block:XCDataBlock, meta:str, max_len:Optional[int]=None):
+        store_attr('meta,max_len', is_none=False)
+        for split in master_bar(['train', 'valid', 'test']): 
+            for fld in ['input_ids', 'attention_mask', 'token_type_ids']: self.proc(block, split, fld)
+        return block
+        
     @classmethod
     def apply(cls, block:XCDataBlock, meta:str, max_len:Optional[int]=None):
-        self = cls(f'{meta}_meta', max_len)
-        for split in ['train', 'valid', 'test']: self.split(block, split)
+        self = cls(meta, max_len)
+        return self(block, meta, max_len)
+        
+
+# %% ../nbs/01_transform.ipynb 88
+class TriePruneInputIdsTfm:
+
+    def prune(self, block:XCDataBlock, loc:str, fld:str):
+        x = get_attr(block, loc)
+        if fld in x:
+            trie = Trie.from_list(x[fld])
+            trie.prune()
+            x[f'{fld}_prn_tre'] = [trie.prefix(o) for o in x[fld]]
+
+    def align(self, block:XCDataBlock, loc:str, inp:str, targ:str):
+        x = get_attr(block, loc)
+        x[f'{targ}_prn_tre'] = [q[:len(p)] for i,(p,q) in enumerate(zip(x[inp],x[targ]))]
+        
+    def proc(self, block:XCDataBlock, loc:str):
+        self.prune(block, loc, 'input_ids')
+        self.align(block, loc, 'input_ids_prn_tre', 'attention_mask')
+        self.align(block, loc, 'input_ids_prn_tre', 'token_type_ids')
         return block
+
+    def __call__(self, block:XCDataBlock, loc:str):
+        return self.proc(block, loc)
+
+    @classmethod
+    def apply(cls, block:XCDataBlock, loc:str):
+        self = cls()
+        return self(block, loc)
         

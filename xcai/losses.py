@@ -6,12 +6,14 @@ __all__ = ['BaseLoss', 'MultiCrossEntropy', 'MultiTriplet', 'SoupCon']
 # %% ../nbs/04_losses.ipynb 3
 import functools, torch, torch.nn as nn, torch.nn.functional as F
 from typing import MutableSequence, Union
+import torch.autograd.profiler as profiler
+
 from fastcore.utils import *
 from fastcore.meta import *
 
 from .torch_core import *
 
-# %% ../nbs/04_losses.ipynb 13
+# %% ../nbs/04_losses.ipynb 12
 class BaseLoss(nn.Module):
 
     def __init__(self, 
@@ -29,7 +31,7 @@ class BaseLoss(nn.Module):
         self.reduce = v
         
 
-# %% ../nbs/04_losses.ipynb 15
+# %% ../nbs/04_losses.ipynb 14
 class MultiCrossEntropy(BaseLoss):
 
     def __init__(self,
@@ -42,7 +44,7 @@ class MultiCrossEntropy(BaseLoss):
         self._parameters = {'o': self.o}
         
 
-# %% ../nbs/04_losses.ipynb 18
+# %% ../nbs/04_losses.ipynb 17
 @patch
 def __call__(cls:MultiCrossEntropy,
              inp:torch.FloatTensor,
@@ -72,7 +74,7 @@ def __call__(cls:MultiCrossEntropy,
     else: raise ValueError(f'`reduction` cannot be `{cls.reduction}`')
 
 
-# %% ../nbs/04_losses.ipynb 25
+# %% ../nbs/04_losses.ipynb 28
 class MultiTriplet(BaseLoss):
 
     def __init__(self,
@@ -83,13 +85,12 @@ class MultiTriplet(BaseLoss):
                  **kwargs):
         super().__init__(**kwargs)
         self.bsz, self.tn_targ, self.margin, self.ig_tok = bsz, tn_targ, margin, ig_tok
-        self.t = torch.ones((bsz, bsz), dtype=torch.int64).triu() if bsz is not None else None
         self.u = torch.arange(bsz, dtype=torch.int64) if bsz is not None else None
         self.v = torch.ones(tn_targ, dtype=torch.int64) if tn_targ is not None else None
-        self._parameters = {'t':self.t, 'u':self.u, 'v':self.v}
+        self._parameters = {'u':self.u, 'v':self.v}
         
 
-# %% ../nbs/04_losses.ipynb 28
+# %% ../nbs/04_losses.ipynb 31
 @patch
 def __call__(cls:MultiTriplet, 
              inp:torch.FloatTensor, 
@@ -98,16 +99,16 @@ def __call__(cls:MultiTriplet,
              margin:Optional[float]=None):
     cls.margin = cls.margin if margin is None else margin
     bsz, tn_targ, mn_targ = inp.shape[0], targ.shape[0], n_inp2targ.max()
-    t, u = cls.t[:bsz,:bsz], cls.u[:bsz]
+    u = torch.arange(bsz, dtype=torch.int64, device=inp.device) if cls.u is None or cls.bsz < bsz else cls.u[:bsz]
     v = (
         torch.ones(tn_targ, dtype=torch.int64, device=targ.device)
-        if tn_targ > cls.tn_targ else cls.v[:tn_targ]
+        if cls.tn_targ is None or tn_targ > cls.tn_targ else cls.v[:tn_targ]
     )
     targ2inp_ptr = u.repeat_interleave(n_inp2targ)
     s = targ@inp.T
     ps = s.gather(1, targ2inp_ptr.view(-1,1))
     
-    inp2targ_ptr = CUDALongTensor.matmul(n_inp2targ[None], t).squeeze(0)-1
+    inp2targ_ptr = n_inp2targ.cumsum(dim=0)-1
     xn_inp2targ = mn_targ-n_inp2targ+1
     
     r_targ = v.scatter(0, inp2targ_ptr, xn_inp2targ)
@@ -128,7 +129,7 @@ def __call__(cls:MultiTriplet,
     else: raise ValueError(f'`reduction` cannot be `{cls.reduction}`')
         
 
-# %% ../nbs/04_losses.ipynb 33
+# %% ../nbs/04_losses.ipynb 38
 class SoupCon(BaseLoss):
 
     @delegates(BaseLoss.__init__)
@@ -136,18 +137,19 @@ class SoupCon(BaseLoss):
                  bsz:Optional[int]=None, 
                  **kwargs):
         super().__init__(**kwargs)
+        self.bsz = bsz
         self.t = torch.arange(bsz, dtype=torch.int64) if bsz is not None else None
         self._parameters = {'t':self.t}
         
 
-# %% ../nbs/04_losses.ipynb 36
+# %% ../nbs/04_losses.ipynb 41
 @patch
 def __call__(cls:SoupCon,
              inp:torch.FloatTensor,
              targ:torch.LongTensor,
              n_inp2targ:torch.LongTensor):
     bsz = inp.shape[0]
-    t = cls.t[:bsz]
+    t = torch.arange(bsz, dtype=torch.int64, device=inp.device) if cls.t is None or cls.bsz < bsz else cls.t[:bsz]
     targ2inp_ptr = t.repeat_interleave(n_inp2targ)
     s = -F.log_softmax(targ@inp.T, dim=0)
     ps = s.gather(1, targ2inp_ptr.unsqueeze(1)).squeeze(1)

@@ -125,21 +125,6 @@ def __getitem__(cls:MainXCDataset, idx:int):
     return x
     
 
-# %% ../nbs/02_data.ipynb 19
-@patch
-def __getitems__(cls:MainXCDataset, idxs:List):
-    x = {f'data_{k}':[v[idx] for idx in idxs] for k,v in cls.data_info.items()}
-    if cls.n_lbl is not None:
-        prefix = 'lbl2data'
-        x[f'{prefix}_idx'] = [cls.data_lbl[idx].indices.tolist() for idx in idxs]
-        if cls.n_samples: x[f'{prefix}_idx'] = [[o[i] for i in np.random.permutation(len(o))[:cls.n_samples]] for o in x[f'{prefix}_idx']]
-        x[f'{prefix}_data2ptr'] = [len(o) for o in x[f'{prefix}_idx']]
-        x[f'{prefix}_idx'] = list(chain(*x[f'{prefix}_idx']))
-        if cls.lbl_info is not None:
-            x.update({f'{prefix}_{k}':[v[i] for i in x[f'{prefix}_idx']] for k,v in cls.lbl_info.items()})
-        return x
-        
-
 # %% ../nbs/02_data.ipynb 20
 @patch
 def _getitems(cls:MainXCDataset, idxs:List):
@@ -273,6 +258,15 @@ class XCDataset(BaseXCDataset):
     @property
     def lbl_info(self): return self.data.lbl_info
 
+    @property
+    def lbl_dset(self): return MainXCDataset(self.data.lbl_info)
+
+    @property
+    def data_info(self): return self.data.data_info
+
+    @property
+    def data_dset(self): return MainXCDataset(self.data.data_info) 
+
     def one_batch(self, bsz:Optional[int]=10, seed:Optional[int]=None):
         if seed is not None: torch.manual_seed(seed)
         idxs = list(torch.randperm(len(self)).numpy())[:bsz]
@@ -363,7 +357,8 @@ def splitter(cls:BaseXCDataBlock, valid_pct:Optional[float]=0.2, seed=None):
     rnd_idx = list(torch.randperm(len(cls)).numpy())
     cut = int(valid_pct * len(cls))
     train, valid = cls._getitems(rnd_idx[cut:]), cls._getitems(rnd_idx[:cut])
-    return cls.filterer(train, valid)
+    if cls.data_lbl_filterer is None: return train, valid
+    else: return cls.filterer(train, valid)
         
 
 # %% ../nbs/02_data.ipynb 78
@@ -378,6 +373,9 @@ class XCDataBlock:
 
     @property
     def lbl_info(self): return self.train.dset.data.lbl_info
+
+    @property
+    def lbl_dset(self): return MainXCDataset(self.train.dset.data.lbl_info)
 
     @property
     def n_lbl(self): return self.train.dset.n_lbl
