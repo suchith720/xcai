@@ -36,6 +36,7 @@ TRAIN_CFG = {
             'data_lbl': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/trn_X_Y.txt',
             'data_info': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/train.raw.txt',
             'lbl_info': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/label.raw.txt',
+            'data_lbl_filterer': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/filter_labels_train.txt',
         },
     },
     'parameters': PARAM,
@@ -48,11 +49,13 @@ DATA_CFG = {
             'data_lbl': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/trn_X_Y.txt',
             'data_info': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/train.raw.txt',
             'lbl_info': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/label.raw.txt',
+            'data_lbl_filterer': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/filter_labels_train.txt',
         },
         'test': {
             'data_lbl': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/tst_X_Y.txt',
             'data_info': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/test.raw.txt',
             'lbl_info': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/label.raw.txt',
+            'data_lbl_filterer': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/filter_labels_test.txt',
         },
     },
     'parameters': PARAM,
@@ -65,6 +68,7 @@ TRAIN_META_CFG = {
             'data_lbl': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/trn_X_Y.txt',
             'data_info': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/train.raw.txt',
             'lbl_info': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/label.raw.txt',
+            'data_lbl_filterer': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/filter_labels_train.txt',
             'hlk_meta': {
                 'prefix': 'hlk',
                 'data_meta': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/hyper_link_trn_X_Y.txt',
@@ -83,6 +87,7 @@ DATA_META_CFG = {
             'data_lbl': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/trn_X_Y.txt',
             'data_info': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/train.raw.txt',
             'lbl_info': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/label.raw.txt',
+            'data_lbl_filterer': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/filter_labels_train.txt',
             'hlk_meta': {
                 'prefix': 'hlk',
                 'data_meta': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/hyper_link_trn_X_Y.txt',
@@ -94,6 +99,7 @@ DATA_META_CFG = {
             'data_lbl': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/tst_X_Y.txt',
             'data_info': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/test.raw.txt',
             'lbl_info': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/label.raw.txt',
+            'data_lbl_filterer': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/filter_labels_test.txt',
             'hlk_meta': {
                 'prefix': 'hlk',
                 'data_meta': '/home/scai/phd/aiz218323/Projects/XC_NLG/data/(mapped)LF-WikiSeeAlsoTitles-320K/hyper_link_tst_X_Y.txt',

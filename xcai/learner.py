@@ -209,9 +209,9 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
         store_attr('representation_accumulation_steps,representation_attribute,representation_num_beams')
         store_attr('index_space,index_efc,index_m,index_efs,index_num_threads')
         store_attr('predict_with_generation,predict_with_representation,output_concatenation_weight')
-        store_attr('group_by_cluster,minimum_clusters,maximum_clusters,num_cluster_update_epochs')
-        self.minimum_clusters = max(1, self.minimum_clusters)
-        self.maximum_clusters = max(self.minimum_clusters, self.maximum_clusters)
+        store_attr('group_by_cluster,num_cluster_update_epochs')
+        self.minimum_clusters = max(1, minimum_clusters)
+        self.maximum_clusters = max(minimum_clusters, maximum_clusters) if maximum_clusters is not None else minimum_clusters
         
 
 # %% ../nbs/06_learner.ipynb 32
@@ -425,7 +425,8 @@ def evaluation_loop(
     ignore_keys:Optional[List[str]] = None,
     metric_key_prefix:str="eval",
 ) -> XCEvalLoopOutput:
-    
+
+    args = self.args
     prediction_loss_only = prediction_loss_only if prediction_loss_only is not None else args.prediction_loss_only
 
     model = self._wrap_model(self.model, training=False, dataloader=dataloader)
