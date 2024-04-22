@@ -4,17 +4,18 @@
 __all__ = ['TriePtr', 'Hypothesis', 'TrieBeam', 'tbs_proc', 'TrieBeamSearch']
 
 # %% ../../nbs/09_generation.generate.ipynb 3
-import torch
+import torch, math
 from torch.multiprocessing import Pool
 import torch.nn.functional as F
 from itertools import chain
 from tqdm.auto import tqdm
+from typing import Optional, Sequence, Any, Dict, List
+from dataclasses import dataclass
+
 from fastcore.utils import *
 from fastcore.dispatch import *
 from fastcore.meta import *
 from fastcore.parallel import *
-from typing import Optional, Sequence, Any, Dict, List
-from dataclasses import dataclass
 
 from ..core import *
 from ..transform import *
@@ -23,8 +24,9 @@ from .trie import *
 # %% ../../nbs/09_generation.generate.ipynb 12
 class TriePtr:
 
-    def __init__(self, trie):
-        self.trie, self.ptr, self.hyp = trie, trie.root, [trie.root.tok]
+    def __init__(self, trie, max_info:Optional[int]=None):
+        store_attr('trie,max_info')
+        self.ptr, self.hyp = trie.root, [trie.root.tok]
 
     @property
     def tokens(self):
@@ -37,7 +39,7 @@ class TriePtr:
 
     def suffixes(self):
         o = []
-        Trie._search(self.ptr, self.hyp, o)
+        Trie._search(self.ptr, self.hyp, o, self.max_info)
         return sorted(o, key=lambda x: x.cnt, reverse=True)
 
     @property
@@ -46,10 +48,11 @@ class TriePtr:
 
     @property
     def value(self):
-        return TrieOutput(self.hyp, self.ptr.cnt, self.ptr.info)
+        info = self.ptr.info if self.max_info is None else self.ptr.info[:self.max_info]
+        return TrieOutput(self.hyp, self.ptr.cnt, info)
 
     def copy(self):
-        t = TriePtr(self.trie)
+        t = TriePtr(self.trie, self.max_info)
         t.ptr,t.hyp = self.ptr,self.hyp.copy()
         return t
         
@@ -85,8 +88,10 @@ class Hypothesis:
 # %% ../../nbs/09_generation.generate.ipynb 33
 class TrieBeam:
 
-    def __init__(self, trie:Trie, n_bm:Optional[int]=5, len_penalty:Optional[float]=1.0):
-        self.n_bm, self.len_penalty, self.trie, self.hyp = n_bm, len_penalty, trie, None
+    def __init__(self, trie:Trie, n_bm:Optional[int]=5, max_bm:Optional[int]=None, len_penalty:Optional[float]=1.0, 
+                 max_info:Optional[int]=None):
+        store_attr('trie,n_bm,len_penalty,max_info')
+        self.max_bm, self.hyp = max_bm if max_bm is None else max(max_bm, 2*n_bm), None
 
     def valid(self, ptr:List, sc:torch.FloatTensor):
         v_tok, v_sc, v_idx = [], [], []
@@ -118,8 +123,10 @@ class TrieBeam:
 
     def finalize(self, ptr:List, sc:List):
         if len(self.hyp) < self.n_bm:
+            nh = int(math.ceil((self.max_bm-len(self.hyp))/len(ptr))) if self.max_bm is not None and len(ptr) else None
             for p,s in zip(ptr, sc):
-                for o in p.suffixes(): self.hyp.add(o, s)
+                hyps = p.suffixes() if nh is None else p.suffixes()[:nh]
+                for o in hyps: self.hyp.add(o, s)
         if len(self.hyp) < self.n_bm: raise ValueError(f'`len(self.hyp)`({len(self.hyp)}) < `n_bm`({self.n_bm})')
         seq_sc, seq_ids, info, n_info = list(map(list, zip(*[(sc,hyp.s,hyp.info,len(hyp.info)) for sc,hyp in self.hyp.beams])))
         return {
@@ -131,11 +138,14 @@ class TrieBeam:
             'info2seq2data_data2ptr':[sum(n_info)],
         }
         
-    def proc(self, logits:torch.FloatTensor, n_bm:Optional[int]=5, len_penalty:Optional[float]=1.0):
-        store_attr('n_bm,len_penalty', is_none=False)
+    def proc(self, logits:torch.FloatTensor, n_bm:Optional[int]=None, max_bm:Optional[int]=None, len_penalty:Optional[float]=None, 
+             max_info:Optional[int]=None):
+        store_attr('n_bm,len_penalty,max_info', is_none=False)
+        if max_bm is not None: self.max_bm = max(max_bm, 2*self.n_bm)
+        
         self.hyp = Hypothesis(self.n_bm, self.len_penalty)
         sc = torch.full((self.n_bm,1), -1e9); sc[0,0] = 0
-        ptr = [TriePtr(self.trie) for _ in range(2*self.n_bm)]
+        ptr = [TriePtr(self.trie,self.max_info) for _ in range(2*self.n_bm)]
         
         cur_len,seq_len = 1,logits.shape[0]
         while True:
@@ -157,24 +167,29 @@ def tbs_proc(x): return x[0].proc(x[1])
 class TrieBeamSearch:
 
     @delegates(XCPadOutputTfm.__init__)
-    def __init__(self, trie:Trie, n_bm:int=5, len_penalty:float=1.0, **kwargs):
-        self.n_bm, self.len_penalty, self.trie, self.tfm = n_bm, len_penalty, trie, XCPadOutputTfm(**kwargs)
+    def __init__(self, trie:Trie, n_bm:int=5, max_bm:Optional[int]=None, len_penalty:Optional[float]=1.0, max_info:Optional[int]=None,
+                 n_threads=3, **kwargs):
+        store_attr('trie,n_bm,max_bm,len_penalty,max_info,n_threads')
+        self.tfm = XCPadOutputTfm(**kwargs)
         
-    def proc(self, model, inputs:Dict, n_bm:int=5, len_penalty:float=1.0):
-        store_attr('n_bm,len_penalty')
-        logits = F.log_softmax(model(**inputs).logits, dim=-1).cpu()
-        hyps = [TrieBeam(self.trie, self.n_bm, self.len_penalty) for _ in range(logits.shape[0])]
-        outputs = [h.proc(l) for h,l in zip(hyps, logits)]
+    def proc(self, model, inputs:Dict, n_bm:int=None, max_bm:Optional[int]=None, len_penalty:Optional[float]=None, 
+             max_info:Optional[int]=None):
+        store_attr('n_bm,max_bm,len_penalty,max_info', is_none=False)
+        logits, attention_mask = F.log_softmax(model(**inputs).logits, dim=-1).cpu(), inputs['data_attention_mask'].bool().cpu()
+        hyps = [TrieBeam(self.trie, self.n_bm, self.max_bm, self.len_penalty, self.max_info) for _ in range(logits.shape[0])]
+        outputs = [h.proc(l[a]) for h,l,a in zip(hyps, logits, attention_mask)]
         outputs = self.tfm({k:list(chain(*[o[k] for o in outputs])) for k in outputs[0]})
         outputs['info2seq2data_score'] = torch.repeat_interleave(outputs['seq2data_score'], outputs['info2seq2data_seq2ptr'], dim=0)
         return outputs
 
-    def proc_parallel(self, model, inputs:Dict, n_bm:int=5, len_penalty:float=1.0, n_threads=3):
-        store_attr('n_bm,len_penalty')
+    def proc_parallel(self, model, inputs:Dict, n_bm:int=None, max_bm:Optional[int]=None, len_penalty:Optional[float]=None, 
+                      max_info:Optional[int]=None, n_threads=None):
+        store_attr('n_bm,max_bm,len_penalty,max_info,n_threads', is_none=False)
         logits = F.log_softmax(model(**inputs).logits, dim=-1).cpu().share_memory_()
-        hyps = [TrieBeam(self.trie, self.n_bm, self.len_penalty) for _ in range(logits.shape[0])]
+        attention_mask = inputs['data_attention_mask'].bool().cpu().share_memory_()
+        hyps = [TrieBeam(self.trie, self.n_bm, self.max_bm, self.len_penalty, self.max_info) for _ in range(logits.shape[0])]
         
-        with torch.no_grad(), Pool(processes=n_threads) as pool: outputs = list(pool.map(tbs_proc, list(zip(hyps, logits))))
+        with torch.no_grad(), Pool(processes=n_threads) as pool: outputs = list(pool.map(tbs_proc, list(zip(hyps, logits, attention_mask))))
         
         outputs = self.tfm({k:list(chain(*[o[k] for o in outputs])) for k in outputs[0]})
         outputs['info2seq2data_score'] = torch.repeat_interleave(outputs['seq2data_score'], outputs['info2seq2data_seq2ptr'], dim=0)

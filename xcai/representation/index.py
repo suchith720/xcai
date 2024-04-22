@@ -14,7 +14,7 @@ class IndexSearch:
 
     def __init__(self, 
                  index:Optional[hnswlib.Index]=None, 
-                 space:Optional[str]='l2', 
+                 space:Optional[str]='cosine', 
                  efc:Optional[int]=200, 
                  m:Optional[int]=16, 
                  efs:Optional[int]=50, 
@@ -37,5 +37,5 @@ class IndexSearch:
         n_bm = self.efs if n_bm > self.efs else n_bm
         info, sc = self.index.knn_query(inputs, k=n_bm)
         info, sc, ptr = torch.tensor(info.reshape(-1).astype(np.int64)), torch.tensor(sc.reshape(-1)), torch.full((inputs.shape[0],), n_bm)
-        return {'info2data_idx':info, 'info2data_score':sc, 'info2data_data2ptr':ptr}
+        return {'info2data_idx':info, 'info2data_score':1.0-sc, 'info2data_data2ptr':ptr}
         

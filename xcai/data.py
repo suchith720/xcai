@@ -61,7 +61,13 @@ class BaseXCDataset(Dataset):
         cut = int(valid_pct * self.n_data)
         train, valid = self._getitems(rnd_idx[cut:]), self._getitems(rnd_idx[:cut])
         return train, valid
-    
+
+    def sample(self, pct:Optional[float]=0.2, n:Optional[int]=None, seed=None):
+        if seed is not None: torch.manual_seed(seed)
+        rnd_idx = list(torch.randperm(self.n_data).numpy())
+        cut = int(pct * self.n_data) if n is None else max(1, n)
+        return self._getitems(rnd_idx[:cut])
+        
     def _verify_info(self, info:Dict):
         if info is None: raise ValueError('`info` cannot be empty.')
         n_info = [len(v) for k,v in info.items()]
@@ -130,11 +136,12 @@ def __getitem__(cls:MainXCDataset, idx:int):
 def _getitems(cls:MainXCDataset, idxs:List):
     return MainXCDataset(
         {k:[v[idx] for idx in idxs] for k,v in cls.data_info.items()}, 
-        cls.data_lbl[idxs] if cls.data_lbl is not None else None, 
-        cls.lbl_info, n_samples=cls.n_samples
+        cls.data_lbl[idxs] if cls.data_lbl is not None else None, cls.lbl_info, 
+        Filterer.sample(cls.data_lbl_filterer, sz=cls.data_lbl.shape, idx=idxs) if cls.data_lbl_filterer is not None else None,
+        n_samples=cls.n_samples
     )
 
-# %% ../nbs/02_data.ipynb 28
+# %% ../nbs/02_data.ipynb 29
 class MetaXCDataset(BaseXCDataset):
 
     def __init__(self,
@@ -194,7 +201,7 @@ class MetaXCDataset(BaseXCDataset):
             display(df)
     
 
-# %% ../nbs/02_data.ipynb 30
+# %% ../nbs/02_data.ipynb 31
 @patch
 def _verify_inputs(cls:MetaXCDataset):
     cls.n_data, cls.n_lbl, cls.n_meta = cls.data_meta.shape[0], cls.lbl_meta.shape[0], cls.data_meta.shape[1]
@@ -206,7 +213,7 @@ def _verify_inputs(cls:MetaXCDataset):
             raise ValueError(f'`meta_info`({n_meta}) should have same number of entries as number of columns of `data_meta`({cls.n_meta})')
             
 
-# %% ../nbs/02_data.ipynb 40
+# %% ../nbs/02_data.ipynb 42
 class MetaXCDatasets(dict):
 
     def __init__(self, meta:Dict):
@@ -214,7 +221,7 @@ class MetaXCDatasets(dict):
         for o in meta: setattr(self, o, meta[o])
         
 
-# %% ../nbs/02_data.ipynb 41
+# %% ../nbs/02_data.ipynb 43
 class XCDataset(BaseXCDataset):
 
     def __init__(self, data:MainXCDataset, **kwargs):
@@ -273,7 +280,7 @@ class XCDataset(BaseXCDataset):
         return [self[idx] for idx in idxs]
        
 
-# %% ../nbs/02_data.ipynb 51
+# %% ../nbs/02_data.ipynb 54
 class XCCollator:
 
     def __init__(self, tfms):
@@ -283,7 +290,7 @@ class XCCollator:
         return self.tfms(x)
         
 
-# %% ../nbs/02_data.ipynb 68
+# %% ../nbs/02_data.ipynb 71
 class BaseXCDataBlock:
 
     @delegates(DataLoader.__init__)
@@ -336,7 +343,7 @@ class BaseXCDataBlock:
         
         
 
-# %% ../nbs/02_data.ipynb 69
+# %% ../nbs/02_data.ipynb 72
 @patch
 def filterer(cls:BaseXCDataBlock, train:'BaseXCDataBlock', valid:'BaseXCDataBlock', fld:Optional[str]='identifier'):
     train_info, valid_info, lbl_info = train.dset.data.data_info, valid.dset.data.data_info, train.dset.data.lbl_info
@@ -359,9 +366,16 @@ def splitter(cls:BaseXCDataBlock, valid_pct:Optional[float]=0.2, seed=None):
     train, valid = cls._getitems(rnd_idx[cut:]), cls._getitems(rnd_idx[:cut])
     if cls.data_lbl_filterer is None: return train, valid
     else: return cls.filterer(train, valid)
-        
 
-# %% ../nbs/02_data.ipynb 78
+@patch
+def sample(cls:BaseXCDataBlock, pct:Optional[float]=0.2, n:Optional[int]=None, seed=None):
+    if seed is not None: torch.manual_seed(seed)
+    rnd_idx = list(torch.randperm(len(cls)).numpy())
+    cut = int(pct * len(cls)) if n is None else max(1, n)
+    return cls._getitems(rnd_idx[:cut])
+    
+
+# %% ../nbs/02_data.ipynb 82
 class XCDataBlock:
 
     def __init__(self, train:BaseXCDataBlock=None, valid:BaseXCDataBlock=None, test:BaseXCDataBlock=None):

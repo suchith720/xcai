@@ -35,8 +35,8 @@ class TrieOutput:
 
 # %% ../../nbs/08_generation.trie.ipynb 10
 class Trie(object):
-    def __init__(self):
-        self.root, self.depth = None, 0
+    def __init__(self, max_info:Optional[int]=None):
+        self.root, self.depth, self.max_info = None, 0, max_info
 
     @staticmethod
     def _add_info(node:TrieNode, info:Any):
@@ -60,9 +60,11 @@ class Trie(object):
         node.cnt += 1
         
     @staticmethod
-    def _search(node:TrieNode, p:List, o:List):
-        if node.is_end: o.append(TrieOutput(p, node.cnt, node.info)); return
-        for tok, n in node.nxt_toks.items(): Trie._search(n, p+[tok], o)
+    def _search(node:TrieNode, p:List, o:List, max_info:Optional[int]=None):
+        if node.is_end:
+            info = node.info if max_info is None else node.info[:max_info]
+            o.append(TrieOutput(p, node.cnt, info)); return
+        for tok, n in node.nxt_toks.items(): Trie._search(n, p+[tok], o, max_info)
 
     def suffixes(self, x:Union[int,List]):
         x = [x] if isinstance(x, int) else x
@@ -71,7 +73,7 @@ class Trie(object):
         for tok in x[1:]:
             if tok in node.nxt_toks: node = node.nxt_toks[tok]
             else: return
-        Trie._search(node, x, o)
+        Trie._search(node, x, o, self.max_info)
         return sorted(o, key=lambda x: x.cnt, reverse=True)
 
     @staticmethod
@@ -89,6 +91,7 @@ class Trie(object):
         if node.tok != x[0]: raise ValueError(f'`bos_tok`({x[0]}) cannot be "{node.tok}".')
         for tok in x[1:-1]:
             if tok in node.nxt_toks: node=node.nxt_toks[tok]; o.append(tok)
+            else: break
         if x[-1] in node.nxt_toks and node.nxt_toks[x[-1]].is_end: return o+x[-1:]
 
     def __contains__(self, x:List):
@@ -113,15 +116,15 @@ class Trie(object):
 
     @classmethod
     @typedispatch
-    def from_list(cls, x:List):
-        self = cls()
+    def from_list(cls, x:List, max_info:Optional[int]=None):
+        self = cls(max_info)
         for o in tqdm(x): self.insert(o)
         return self
 
     @classmethod
     @typedispatch
-    def from_list(cls, x:List, y:List):
-        self = cls()
+    def from_list(cls, x:List, y:List, max_info:Optional[int]=None):
+        self = cls(max_info)
         for p,q in tqdm(zip(x,y), total=len(x)): self.insert(p,q)
         return self
 
@@ -130,11 +133,11 @@ class Trie(object):
 class XCTrie:
     
     @classmethod
-    def from_block(cls, block:XCDataBlock, meta:Optional[List]=None):
+    def from_block(cls, block:XCDataBlock, meta:Optional[List]=None, max_info:Optional[int]=None):
         lbl_toks = block.lbl_info['input_ids']
         lbl_info = [[i] for i in range(len(lbl_toks))]
         
-        trie = Trie.from_list(lbl_toks, lbl_info)
+        trie = Trie.from_list(lbl_toks, lbl_info, max_info)
 
         if meta is not None:
             meta_dset = block.train.dset.meta

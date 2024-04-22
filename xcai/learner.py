@@ -188,10 +188,12 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
     def __init__(self, 
                  generation_length_penalty:Optional[float]=1.0, 
                  generation_num_beams:Optional[int]=5,
+                 generation_max_beams:Optional[int]=10,
+                 generation_max_info:Optional[int]=None,
                  representation_accumulation_steps:Optional[int]=None,
                  representation_attribute:Optional[str]='data_repr',
                  representation_num_beams:Optional[int]=5,
-                 index_space:Optional[str]='l2', 
+                 index_space:Optional[str]='cosine', 
                  index_efc:Optional[int]=200, 
                  index_m:Optional[int]=16, 
                  index_efs:Optional[int]=50,
@@ -205,7 +207,7 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
                  num_cluster_update_epochs:Optional[int]=1,
                  **kwargs):
         super().__init__(**kwargs)
-        store_attr('generation_num_beams,generation_length_penalty')
+        store_attr('generation_num_beams,generation_max_beams,generation_length_penalty,generation_max_info')
         store_attr('representation_accumulation_steps,representation_attribute,representation_num_beams')
         store_attr('index_space,index_efc,index_m,index_efs,index_num_threads')
         store_attr('predict_with_generation,predict_with_representation,output_concatenation_weight')
@@ -222,7 +224,8 @@ class XCLearner(Seq2SeqTrainer):
                  trie:Optional[Trie]=None, 
                  **kwargs):
         super().__init__(**kwargs)
-        self.tbs = TrieBeamSearch(trie, n_bm=self.args.generation_num_beams, len_penalty=self.args.generation_length_penalty)
+        self.tbs = TrieBeamSearch(trie, n_bm=self.args.generation_num_beams, max_bm=self.args.generation_max_beams,
+                                  len_penalty=self.args.generation_length_penalty, max_info=self.args.generation_max_info)
         self.idxs = IndexSearch(space=self.args.index_space, efc=self.args.index_efc, m=self.args.index_m, efs=self.args.index_efs, 
                                 n_bm=self.args.representation_num_beams, n_threads=self.args.index_num_threads)
 
@@ -405,8 +408,8 @@ def prediction_step(
 # %% ../nbs/06_learner.ipynb 35
 @patch
 def _build_lbl_index(self:XCLearner, dataset:Optional[Dataset]=None):
-    dataset = self.eval_dataset if self.train_dataset is None else self.train_dataset
     dataset = dataset if self.eval_dataset is None else self.eval_dataset
+    dataset = dataset if self.train_dataset is None else self.train_dataset
     if dataset is not None:
         lbl_dset = dataset.lbl_dset
         lbl_dl = self.get_test_dataloader(lbl_dset)
