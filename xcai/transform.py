@@ -324,7 +324,7 @@ class NGMapper:
         return x
         
 
-# %% ../nbs/01_transform.ipynb 68
+# %% ../nbs/01_transform.ipynb 70
 class TfmPipeline:
 
     def __init__(self, tfms:List):
@@ -335,20 +335,21 @@ class TfmPipeline:
         return x
         
 
-# %% ../nbs/01_transform.ipynb 95
+# %% ../nbs/01_transform.ipynb 97
 class AugmentMetaInputIdsTfm:
 
-    def __init__(self, meta:str, max_len:Optional[int]=None):
-        self.meta, self.max_len = meta, max_len
+    def __init__(self, meta:str, max_len:Optional[int]=None, exclude_sep:Optional[bool]=False):
+        self.meta, self.max_len, self.exclude_sep = meta, max_len, exclude_sep
     
     def augment(self, data_ids:List, data_meta:sparse.csr_matrix, meta_ids:List):
         meta2data_ids = []
         for d_ids, d_meta in progress_bar(zip(data_ids, data_meta), total=len(data_ids)):
-            m2d_ids = d_ids.copy()
+            m2d_ids, sep_tok = d_ids[:-1].copy() if self.exclude_sep else d_ids.copy(), d_ids[-1:]
             for o in d_meta.indices:
-                m2d_ids.extend(meta_ids[o][1:])
-                if len(m2d_ids)>self.max_len and self.max_len is not None: m2d_ids = m2d_ids[:self.max_len-1] + m2d_ids[-1:]; break
-            meta2data_ids.append(m2d_ids)
+                if self.exclude_sep: m2d_ids.extend(meta_ids[o][1:-1])
+                else: m2d_ids.extend(meta_ids[o][1:])
+                if len(m2d_ids)>self.max_len and self.max_len is not None: m2d_ids = m2d_ids[:self.max_len-1]; break
+            meta2data_ids.append(m2d_ids+sep_tok)
         return meta2data_ids
 
     def proc(self, block:XCDataBlock, split:str, fld:str):
@@ -358,19 +359,20 @@ class AugmentMetaInputIdsTfm:
             data_meta = get_attr(block, f'{split}.dset.meta.{self.meta}.data_meta')
             get_attr(block, f'{split}.dset.data.data_info')[f'{fld}_aug_{self.meta.split("_")[0]}'] = self.augment(data_ids, data_meta, meta_ids)
 
-    def __call__(self, block:XCDataBlock, meta:str, max_len:Optional[int]=None):
-        store_attr('meta,max_len', is_none=False)
-        for split in master_bar(['train', 'valid', 'test']): 
-            for fld in ['input_ids', 'attention_mask', 'token_type_ids']: self.proc(block, split, fld)
+    def __call__(self, block:XCDataBlock, meta:str, max_len:Optional[int]=None, exclude_sep:Optional[bool]=None):
+        store_attr('meta,max_len,exclude_sep', is_none=False)
+        for split in master_bar(['train', 'valid', 'test']):
+            if hasattr(block, split) and get_attr(block, split) is not None: 
+                for fld in ['input_ids', 'attention_mask', 'token_type_ids']: self.proc(block, split, fld)
         return block
         
     @classmethod
-    def apply(cls, block:XCDataBlock, meta:str, max_len:Optional[int]=None):
-        self = cls(meta, max_len)
-        return self(block, meta, max_len)
+    def apply(cls, block:XCDataBlock, meta:str, max_len:Optional[int]=None, exclude_sep:Optional[bool]=False):
+        self = cls(meta, max_len, exclude_sep)
+        return self(block, meta, max_len, exclude_sep)
         
 
-# %% ../nbs/01_transform.ipynb 110
+# %% ../nbs/01_transform.ipynb 113
 class TriePruneInputIdsTfm:
 
     def prune(self, block:XCDataBlock, loc:str, fld:str):
