@@ -35,23 +35,23 @@ class Info():
         return info
         
     @staticmethod
-    def _read_info(fname:str, sep:Optional[str]='->', cols:Optional[List]=None, enc:Optional[str]='latin-1'):
+    def _read_info(fname:str, sep:Optional[str]='->', info_column_names:Optional[List]=None, enc:Optional[str]='latin-1'):
         info = Info._read_text(fname, enc=enc)
         info = list(zip(*[o.split(sep) for o in info]))
-        cols = list(range(len(info))) if cols is None else cols
-        if len(cols) != len(info): raise ValueError(f'`cols` and `info` should have same number of elements.')
-        return {p:q for p,q in zip(cols, info)}
+        info_column_names = list(range(len(info))) if info_column_names is None else info_column_names
+        if len(info_column_names) != len(info): raise ValueError(f'`info_column_names` and `info` should have same number of elements.')
+        return {p:q for p,q in zip(info_column_names, info)}
 
-    def read_info(self, fname:Optional[str], sep:Optional[str]='->', cols:Optional[List]=None, enc:Optional[str]='latin-1'):
-        self.info = Info._read_info(fname, sep, cols, enc)
+    def read_info(self, fname:Optional[str], sep:Optional[str]='->', info_column_names:Optional[List]=None, enc:Optional[str]='latin-1'):
+        self.info = Info._read_info(fname, sep, info_column_names, enc)
         return self.info
     
-    def tokenize(self, fld:Union[int, str], tokz:Union[str, PreTrainedTokenizerBase], max_len:Optional[int]=None):
-        if self.tokz is None: self.tokz = tokz if isinstance(tokz, PreTrainedTokenizerBase) else AutoTokenizer.from_pretrained(tokz)
-        fld = list(self.info.keys())[0] if fld is None else fld
-        if fld is None: logging.info(f'`fld` not given as input, so value set to {fld}.')
-        if fld not in self.info: raise ValueError(f'`{fld}` is invalid `fld` value.')
-        self.info.update(self.tokz(self.info[fld], truncation=True, max_length=max_len))
+    def tokenize(self, tokenization_column:Union[int, str], tokenizer:Union[str, PreTrainedTokenizerBase], max_sequence_length:Optional[int]=None):
+        if self.tokz is None: self.tokz = tokenizer if isinstance(tokenizer, PreTrainedTokenizerBase) else AutoTokenizer.from_pretrained(tokenizer)
+        tokenization_column = list(self.info.keys())[0] if tokenization_column is None else tokenization_column
+        if tokenization_column is None: logging.info(f'`tokenization_column` not given as input, so value set to {tokenization_column}.')
+        if tokenization_column not in self.info: raise ValueError(f'`{tokenization_column}` is invalid `tokenization_column` value.')
+        self.info.update(self.tokz(self.info[tokenization_column], truncation=True, max_length=max_sequence_length))
         return self.info
 
     def show_data(self, n:Optional[int]=10, seed:Optional[int]=None):
@@ -69,16 +69,16 @@ class Info():
     def from_txt(cls, 
                  fname:str, 
                  sep:Optional[str]='->', 
-                 cols:Optional[List]=None, 
+                 info_column_names:Optional[List]=None, 
                  enc:Optional[str]='latin-1',
-                 use_tokz:Optional[bool]=False,
-                 tokz:Optional[Union[str,PreTrainedTokenizerBase]]=None,
-                 fld:Optional[str]=None,
-                 max_len:Optional[int]=None, 
+                 use_tokenizer:Optional[bool]=False,
+                 tokenizer:Optional[Union[str,PreTrainedTokenizerBase]]=None,
+                 tokenization_column:Optional[str]=None,
+                 max_sequence_length:Optional[int]=None, 
                  **kwargs):
         self = cls()
-        self.info = self.read_info(fname, sep, cols, enc)
-        if use_tokz: self.tokenize(fld, tokz, max_len)
+        self.info = self.read_info(fname, sep, info_column_names, enc)
+        if use_tokenizer: self.tokenize(tokenization_column, tokenizer, max_sequence_length)
         return self.info
         
 
@@ -192,7 +192,7 @@ def get_tensor_statistics(x:torch.Tensor):
 
 def total_recall(inp_idx:torch.Tensor, n_inp:torch.Tensor, targ:sparse.csr_matrix, filterer:sparse.csr_matrix):
     val, ptr = torch.ones(len(inp_idx)), torch.cat([torch.zeros(1, dtype=torch.int64), n_inp.cumsum(0)])
-    inp = sparse.csr_matrix((val,inp_idx,ptr), shape=targ.shape)
+    inp = sparse.csr_matrix((val,inp_idx,ptr), shape=targ.shape); inp.sum_duplicates(); inp.data[:] = 1
     if filterer is not None: inp, targ = Filterer.apply(inp, filterer), Filterer.apply(targ, filterer)
     sc = inp.multiply(targ)/(targ.getnnz(axis=1)[:, None]*targ.shape[0])
     return sc.sum(), sc

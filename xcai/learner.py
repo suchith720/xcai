@@ -205,6 +205,8 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
                  minimum_clusters:Optional[int]=3,
                  maximum_clusters:Optional[int]=None,
                  num_cluster_update_epochs:Optional[int]=1,
+                 target_indices_key:Optional[str]='lbl2data_idx',
+                 target_pointer_key:Optional[str]='lbl2data_data2ptr',
                  **kwargs):
         super().__init__(**kwargs)
         store_attr('generation_num_beams,generation_max_beams,generation_length_penalty,generation_max_info')
@@ -212,6 +214,7 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
         store_attr('index_space,index_efc,index_m,index_efs,index_num_threads')
         store_attr('predict_with_generation,predict_with_representation,output_concatenation_weight')
         store_attr('group_by_cluster,num_cluster_update_epochs')
+        store_attr('target_indices_key,target_pointer_key')
         self.minimum_clusters = max(1, minimum_clusters)
         self.maximum_clusters = max(minimum_clusters, maximum_clusters) if maximum_clusters is not None else minimum_clusters
         
@@ -399,7 +402,7 @@ def prediction_step(
     if output is None: output = repr_o
     elif repr_o is not None: output = self.concatenate_output(output, repr_o)
         
-    labels = {'targ_idx':inputs['lbl2data_idx'], 'targ_ptr':inputs['lbl2data_data2ptr']} if 'lbl2data_idx' in inputs else None
+    labels = {'targ_idx':inputs[self.args.target_indices_key], 'targ_ptr':inputs[self.args.target_pointer_key]} if self.args.target_indices_key in inputs else None
     if labels is not None: output.update(labels)
     
     return loss, output

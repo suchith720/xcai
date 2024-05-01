@@ -93,16 +93,16 @@ class MainXCDataset(BaseXCDataset):
                  data_lbl:Optional[sparse.csr_matrix]=None,
                  lbl_info:Optional[Dict]=None,
                  data_lbl_filterer:Optional[Union[sparse.csr_matrix,np.array]]=None,
-                 n_samples:Optional[int]=None,
+                 n_lbl_samples:Optional[int]=None,
                  **kwargs):
         super().__init__()
-        store_attr('data_info,data_lbl,lbl_info,data_lbl_filterer,n_samples')
+        store_attr('data_info,data_lbl,lbl_info,data_lbl_filterer,n_lbl_samples')
         self._verify_inputs()
         
     @classmethod
     @delegates(MainXCData.from_file)
-    def from_file(cls, n_samples:Optional[int]=None, **kwargs):
-        return cls(**MainXCData.from_file(**kwargs), n_samples=n_samples)
+    def from_file(cls, n_lbl_samples:Optional[int]=None, **kwargs):
+        return cls(**MainXCData.from_file(**kwargs), n_lbl_samples=n_lbl_samples)
         
 
 # %% ../nbs/02_data.ipynb 17
@@ -117,6 +117,7 @@ def _verify_inputs(cls:MainXCDataset):
             n_lbl = cls._verify_info(cls.lbl_info)
             if n_lbl != cls.data_lbl.shape[1]:
                 raise ValueError(f'`lbl_info`({n_lbl}) should have same number of labels as `data_lbl`({cls.data_lbl.shape[1]})')
+                
 
 # %% ../nbs/02_data.ipynb 18
 @patch
@@ -125,7 +126,7 @@ def __getitem__(cls:MainXCDataset, idx:int):
     if cls.n_lbl is not None:
         prefix = 'lbl2data'
         x[f'{prefix}_idx'] = cls.data_lbl[idx].indices.tolist()
-        if cls.n_samples: x[f'{prefix}_idx'] = [x[f'{prefix}_idx'][i] for i in np.random.permutation(len(x[f'{prefix}_idx']))[:cls.n_samples]]
+        if cls.n_lbl_samples: x[f'{prefix}_idx'] = [x[f'{prefix}_idx'][i] for i in np.random.permutation(len(x[f'{prefix}_idx']))[:cls.n_lbl_samples]]
         if cls.lbl_info is not None:
             x.update({f'{prefix}_{k}':[v[i] for i in x[f'{prefix}_idx']] for k,v in cls.lbl_info.items()})
     return x
@@ -138,7 +139,7 @@ def _getitems(cls:MainXCDataset, idxs:List):
         {k:[v[idx] for idx in idxs] for k,v in cls.data_info.items()}, 
         cls.data_lbl[idxs] if cls.data_lbl is not None else None, cls.lbl_info, 
         Filterer.sample(cls.data_lbl_filterer, sz=cls.data_lbl.shape, idx=idxs) if cls.data_lbl_filterer is not None else None,
-        n_samples=cls.n_samples
+        n_lbl_samples=cls.n_lbl_samples
     )
 
 # %% ../nbs/02_data.ipynb 29
@@ -149,24 +150,24 @@ class MetaXCDataset(BaseXCDataset):
                  data_meta:sparse.csr_matrix, 
                  lbl_meta:sparse.csr_matrix, 
                  meta_info:Optional[Dict]=None, 
-                 n_samples:Optional[int]=None, 
+                 n_meta_samples:Optional[int]=None, 
                  **kwargs):
-        store_attr('prefix,data_meta,lbl_meta,meta_info,n_samples')
+        store_attr('prefix,data_meta,lbl_meta,meta_info,n_meta_samples')
         self._verify_inputs()
 
     def _getitems(self, idxs:List):
-        return MetaXCDataset(self.prefix, self.data_meta[idxs], self.lbl_meta, self.meta_info, self.n_samples)
+        return MetaXCDataset(self.prefix, self.data_meta[idxs], self.lbl_meta, self.meta_info, self.n_meta_samples)
         
     @classmethod
     @delegates(MetaXCData.from_file)
-    def from_file(cls, n_samples:Optional[int]=None, **kwargs):
-        return cls(**MetaXCData.from_file(**kwargs), n_samples=n_samples)
+    def from_file(cls, n_meta_samples:Optional[int]=None, **kwargs):
+        return cls(**MetaXCData.from_file(**kwargs), n_meta_samples=n_meta_samples)
 
     @typedispatch
     def get_lbl_meta(self, idx:int):
         prefix = f'{self.prefix}2lbl2data'
         x = {f'{prefix}_idx': self.lbl_meta[idx].indices.tolist()}
-        if self.n_samples: x[f'{prefix}_idx'] = [x[f'{prefix}_idx'][i] for i in np.random.permutation(len(x[f'{prefix}_idx']))[:self.n_samples]]
+        if self.n_meta_samples: x[f'{prefix}_idx'] = [x[f'{prefix}_idx'][i] for i in np.random.permutation(len(x[f'{prefix}_idx']))[:self.n_meta_samples]]
         if self.meta_info is not None:
             x.update({f'{prefix}_{k}':[v[i] for i in x[f'{prefix}_idx']] for k,v in self.meta_info.items()})
         return x
@@ -175,7 +176,7 @@ class MetaXCDataset(BaseXCDataset):
     def get_lbl_meta(self, idxs:List):
         prefix = f'{self.prefix}2lbl2data'
         x = {f'{prefix}_idx': [self.lbl_meta[idx].indices.tolist() for idx in idxs]}
-        if self.n_samples: x[f'{prefix}_idx'] = [[o[i] for i in np.random.permutation(len(o))[:self.n_samples]] for o in x[f'{prefix}_idx']]
+        if self.n_meta_samples: x[f'{prefix}_idx'] = [[o[i] for i in np.random.permutation(len(o))[:self.n_meta_samples]] for o in x[f'{prefix}_idx']]
         if self.meta_info is not None:
             x.update({f'{prefix}_{k}':[[v[i] for i in o] for o in x[f'{prefix}_idx']] for k,v in self.meta_info.items()})
         return x
@@ -183,7 +184,7 @@ class MetaXCDataset(BaseXCDataset):
     def get_data_meta(self, idx:int):
         prefix = f'{self.prefix}2data'
         x = {f'{prefix}_idx': self.data_meta[idx].indices.tolist()}
-        if self.n_samples: x[f'{prefix}_idx'] = [x[f'{prefix}_idx'][i] for i in np.random.permutation(len(x[f'{prefix}_idx']))[:self.n_samples]]
+        if self.n_meta_samples: x[f'{prefix}_idx'] = [x[f'{prefix}_idx'][i] for i in np.random.permutation(len(x[f'{prefix}_idx']))[:self.n_meta_samples]]
         if self.meta_info is not None:
             x.update({f'{prefix}_{k}':[v[i] for i in x[f'{prefix}_idx']] for k,v in self.meta_info.items()})
         return x

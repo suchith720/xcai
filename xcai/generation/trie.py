@@ -5,10 +5,11 @@ __all__ = ['TrieNode', 'TrieOutput', 'Trie', 'XCTrie']
 
 # %% ../../nbs/08_generation.trie.ipynb 2
 from tqdm.auto import tqdm
-from fastcore.dispatch import *
-from ..data import XCDataBlock
 from dataclasses import dataclass
 from typing import Optional, List, Any, Union
+
+from ..data import XCDataBlock
+from fastcore.dispatch import *
 
 # %% ../../nbs/08_generation.trie.ipynb 8
 class TrieNode:
@@ -41,10 +42,10 @@ class Trie(object):
     @staticmethod
     def _add_info(node:TrieNode, info:Any):
         if node.info is None: 
-            node.info = info if isinstance(info, list) else [info]
+            node.info = set(info) if isinstance(info, list) else set([info])
         else: 
-            if isinstance(info, list): node.info.extend(info)
-            else: node.info.append(info)
+            if isinstance(info, list): node.info.update(info)
+            else: node.info.add(info)
         
     def insert(self, toks:Optional[List], info:Optional[Any]=None):
         if len(toks) > self.depth: self.depth = len(toks)
@@ -62,7 +63,7 @@ class Trie(object):
     @staticmethod
     def _search(node:TrieNode, p:List, o:List, max_info:Optional[int]=None):
         if node.is_end:
-            info = node.info if max_info is None else node.info[:max_info]
+            info = list(node.info) if max_info is None else list(node.info)[:max_info]
             o.append(TrieOutput(p, node.cnt, info)); return
         for tok, n in node.nxt_toks.items(): Trie._search(n, p+[tok], o, max_info)
 

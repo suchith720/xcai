@@ -48,7 +48,7 @@ class TriePtr:
 
     @property
     def value(self):
-        info = self.ptr.info if self.max_info is None else self.ptr.info[:self.max_info]
+        info = list(self.ptr.info) if self.max_info is None else list(self.ptr.info)[:self.max_info]
         return TrieOutput(self.hyp, self.ptr.cnt, info)
 
     def copy(self):
