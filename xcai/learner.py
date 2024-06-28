@@ -2,13 +2,13 @@
 
 # %% auto 0
 __all__ = ['TRAINING_ARGS_NAME', 'TRAINER_STATE_NAME', 'OPTIMIZER_NAME', 'OPTIMIZER_NAME_BIN', 'SCHEDULER_NAME', 'SCALER_NAME',
-           'FSDP_MODEL_NAME', 'logger', 'scatter', 'scatter_kwargs', 'XCDataParallel', 'XCEvalLoopOutput',
-           'XCPredictionOutput', 'XCLearningArguments', 'XCLearner']
+           'FSDP_MODEL_NAME', 'logger', 'pkl_dir', 'pkl_file', 'scatter', 'scatter_kwargs', 'XCDataParallel',
+           'XCEvalLoopOutput', 'XCPredictionOutput', 'XCLearningArguments', 'XCLearner']
 
 # %% ../nbs/06_learner.ipynb 3
 from tqdm.auto import tqdm
 from packaging import version
-import torch, re, math, numpy as np, os, time, datasets
+import torch, re, math, numpy as np, os, time, datasets, pickle
 from typing import Any, Tuple, Optional, Sequence, Union, Dict, List, NamedTuple
 from transformers import AutoTokenizer, BatchEncoding, Seq2SeqTrainer, Seq2SeqTrainingArguments
 
@@ -22,9 +22,11 @@ from torch.nn.parallel.scatter_gather import _is_namedtuple
 
 from .core import *
 from .data import *
-from .representation.index import *
+from .representation.search import *
 from .generation.trie import *
 from .generation.generate import *
+from .clustering.cluster import *
+from .transform import PadFeatTfm
 
 from fastcore.utils import *
 from fastcore.meta import *
@@ -86,6 +88,10 @@ FSDP_MODEL_NAME = "pytorch_model_fsdp"
 logger = logging.get_logger(__name__)
 
 # %% ../nbs/06_learner.ipynb 18
+pkl_dir = '/home/scai/phd/aiz218323/scratch/datasets'
+pkl_file = f'{pkl_dir}/processed/wikiseealso_data_distilbert-base-uncased_xcnlg_ngame.pkl'
+
+# %% ../nbs/06_learner.ipynb 21
 def scatter(inputs, target_gpus, chunk_sizes=None, dim=0):
     def scatter_map(obj):
         if isinstance(obj, torch.Tensor):
@@ -121,55 +127,55 @@ def scatter_kwargs(
     return scattered_inputs, scattered_kwargs
     
 
-# %% ../nbs/06_learner.ipynb 19
+# %% ../nbs/06_learner.ipynb 22
 class XCDataParallel(DataParallel):
 
     @delegates(DataParallel.__init__)
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
-    def _get_meta_name(self, x:Optional[Dict[str, Any]]):
-        return list(set([k.split('_')[0] for k in x]).difference(['data', 'lbl2data'])) if len(x) else set()
-
+        
+    def _get_feat_name(self, x:Optional[Dict[str, Any]]):
+        return list(set([k.split('_', maxsplit=1)[0] for k in x]))
+    
     def _extract_feat(self, x:Optional[Dict[str, Any]], prefix:str):
-        return {k:v for k,v in x.items() if re.match(f'^{prefix}', k) and not re.match(r'.*2ptr$', k)}
+        return {k:v for k,v in x.items() if re.match(f'^{prefix}_(?!.*2ptr)', k) or re.match(f'^.*_{prefix}2ptr$', k)}
 
     def scatter(
         self,
         inputs: Tuple[Any, ...],
         kwargs: Optional[Dict[str, Any]],
         device_ids: Sequence[Union[int, torch.device]],
-    ) -> Any:
-        if len(inputs): raise ValueError('`inputs` should be empty.')
-        meta_name = self._get_meta_name(kwargs)+['lbl2data']
+    ) ->Any:
+        if len(inputs): raise ValueError('`inputs` should be empty.')    
+        feat_name = self._get_feat_name(kwargs)
         
         data_feat = self._extract_feat(kwargs, 'data')
         scattered_inputs, scattered_kwargs = scatter_kwargs(inputs, data_feat, device_ids, None, dim=self.dim)
+        feat_name.remove('data')
         
-        for o in meta_name:
-            pn, chunk_sizes = f'{o}_data2ptr', None
-            if pn in kwargs:
-                ptr = kwargs[pn]
-                psz, csz = ptr.shape[0], math.ceil(ptr.shape[0]/len(device_ids))
-                psz = (psz//csz+1)*csz if psz%csz else psz # Use torch.chunk
-                chunk_sizes = [ptr[p:q].sum() for p,q in zip(range(0, psz+1, csz), range(csz, psz+1, csz))]
-                _, sc_ptr = scatter_kwargs(inputs, {pn:ptr}, device_ids, None, dim=self.dim)
-                for p,q in zip(scattered_kwargs, sc_ptr): p.update(q)
+        for k in feat_name:
+            ptr_name = f'{k}_data2ptr'
+            if ptr_name in scattered_kwargs[0] and scattered_kwargs[0][ptr_name] is not None:
+                chunk_sz = [o[ptr_name].sum().item() for o in scattered_kwargs]
+                if len(chunk_sz) < len(device_ids): 
+                    chunk_sz.extend([0 for _ in range(len(device_ids) - len(chunk_sz))])
+                
+                feat = self._extract_feat(kwargs, k)
+                _, o = scatter_kwargs(inputs, feat, device_ids, chunk_sz, dim=self.dim)
+                for p,q in zip(scattered_kwargs, o): p.update(q)
                     
-            feat = self._extract_feat(kwargs, o)    
-            _, sc_kwargs = scatter_kwargs(inputs, feat, device_ids, chunk_sizes, dim=self.dim)
-            for p,q in zip(scattered_kwargs, sc_kwargs): p.update(q)
-            
         return tuple(scattered_inputs), tuple(scattered_kwargs)
         
 
-# %% ../nbs/06_learner.ipynb 29
+# %% ../nbs/06_learner.ipynb 35
 class XCEvalLoopOutput(NamedTuple):
     pred_idx: Union[np.ndarray, Tuple[np.ndarray]]
     pred_ptr: Union[np.ndarray, Tuple[np.ndarray]]
     pred_score: Union[np.ndarray, Tuple[np.ndarray]]
     targ_idx: Optional[Union[np.ndarray, Tuple[np.ndarray]]]
     targ_ptr: Optional[Union[np.ndarray, Tuple[np.ndarray]]]
+    gen_output: Optional[Dict]
+    repr_output: Optional[Dict]
     metrics: Optional[Dict[str, float]]
     num_samples: Optional[int]
 
@@ -177,49 +183,72 @@ class XCPredictionOutput(NamedTuple):
     pred_idx: Union[np.ndarray, Tuple[np.ndarray]]
     pred_ptr: Union[np.ndarray, Tuple[np.ndarray]]
     pred_score: Optional[Union[np.ndarray, Tuple[np.ndarray]]]
+    gen_output: Optional[Dict]
+    repr_output: Optional[Dict]
     metrics: Optional[Dict[str, float]]
     num_samples: Optional[int]
     
 
-# %% ../nbs/06_learner.ipynb 30
+# %% ../nbs/06_learner.ipynb 36
 class XCLearningArguments(Seq2SeqTrainingArguments):
 
     @delegates(Seq2SeqTrainingArguments.__init__)
     def __init__(self, 
-                 generation_length_penalty:Optional[float]=1.0, 
+                 use_encoder_parallel:Optional[bool]=False,
+                 generation_length_penalty:Optional[float]=1.0,
+                 generation_eos_token:Optional[int]=102,
                  generation_num_beams:Optional[int]=5,
-                 generation_max_beams:Optional[int]=10,
                  generation_max_info:Optional[int]=None,
                  representation_accumulation_steps:Optional[int]=None,
                  representation_attribute:Optional[str]='data_repr',
                  representation_num_beams:Optional[int]=5,
+                 representation_search_type:Optional[str]='INDEX',
                  index_space:Optional[str]='cosine', 
-                 index_efc:Optional[int]=200, 
-                 index_m:Optional[int]=16, 
-                 index_efs:Optional[int]=50,
+                 index_efc:Optional[int]=300, 
+                 index_m:Optional[int]=100, 
+                 index_efs:Optional[int]=300,
                  index_num_threads:Optional[int]=84,
                  predict_with_generation:Optional[bool]=False,
                  predict_with_representation:Optional[bool]=False,
                  output_concatenation_weight:Optional[float]=1.0,
                  group_by_cluster:Optional[bool]=False,
+                 num_clustering_warmup_epochs:Optional[int]=None,
+                 num_cluster_update_epochs:Optional[int]=1,
+                 num_cluster_size_update_epochs:Optional[int]=1,
+                 clustering_type:Optional[str]='EXPO',
                  minimum_clusters:Optional[int]=3,
                  maximum_clusters:Optional[int]=None,
-                 num_cluster_update_epochs:Optional[int]=1,
+                 minimum_cluster_size:Optional[int]=1,
+                 maximum_cluster_size:Optional[int]=None,
+                 clustering_devices:Optional[List]=None,
                  target_indices_key:Optional[str]='lbl2data_idx',
                  target_pointer_key:Optional[str]='lbl2data_data2ptr',
+                 data_aug_meta_name:Optional[str]=None,
+                 augmentation_num_beams:Optional[int]=3,
+                 predict_with_augmentation:Optional[bool]=False,
+                 use_augmentation_index_representation:Optional[bool]=False,
+                 metadata_representation_attribute:Optional[str]='data_repr',
+                 data_augmentation_attribute:Optional[str]='data_repr',
+                 use_distributional_representation:Optional[bool]=False,
                  **kwargs):
         super().__init__(**kwargs)
-        store_attr('generation_num_beams,generation_max_beams,generation_length_penalty,generation_max_info')
-        store_attr('representation_accumulation_steps,representation_attribute,representation_num_beams')
+        store_attr('generation_num_beams,generation_length_penalty,generation_max_info,generation_eos_token')
+        store_attr('representation_accumulation_steps,representation_attribute,representation_num_beams,representation_search_type')
         store_attr('index_space,index_efc,index_m,index_efs,index_num_threads')
         store_attr('predict_with_generation,predict_with_representation,output_concatenation_weight')
-        store_attr('group_by_cluster,num_cluster_update_epochs')
+        store_attr('group_by_cluster,num_cluster_update_epochs,num_cluster_size_update_epochs,num_clustering_warmup_epochs')
+        store_attr('clustering_devices,clustering_type,maximum_cluster_size')
         store_attr('target_indices_key,target_pointer_key')
+        store_attr('use_encoder_parallel')
+        store_attr('data_aug_meta_name,augmentation_num_beams,predict_with_augmentation')
+        store_attr('use_augmentation_index_representation,metadata_representation_attribute,data_augmentation_attribute')
+        store_attr('use_distributional_representation')
         self.minimum_clusters = max(1, minimum_clusters)
         self.maximum_clusters = max(minimum_clusters, maximum_clusters) if maximum_clusters is not None else minimum_clusters
+        self.minimum_cluster_size = max(1, minimum_cluster_size)
         
 
-# %% ../nbs/06_learner.ipynb 32
+# %% ../nbs/06_learner.ipynb 38
 class XCLearner(Seq2SeqTrainer):
 
     @delegates(Seq2SeqTrainer.__init__)
@@ -227,21 +256,29 @@ class XCLearner(Seq2SeqTrainer):
                  trie:Optional[Trie]=None, 
                  **kwargs):
         super().__init__(**kwargs)
-        self.tbs = TrieBeamSearch(trie, n_bm=self.args.generation_num_beams, max_bm=self.args.generation_max_beams,
-                                  len_penalty=self.args.generation_length_penalty, max_info=self.args.generation_max_info)
-        self.idxs = IndexSearch(space=self.args.index_space, efc=self.args.index_efc, m=self.args.index_m, efs=self.args.index_efs, 
-                                n_bm=self.args.representation_num_beams, n_threads=self.args.index_num_threads)
+        self.tbs = TrieBeamSearch(trie, self.args.generation_eos_token, n_bm=self.args.generation_num_beams, 
+                                  len_penalty=self.args.generation_length_penalty, max_info=self.args.generation_max_info, **kwargs)
+        self.idxs = (
+            BruteForceSearch(n_bm=self.args.representation_num_beams)
+            if self.args.representation_search_type == 'BRUTEFORCE' else
+            IndexSearch(space=self.args.index_space, efc=self.args.index_efc, m=self.args.index_m, 
+                        efs=self.args.index_efs, n_bm=self.args.representation_num_beams, 
+                        n_threads=self.args.index_num_threads) 
+        )
+        self.aug_idxs, self.aug_info = None, None 
+        self.aug_pad = PadFeatTfm(pad_tok=self.model.config.pad_token_id, prefix="meta")
 
     def _wrap_model(self, model, training=True, dataloader=None):
         if unwrap_model(model) is not model:
             return model
 
         if self.args.n_gpu > 1:
-            model = XCDataParallel(module=model)
+            if (hasattr(model, 'encoder') and isinstance(model.encoder, nn.DataParallel)) or self.args.use_encoder_parallel: return model
+            else: return XCDataParallel(module=model)
         return model
 
-    def evaluate(self, eval_dataset:Optional[Dataset]=None, ignore_keys:Optional[List[str]]=None, metric_key_prefix:str="eval",
-                 **gen_kwargs):
+    def evaluate(self, eval_dataset:Optional[Dataset]=None, ignore_keys:Optional[List[str]]=None, 
+             metric_key_prefix:str="eval", **gen_kwargs):
         gen_kwargs = gen_kwargs.copy()
         if gen_kwargs.get("length_penalty") is None and self.args.generation_length_penalty is not None:
             gen_kwargs["length_penalty"] = self.args.generation_length_penalty
@@ -249,13 +286,15 @@ class XCLearner(Seq2SeqTrainer):
             gen_kwargs["gen_num_beams"] = self.args.generation_num_beams
         if gen_kwargs.get("repr_num_beams") is None and self.args.representation_num_beams is not None:
             gen_kwargs["repr_num_beams"] = self.args.representation_num_beams
-        self.gather_function, self._gen_kwargs  = self.accelerator.gather, gen_kwargs
-
-        if self._perform_representation(unwrap_model(self.model)): self._build_lbl_index(eval_dataset)
+        if gen_kwargs.get("aug_num_beams") is None and self.args.augmentation_num_beams is not None:
+            gen_kwargs["aug_num_beams"] = self.args.augmentation_num_beams
             
+        self.gather_function, self._gen_kwargs  = self.accelerator.gather, gen_kwargs
+        
         return super().evaluate(eval_dataset, ignore_keys=ignore_keys, metric_key_prefix=metric_key_prefix)
-    
-    def predict(self, test_dataset: Dataset, ignore_keys:Optional[List[str]]=None, metric_key_prefix: str = "test",**gen_kwargs):
+
+    def predict(self, test_dataset: Dataset, ignore_keys:Optional[List[str]]=None, 
+            metric_key_prefix:str="test", **gen_kwargs):
         gen_kwargs = gen_kwargs.copy()
         if gen_kwargs.get("length_penalty") is None and self.args.generation_length_penalty is not None:
             gen_kwargs["length_penalty"] = self.args.generation_length_penalty
@@ -263,15 +302,15 @@ class XCLearner(Seq2SeqTrainer):
             gen_kwargs["gen_num_beams"] = self.args.generation_num_beams
         if gen_kwargs.get("repr_num_beams") is None and self.args.representation_num_beams is not None:
             gen_kwargs["repr_num_beams"] = self.args.representation_num_beams
-
+        if gen_kwargs.get("aug_num_beams") is None and self.args.augmentation_num_beams is not None:
+            gen_kwargs["aug_num_beams"] = self.args.augmentation_num_beams
+    
         self.gather_function, self._gen_kwargs = self.accelerator.gather, gen_kwargs
         self._memory_tracker.start()
-        
-        if self._perform_representation(unwrap_model(self.model)): self._build_lbl_index(test_dataset)
-            
+    
         test_dataloader = self.get_test_dataloader(test_dataset)
         start_time = time.time()
-        
+    
         output = self.evaluation_loop(test_dataloader, description="Prediction", ignore_keys=ignore_keys, metric_key_prefix=metric_key_prefix)
         total_batch_size = self.args.eval_batch_size * self.args.world_size
         if f"{metric_key_prefix}_jit_compilation_time" in output.metrics:
@@ -281,7 +320,9 @@ class XCLearner(Seq2SeqTrainer):
         )
         self.control = self.callback_handler.on_predict(self.args, self.state, self.control, output.metrics)
         self._memory_tracker.stop_and_update_metrics(output.metrics)
-        return XCPredictionOutput(pred_idx=output.pred_idx, pred_ptr=output.pred_ptr, pred_score=output.pred_score, metrics=output.metrics, num_samples=output.num_samples)
+        return XCPredictionOutput(pred_idx=output.pred_idx, pred_ptr=output.pred_ptr, pred_score=output.pred_score, 
+                              gen_output=output.gen_output, repr_output=output.repr_output, metrics=output.metrics, 
+                              num_samples=output.num_samples)
     
     def _gather_host_output(self, output, host_output):
         if output is not None:
@@ -290,15 +331,61 @@ class XCLearner(Seq2SeqTrainer):
             return output if host_output is None else nested_concat(host_output, output, padding_index=-100)
         else: return host_output
 
-    def _gather_all_output(self, host_output, all_output):
+    def _gather_all_output(self, host_output, all_output, to_cpu=True):
         if host_output is not None:
-            if isinstance(host_output, torch.Tensor): host_output = host_output.cpu()
+            if isinstance(host_output, torch.Tensor) and to_cpu: host_output = host_output.cpu()
             return host_output if all_output is None else nested_concat(all_output, host_output, padding_index=-100)
         else: return all_output
             
             
 
-# %% ../nbs/06_learner.ipynb 33
+# %% ../nbs/06_learner.ipynb 39
+@patch
+def _build_aug_index(self:XCLearner, dataset:Optional[Dataset]=None):
+    dataset = dataset if self.eval_dataset is None else self.eval_dataset
+    dataset = dataset if self.train_dataset is None else self.train_dataset
+    
+    aug_meta_name = f'{self.args.data_aug_meta_name}_meta' if self.args.data_aug_meta_name is not None else None
+    if (
+        dataset is not None and dataset.meta is not None and aug_meta_name is not None and 
+        aug_meta_name in dataset.meta
+    ):
+        self.aug_idxs = IndexSearch(space=self.args.index_space, efc=self.args.index_efc, m=self.args.index_m, 
+                                    efs=self.args.index_efs, n_bm=self.args.representation_num_beams, 
+                                    n_threads=self.args.index_num_threads)
+        
+        self.aug_info = getattr(dataset.meta[aug_meta_name], 'meta_info')
+        
+        aug_dset = MainXCDataset(self.aug_info)
+        aug_dl = self.get_test_dataloader(aug_dset)
+        aug_repr = self.get_meta_representation(aug_dl, to_cpu=isinstance(self.aug_idxs, IndexSearch))
+        if self.args.use_distributional_representation: aug_repr = F.log_softmax(aug_repr, dim=-1)
+            
+        self.aug_idxs.build(aug_repr)
+
+@patch
+def _build_lbl_index(self:XCLearner, dataset:Optional[Dataset]=None):
+    dataset = dataset if self.eval_dataset is None else self.eval_dataset
+    dataset = dataset if self.train_dataset is None else self.train_dataset
+    
+    if dataset is not None:
+        lbl_dset = dataset.lbl_dset
+        
+        meta_name = f'{self.args.data_aug_meta_name}_meta' if self.args.data_aug_meta_name is not None else None
+        if meta_name is not None and dataset.meta is not None and meta_name in dataset.meta:
+            prefix,lbl_meta,meta_info  = dataset.meta[meta_name].prefix,dataset.meta[meta_name].lbl_meta,dataset.meta[meta_name].meta_info
+            meta_kwargs = {meta_name: MetaXCDataset(prefix, lbl_meta, lbl_meta, meta_info, n_data_meta_samples=self.args.augmentation_num_beams)}
+            lbl_dset = XCDataset(lbl_dset, **meta_kwargs)
+        
+        lbl_dl = self.get_test_dataloader(lbl_dset)
+        lbl_repr = self.get_representation(lbl_dl, to_cpu=isinstance(self.idxs, IndexSearch))
+        if self.args.use_distributional_representation: lbl_repr = F.log_softmax(lbl_repr, dim=-1)
+            
+        self.idxs.build(lbl_repr)
+    else: raise ValueError('Failed to build `self.idxs`')
+        
+
+# %% ../nbs/06_learner.ipynb 40
 @patch
 def generation_output(
     self:XCLearner,
@@ -324,13 +411,54 @@ def representation_output(
     inputs = self._prepare_inputs(inputs)
     n_bm = kwargs.pop("repr_num_beams") if "repr_num_beams" in kwargs and kwargs["repr_num_beams"] is not None else self.args.representation_num_beams
     
-    with torch.no_grad(): o = getattr(model(**inputs), self.args.representation_attribute)
-    o = self.idxs.proc(o.cpu(), n_bm=n_bm)
+    with torch.no_grad(): 
+        o = getattr(model(**inputs), self.args.representation_attribute)
+        if self.args.use_distributional_representation: o = F.softmax(o, dim=-1)
+            
+    o = self.idxs.proc(o, n_bm=n_bm)
         
     return {'pred_idx':o['info2data_idx'], 'pred_score':o['info2data_score'], 'pred_ptr':o['info2data_data2ptr']}
+
+@patch
+def augmentation_output(
+    self:XCLearner,
+    model:nn.Module,
+    inputs:Dict[str, Union[torch.Tensor, Any]],
+    **kwargs
+):
+    if self.aug_idxs is None: raise ValueError('Augmentation `aug_idx` is not initialized.')
+        
+    inputs = self._prepare_inputs(inputs)
+    n_bm = kwargs.pop("aug_num_beams") if "aug_num_beams" in kwargs and kwargs["aug_num_beams"] is not None else self.args.augmentation_num_beams
+    
+    with torch.no_grad(): 
+        o = getattr(model(**inputs), self.args.data_augmentation_attribute)
+        if self.args.use_distributional_representation: o = F.softmax(o, dim=-1)
+            
+    o = self.aug_idxs.proc(o, n_bm=n_bm)
+    
+    aug_info = self.aug_pad({
+        'meta_input_ids':[self.aug_info['input_ids'][i] for i in o['info2data_idx']], 
+        'meta_attention_mask':[self.aug_info['input_ids'][i] for i in o['info2data_idx']]
+    })
+    
+    if self.args.use_augmentation_index_representation:
+        meta_repr = torch.tensor(self.aug_idxs.index.get_items(o['info2data_idx']))
+        return {
+            f'{self.args.data_aug_meta_name}2data_meta_repr': meta_repr,
+            f'{self.args.data_aug_meta_name}2data_attention_mask': aug_info['meta_attention_mask'],
+            f'{self.args.data_aug_meta_name}2data_data2ptr': o['info2data_data2ptr'],
+        }
+    else:
+        return {
+            f'{self.args.data_aug_meta_name}2data_idx':o['info2data_idx'], 
+            f'{self.args.data_aug_meta_name}2data_input_ids': aug_info['meta_input_ids'], 
+            f'{self.args.data_aug_meta_name}2data_attention_mask': aug_info['meta_attention_mask'],
+            f'{self.args.data_aug_meta_name}2data_data2ptr': o['info2data_data2ptr']
+        }
     
 
-# %% ../nbs/06_learner.ipynb 34
+# %% ../nbs/06_learner.ipynb 41
 @patch
 def _perform_generation(self:XCLearner, model:nn.Module, predict_with_generation:Optional[bool]=None):
     model = unwrap_model(model)
@@ -344,11 +472,19 @@ def _perform_representation(self:XCLearner, model:nn.Module, predict_with_repres
     return getattr(model,'use_representation') if hasattr(model,'use_representation') else predict_with_representation
 
 @patch
+def _perform_augmentation(self:XCLearner, model:nn.Module, predict_with_augmentation:Optional[bool]=None):
+    model = unwrap_model(model)
+    predict_with_augmentation = self.args.predict_with_augmentation if predict_with_augmentation is None else predict_with_augmentation
+    return getattr(model,'use_augmentation') if hasattr(model,'use_augmentation') else predict_with_augmentation
+
+
+# %% ../nbs/06_learner.ipynb 42
+@patch
 def resize_pred(cls:XCLearner, t, n_t):
     max_n_t = n_t.max()
     xn_t = max_n_t.max()-n_t+1
     t_ptr = n_t.cumsum(dim=0)-1
-    r_t = torch.ones((len(t),), dtype=xn_t.dtype).scatter(0, t_ptr, xn_t)
+    r_t = torch.ones((len(t),), dtype=xn_t.dtype, device=xn_t.device).scatter(0, t_ptr, xn_t)
     xt = t.repeat_interleave(r_t).view(len(n_t), -1)
     return xt
 
@@ -357,9 +493,9 @@ def output_mask(cls:XCLearner, n_t, l):
     max_n_t = n_t.max()
     xn_t = max_n_t.max()-n_t+1
     t_ptr = n_t.cumsum(dim=0)-1
-    mask_ptr = t_ptr+torch.arange(len(t_ptr))+1
-    mask = torch.ones((l+len(n_t),), dtype=mask_ptr.dtype).scatter(0, mask_ptr, 0)
-    r_mask = torch.ones((l+len(n_t),), dtype=mask_ptr.dtype).scatter(0, mask_ptr, xn_t-1)
+    mask_ptr = t_ptr+torch.arange(len(t_ptr), device=t_ptr.device)+1
+    mask = torch.ones((l+len(n_t),), dtype=mask_ptr.dtype, device=mask_ptr.device).scatter(0, mask_ptr, 0)
+    r_mask = torch.ones((l+len(n_t),), dtype=mask_ptr.dtype, device=mask_ptr.device).scatter(0, mask_ptr, xn_t-1)
     mask = mask.repeat_interleave(r_mask).view(len(n_t), -1)
     return mask
 
@@ -371,14 +507,16 @@ def resize_output(cls:XCLearner, pred_idx, pred_score, pred_ptr):
 def concatenate_output(cls:XCLearner, gen_o:Dict, repr_o:Dict):
     gen_o['pred_score'] = torch.exp(gen_o['pred_score'])*cls.args.output_concatenation_weight
     gen_o, repr_o = cls.resize_output(**gen_o), cls.resize_output(**repr_o)
-    pred_idx, pred_score, mask = [torch.hstack([gen_o[i], repr_o[i]]).flatten() for i in range(3)]
+    pred_idx, pred_score, mask = [torch.hstack([gen_o[i], repr_o[i].cpu()]).flatten() for i in range(3)]
     idx = torch.where(mask)[0]
     return {
         'pred_idx': pred_idx[idx],
         'pred_score': pred_score[idx],
-        'pred_ptr': gen_o[3]+repr_o[3],
+        'pred_ptr': gen_o[3]+repr_o[3].cpu(),
     }
     
+
+# %% ../nbs/06_learner.ipynb 43
 @patch
 def prediction_step(
     self:XCLearner,
@@ -387,6 +525,7 @@ def prediction_step(
     prediction_loss_only: bool,
     predict_with_generation: bool,
     predict_with_representation: bool,
+    predict_with_augmentation:Optional[bool]=None,
     ignore_keys: Optional[List[str]] = None,
     **kwargs,
 ) -> Tuple[Optional[float], Optional[torch.Tensor], Optional[torch.Tensor]]:
@@ -394,32 +533,30 @@ def prediction_step(
         with self.compute_loss_context_manager(): outputs = model(**inputs)
         loss = (outputs["loss"] if isinstance(outputs, dict) else outputs[0]).mean().detach()
     prediction_loss_only = self.args.prediction_loss_only if prediction_loss_only is None else prediction_loss_only
-    if prediction_loss_only: return loss, None
-
-    output, repr_o = None, None
-    if self._perform_generation(model, predict_with_generation): output = self.generation_output(model, inputs, **kwargs)
+    if prediction_loss_only: return loss, {}
+    
+    if self._perform_augmentation(model, predict_with_augmentation): 
+        aug_inputs = self.augmentation_output(model, inputs, **kwargs)
+        inputs.update(aug_inputs)
+        
+    output, gen_o, repr_o = None, None, None
+    if self._perform_generation(model, predict_with_generation): gen_o = self.generation_output(model, inputs, **kwargs)
     if self._perform_representation(model, predict_with_representation): repr_o = self.representation_output(model, inputs, **kwargs)
-    if output is None: output = repr_o
-    elif repr_o is not None: output = self.concatenate_output(output, repr_o)
+    
+    if gen_o is not None and repr_o is not None:
+        output = {f'{k}_gen':v for k,v in gen_o.items()}
+        output.update({f'{k}_repr':v for k,v in repr_o.items()})
+        output.update(self.concatenate_output(gen_o, repr_o))
+    else:
+        output = gen_o if repr_o is None else repr_o
         
     labels = {'targ_idx':inputs[self.args.target_indices_key], 'targ_ptr':inputs[self.args.target_pointer_key]} if self.args.target_indices_key in inputs else None
     if labels is not None: output.update(labels)
     
     return loss, output
-
-
-# %% ../nbs/06_learner.ipynb 35
-@patch
-def _build_lbl_index(self:XCLearner, dataset:Optional[Dataset]=None):
-    dataset = dataset if self.eval_dataset is None else self.eval_dataset
-    dataset = dataset if self.train_dataset is None else self.train_dataset
-    if dataset is not None:
-        lbl_dset = dataset.lbl_dset
-        lbl_dl = self.get_test_dataloader(lbl_dset)
-        lbl_repr = self.get_representation(lbl_dl)
-        self.idxs.build(lbl_repr)
-    else: raise ValueError('Failed to build `self.idxs`')
     
+
+# %% ../nbs/06_learner.ipynb 44
 @patch
 def evaluation_loop(
     self:XCLearner,
@@ -431,7 +568,6 @@ def evaluation_loop(
     ignore_keys:Optional[List[str]] = None,
     metric_key_prefix:str="eval",
 ) -> XCEvalLoopOutput:
-
     args = self.args
     prediction_loss_only = prediction_loss_only if prediction_loss_only is not None else args.prediction_loss_only
 
@@ -444,9 +580,17 @@ def evaluation_loop(
         if self.is_deepspeed_enabled: self.deepspeed = self.model_wrapped
 
     batch_size = self.args.eval_batch_size
+    
     model.eval()
+
     self.callback_handler.eval_dataloader = dataloader
     eval_dataset = getattr(dataloader, "dataset", None)
+    
+    if self._perform_representation(unwrap_model(model)) and not prediction_loss_only: 
+        self._build_lbl_index(eval_dataset)
+            
+    if self._perform_augmentation(unwrap_model(model)) and not prediction_loss_only: 
+        self._build_aug_index(eval_dataset)
     
     if args.past_index >= 0: self._past = None
 
@@ -486,11 +630,26 @@ def evaluation_loop(
         if has_length(dataloader): num_samples = self.num_examples(dataloader)
         else: num_samples = observed_num_examples
     if num_samples == 0 and observed_num_examples > 0: num_samples = observed_num_examples
+        
+    gen_output, repr_output = None, None
+    metric_input_keys = ['targ_idx', 'targ_ptr', 'pred_idx', 'pred_ptr', 'pred_score']
+    if 'pred_idx_gen' in all_output and all_output['pred_idx_gen'] is not None:
+        gen_output = {o:all_output[f'{o}_gen' if o.startswith('pred_') else o] for o in metric_input_keys}
+    if 'pred_idx_repr' in all_output and all_output['pred_idx_repr'] is not None:
+        repr_output = {o:all_output[f'{o}_repr' if o.startswith('pred_') else o] for o in metric_input_keys}
+    
 
     if (self.compute_metrics is not None and 
         'targ_idx' in all_output and all_output['targ_idx'] is not None and 
-        'pred_idx' in all_output and all_output['pred_idx'] is not None): 
-        metrics = self.compute_metrics(**all_output)
+        'pred_idx' in all_output and all_output['pred_idx'] is not None):
+        
+        metrics = self.compute_metrics(**{o:all_output[o] for o in metric_input_keys})
+        if gen_output is not None:
+            m = self.compute_metrics(**gen_output)
+            metrics.update({f'{k}_GEN':v for k,v in m.items()})
+        if repr_output is not None:
+            m = self.compute_metrics(**repr_output)
+            metrics.update({f'{k}_REPR':v for k,v in m.items()})      
     else: metrics = {}
         
     metrics = denumpify_detensorize(metrics)
@@ -501,24 +660,53 @@ def evaluation_loop(
     for key in list(metrics.keys()):
         if not key.startswith(f"{metric_key_prefix}_"): metrics[f"{metric_key_prefix}_{key}"] = metrics.pop(key)
     
-    return XCEvalLoopOutput(pred_idx=all_output['pred_idx'], pred_ptr=all_output['pred_ptr'], pred_score=all_output['pred_score'],
-                            targ_idx=all_output['targ_idx'], targ_ptr=all_output['targ_ptr'], metrics=metrics, num_samples=num_samples)
+    return XCEvalLoopOutput(pred_idx=all_output.get('pred_idx'), pred_ptr=all_output.get('pred_ptr'), 
+                            pred_score=all_output.get('pred_score'),targ_idx=all_output.get('targ_idx'), 
+                            targ_ptr=all_output.get('targ_ptr'), gen_output=gen_output, repr_output=repr_output,
+                            metrics=metrics, num_samples=num_samples)
     
 
-# %% ../nbs/06_learner.ipynb 36
+# %% ../nbs/06_learner.ipynb 45
 @patch
-def get_representation(self:XCLearner, dataloader: DataLoader):
+def get_meta_representation(self:XCLearner, dataloader: DataLoader, to_cpu:Optional[bool]=True):
     data_host, all_data = None, None
+    
+    if hasattr(self.model, 'disable_noise') and callable(getattr(self.model, 'disable_noise')):
+        use_noise = self.model.disable_noise()
+    
+    for step, inputs in tqdm(enumerate(dataloader), total=len(dataloader)):
+        inputs = inputs.to(self.model.device)
+        with torch.no_grad(): data = getattr(self.model.get_meta_representation(**inputs), self.args.metadata_representation_attribute)
+        data_host = self._gather_host_output(data, data_host)
+        if self.args.representation_accumulation_steps is not None and (step + 1) % self.args.representation_accumulation_steps == 0:
+            all_data, data_host = self._gather_all_output(data_host, all_data, to_cpu=to_cpu), None
+            
+    if hasattr(self.model, 'disable_noise') and callable(getattr(self.model, 'disable_noise')):
+        self.model.set_noise(use_noise)
+            
+    return self._gather_all_output(data_host, all_data, to_cpu=to_cpu)
+
+@patch
+def get_representation(self:XCLearner, dataloader: DataLoader, to_cpu:Optional[bool]=True):
+    data_host, all_data = None, None
+    
+    if hasattr(self.model, 'disable_noise') and callable(getattr(self.model, 'disable_noise')):
+        use_noise = self.model.disable_noise()
+    
     for step, inputs in tqdm(enumerate(dataloader), total=len(dataloader)):
         inputs = inputs.to(self.model.device)
         with torch.no_grad(): data = getattr(self.model(**inputs), self.args.representation_attribute)
         data_host = self._gather_host_output(data, data_host)
         if self.args.representation_accumulation_steps is not None and (step + 1) % self.args.representation_accumulation_steps == 0:
-            all_data, data_host = self._gather_all_output(data_host, all_data), None
-    return self._gather_all_output(data_host, all_data)
+            all_data, data_host = self._gather_all_output(data_host, all_data, to_cpu=to_cpu), None
+            
+    if hasattr(self.model, 'disable_noise') and callable(getattr(self.model, 'disable_noise')):
+        self.model.set_noise(use_noise)
+            
+    return self._gather_all_output(data_host, all_data, to_cpu=to_cpu)
     
 
-# %% ../nbs/06_learner.ipynb 38
+# %% ../nbs/06_learner.ipynb 47
 @patch
 def _get_train_sampler(self:XCLearner):
     if self.train_dataset is None or not has_length(self.train_dataset):
@@ -547,7 +735,7 @@ def _get_train_sampler(self:XCLearner):
         return RandomSampler(self.train_dataset)
         
 
-# %% ../nbs/06_learner.ipynb 39
+# %% ../nbs/06_learner.ipynb 48
 @patch
 def get_train_dataloader(self:XCLearner):
     if self.train_dataset is None:
@@ -577,21 +765,43 @@ def get_train_dataloader(self:XCLearner):
     return DataLoader(train_dataset, **dataloader_params)
     
 
-# %% ../nbs/06_learner.ipynb 40
+# %% ../nbs/06_learner.ipynb 49
 @patch
-def _get_n_cluster(self:XCLearner, epochs_trained:int, num_train_epochs:int):
-    if self.args.maximum_clusters is None: return self.args.minimum_clusters
-    else:
-        n_cluster = (self.args.maximum_clusters-self.args.minimum_clusters)/num_train_epochs*epochs_trained
-        n_cluster = int(self.args.minimum_clusters+n_cluster)
-        return n_cluster
+def _get_min_cluster_sz(self:XCLearner, epochs_trained:int, num_train_epochs:int):
+    
+    if self.args.num_clustering_warmup_epochs is not None:
+        if epochs_trained < self.args.num_clustering_warmup_epochs: return None
+        else: epochs_trained -= self.args.num_clustering_warmup_epochs
+    
+    if self.args.clustering_type == 'LINEAR':
+        if self.args.maximum_clusters is None: return self.train_dataset.n_data//self.args.minimum_clusters
+        else:
+            n_cluster = (self.args.maximum_clusters-self.args.minimum_clusters)/num_train_epochs*epochs_trained
+            return self.train_dataset.n_data//int(self.args.minimum_clusters+n_cluster)
+        
+    elif self.args.clustering_type == 'EXPO':
+        mult = 2**(epochs_trained//self.args.num_cluster_size_update_epochs)
+        cluster_sz = self.args.minimum_cluster_size*mult
+        cluster_sz = (
+            self.args.maximum_cluster_size 
+            if self.args.maximum_cluster_size is not None and cluster_sz > self.args.maximum_cluster_size 
+            else cluster_sz
+        )
+        return cluster_sz
+    
+    else: raise ValueError(f'Invalid `clustering_type`({self.args.clustering_type}).')
+    
 
+# %% ../nbs/06_learner.ipynb 50
 @patch
 def _get_train_data_cluster(self:XCLearner, epochs_trained:int, num_train_epochs:int):
     dataset = self.train_dataset.data_dset
     dataloader = self.get_test_dataloader(dataset)
-    data_repr = learn.get_representation(dataloader)
-    cluster, _ = BalancedClusters.proc(data_repr, n_cluster=self._get_n_cluster(epochs_trained, num_train_epochs))
+    data_repr = self.get_representation(dataloader)
+    
+    if self.args.use_distributional_representation: data_repr = F.softmax(data_repr, dim=-1)
+        
+    cluster = BalancedClusters.proc(data_repr, self._get_min_cluster_sz(epochs_trained, num_train_epochs), clustering_devices=self.args.clustering_devices)
     return cluster
 
 @patch
@@ -601,10 +811,10 @@ def update_dataloader_sampler(self:XCLearner, dataloader:DataLoader, epochs_trai
         dataloader.sampler.set_cluster(cluster)
     
 
-# %% ../nbs/06_learner.ipynb 41
+# %% ../nbs/06_learner.ipynb 51
 @patch
 def _validate_group_by_cluster(self:XCLearner):
-    if self.args.group_by_cluster and (not hasattr(model,'use_representation') or  not getattr(unwrap_model(model),'use_representation')):
+    if self.args.group_by_cluster and (not hasattr(self.model,'use_representation') or  not getattr(unwrap_model(self.model),'use_representation')):
         raise ValueError('Cannot use `group_by_cluster` for models without `use_representation`.')
         self.args.group_by_cluster = False
 
@@ -882,9 +1092,9 @@ def _inner_training_loop(
 
     total_batched_samples = 0
     for epoch in range(epochs_trained, num_train_epochs):
-        if self.args.group_by_cluster and epochs_trained % self.args.num_cluster_update_epochs == 0:
-            self.update_dataloader_sampler(train_dataloader, epochs_trained, num_train_epochs)
-            
+        if self.args.group_by_cluster and (epoch % self.args.num_cluster_update_epochs == 0 or epoch == self.args.num_clustering_warmup_epochs) and epoch >= self.args.num_clustering_warmup_epochs:
+            self.update_dataloader_sampler(train_dataloader, epoch, num_train_epochs)
+        
         epoch_iterator = train_dataloader
         if hasattr(epoch_iterator, "set_epoch"):
             epoch_iterator.set_epoch(epoch)
@@ -1105,4 +1315,5 @@ def _inner_training_loop(
         self._deactivate_neftune(self.model)
 
     return TrainOutput(self.state.global_step, train_loss, metrics)
+    
 

@@ -4,6 +4,7 @@
 __all__ = ['TrieNode', 'TrieOutput', 'Trie', 'XCTrie']
 
 # %% ../../nbs/08_generation.trie.ipynb 2
+import numpy as np
 from tqdm.auto import tqdm
 from dataclasses import dataclass
 from typing import Optional, List, Any, Union
@@ -130,11 +131,12 @@ class Trie(object):
         return self
 
 
-# %% ../../nbs/08_generation.trie.ipynb 22
+# %% ../../nbs/08_generation.trie.ipynb 24
 class XCTrie:
     
     @classmethod
-    def from_block(cls, block:XCDataBlock, meta:Optional[List]=None, max_info:Optional[int]=None):
+    def from_block(cls, block:XCDataBlock, meta:Optional[List]=None, max_info:Optional[int]=None,
+                   min_n_lbl:Optional[int]=1, max_n_lbl:Optional[int]=100):
         lbl_toks = block.lbl_info['input_ids']
         lbl_info = [[i] for i in range(len(lbl_toks))]
         
@@ -144,11 +146,14 @@ class XCTrie:
             meta_dset = block.train.dset.meta
             for o in meta:
                 if f'{o}_meta' not in meta_dset: raise ValueError(f'`{o}_meta` does not exist.')
-                meta_toks = meta_dset[f'{o}_meta'].meta_info['input_ids']
-                lbl_meta = meta_dset[f'{o}_meta'].lbl_meta.T.tocsr()
-                meta_info = [o.indices.tolist() for o in lbl_meta]
+                meta_lbl = meta_dset[f'{o}_meta'].lbl_meta.T.tocsr()
+                n_lbl = meta_lbl.getnnz(axis=1)
+                valid_meta_idx = np.where(np.logical_and(n_lbl>min_n_lbl, n_lbl<max_n_lbl))[0]
+                
+                meta_toks = [meta_dset[f'{o}_meta'].meta_info['input_ids'][i] for i in valid_meta_idx]
+                meta_info = [o.indices.tolist() for o in tqdm(meta_lbl[valid_meta_idx], total=len(valid_meta_idx))]
+                
                 if len(meta_toks) != len(meta_info): raise ValueError(f'`meta_toks` and `meta_info` should have equal length.')
                 trie.update(meta_toks, meta_info)
-                
         return trie
         

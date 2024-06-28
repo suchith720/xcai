@@ -15,21 +15,36 @@ from .transform import *
 
 # %% ../nbs/03_block.ipynb 6
 PARAM = {
-    'info_column_names': ['identifier', 'input_text'],
-    'use_tokenizer': True,
+    
+    # collator arguements
+    'tfm': 'xc', 
+    'smp_features': [('lbl2data',1,2), ('hlk2data',1,1), ('hlk2lbl2data',2,1)],
+    
+    # arguements for Info class
+    'info_column_names': ['identifier', 'input_text'], 
+    'use_tokenizer': True, 
     'tokenizer': 'bert-base-cased',
     'tokenization_column': 'input_text',
     'max_sequence_length': 32,
+    
+    # PadFeatTfm arguements
     'pad_side': 'right',
-    'inp': 'data',
-    'targ': 'lbl2data',
-    'ptr': 'lbl2data_data2ptr',
     'drop': True,
     'ret_t': True,
     'in_place': True,
     'collapse': True,
     'device': 'cpu',
-    'tfm': 'xc',
+    
+    # AlignInputIdsTfm arguements
+    'inp': 'data',
+    'targ': 'lbl2data',
+    'ptr': 'lbl2data_data2ptr',
+    
+    # Data arguements
+    'n_data_meta_samples': None,
+    'n_lbl_meta_samples': None,
+    'n_lbl_samples': None,
+    
 }
 
 # %% ../nbs/03_block.ipynb 8
@@ -87,11 +102,46 @@ def wikiseealso(data_dir):
                     'data_info': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/train.raw.txt',
                     'lbl_info': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/label.raw.txt',
                     'data_lbl_filterer': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/filter_labels_train.txt',
+                    'cat_meta': {
+                        'prefix': 'cat',
+                        'data_meta': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/category_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/category_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/category.raw.txt'
+                    },
+                },
+                'test': {
+                    'data_lbl': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/tst_X_Y.txt',
+                    'data_info': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/test.raw.txt',
+                    'lbl_info': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/label.raw.txt',
+                    'data_lbl_filterer': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/filter_labels_test.txt',
+                    'cat_meta': {
+                        'prefix': 'cat',
+                        'data_meta': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/category_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/category_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/category.raw.txt',
+                    },
+                },
+            },
+            'parameters': PARAM,
+        }, 
+        'data_metas' : {
+            'path': {
+                'train': {
+                    'data_lbl': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/trn_X_Y.txt',
+                    'data_info': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/train.raw.txt',
+                    'lbl_info': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/label.raw.txt',
+                    'data_lbl_filterer': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/filter_labels_train.txt',
                     'hlk_meta': {
                         'prefix': 'hlk',
                         'data_meta': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/hyper_link_trn_X_Y.txt',
                         'lbl_meta': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/hyper_link_lbl_X_Y.txt',
                         'meta_info': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/hyper_link.raw.txt'
+                    },
+                    'cat_meta': {
+                        'prefix': 'cat',
+                        'data_meta': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/category_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/category_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/category.raw.txt'
                     },
                 },
                 'test': {
@@ -101,14 +151,20 @@ def wikiseealso(data_dir):
                     'data_lbl_filterer': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/filter_labels_test.txt',
                     'hlk_meta': {
                         'prefix': 'hlk',
-                        'data_meta': f'{data_dir}/hyper_link_tst_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/hyper_link_lbl_X_Y.txt',
+                        'data_meta': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/hyper_link_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/hyper_link_lbl_X_Y.txt',
                         'meta_info': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/hyper_link.raw.txt',
+                    },
+                    'cat_meta': {
+                        'prefix': 'cat',
+                        'data_meta': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/category_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/category_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/category.raw.txt',
                     },
                 },
             },
             'parameters': PARAM,
-        },  
+        }, 
     }
 
 # %% ../nbs/03_block.ipynb 9
@@ -161,11 +217,44 @@ def wikititles(data_dir):
                     'data_lbl': f'{data_dir}/(mapped)LF-WikiTitles-500K/trn_X_Y.txt',
                     'data_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/train.raw.txt',
                     'lbl_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/label.raw.txt',
+                    'sal_meta': {
+                        'prefix': 'sal',
+                        'data_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/see_also_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/see_also_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/see_also.raw.txt'
+                    },
+                },
+                'test': {
+                    'data_lbl': f'{data_dir}/(mapped)LF-WikiTitles-500K/tst_X_Y.txt',
+                    'data_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/test.raw.txt',
+                    'lbl_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/label.raw.txt',
+                    'sal_meta': {
+                        'prefix': 'sal',
+                        'data_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/see_also_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/see_also_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/see_also.raw.txt',
+                    },
+                },
+            },
+            'parameters': PARAM,
+        },
+        'data_metas' : {
+            'path': {
+                'train': {
+                    'data_lbl': f'{data_dir}/(mapped)LF-WikiTitles-500K/trn_X_Y.txt',
+                    'data_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/train.raw.txt',
+                    'lbl_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/label.raw.txt',
                     'hlk_meta': {
                         'prefix': 'hlk',
                         'data_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/hyper_link_trn_X_Y.txt',
                         'lbl_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/hyper_link_lbl_X_Y.txt',
                         'meta_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/hyper_link.raw.txt'
+                    },
+                    'sal_meta': {
+                        'prefix': 'sal',
+                        'data_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/see_also_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/see_also_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/see_also.raw.txt'
                     },
                 },
                 'test': {
@@ -177,6 +266,12 @@ def wikititles(data_dir):
                         'data_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/hyper_link_tst_X_Y.txt',
                         'lbl_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/hyper_link_lbl_X_Y.txt',
                         'meta_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/hyper_link.raw.txt',
+                    },
+                    'sal_meta': {
+                        'prefix': 'sal',
+                        'data_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/see_also_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/see_also_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/see_also.raw.txt',
                     },
                 },
             },
@@ -222,11 +317,11 @@ def amazontitles(data_dir):
                     'data_info': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/raw_data/train.raw.txt',
                     'lbl_info': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/raw_data/label.raw.txt',
                     'data_lbl_filterer': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/filter_labels_train.txt',
-                    'cat_meta': {
-                        'prefix': 'cat',
-                        'data_meta': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/category_trn_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/category_lbl_X_Y.txt',
-                        'meta_info': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/raw_data/category.raw.txt'
+                    'rel_meta': {
+                        'prefix': 'rel',
+                        'data_meta': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/related_items_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/related_items_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/raw_data/related_items.raw.txt'
                     },
                 },
             },
@@ -239,8 +334,43 @@ def amazontitles(data_dir):
                     'data_info': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/raw_data/train.raw.txt',
                     'lbl_info': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/raw_data/label.raw.txt',
                     'data_lbl_filterer': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/filter_labels_train.txt',
+                    'rel_meta': {
+                        'prefix': 'rel',
+                        'data_meta': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/related_items_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/related_items_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/raw_data/related_items.raw.txt'
+                    },
+                },
+                'test': {
+                    'data_lbl': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/tst_X_Y.txt',
+                    'data_info': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/raw_data/test.raw.txt',
+                    'lbl_info': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/raw_data/label.raw.txt',
+                    'data_lbl_filterer': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/filter_labels_test.txt',
+                    'rel_meta': {
+                        'prefix': 'rel',
+                        'data_meta': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/related_items_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/related_items_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/raw_data/related_items.raw.txt',
+                    },
+                },
+            },
+            'parameters': PARAM,
+        },
+        'data_metas' : {
+            'path': {
+                'train': {
+                    'data_lbl': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/trn_X_Y.txt',
+                    'data_info': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/raw_data/train.raw.txt',
+                    'lbl_info': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/raw_data/label.raw.txt',
+                    'data_lbl_filterer': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/filter_labels_train.txt',
+                    'rel_meta': {
+                        'prefix': 'rel',
+                        'data_meta': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/related_items_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/related_items_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/raw_data/related_items.raw.txt'
+                    },
                     'cat_meta': {
-                        'prefix': 'cat',
+                        'prefix': 'rel',
                         'data_meta': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/category_trn_X_Y.txt',
                         'lbl_meta': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/category_lbl_X_Y.txt',
                         'meta_info': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/raw_data/category.raw.txt'
@@ -251,8 +381,14 @@ def amazontitles(data_dir):
                     'data_info': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/raw_data/test.raw.txt',
                     'lbl_info': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/raw_data/label.raw.txt',
                     'data_lbl_filterer': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/filter_labels_test.txt',
+                    'rel_meta': {
+                        'prefix': 'rel',
+                        'data_meta': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/related_items_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/related_items_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/raw_data/related_items.raw.txt',
+                    },
                     'cat_meta': {
-                        'prefix': 'cat',
+                        'prefix': 'rel',
                         'data_meta': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/category_tst_X_Y.txt',
                         'lbl_meta': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/category_lbl_X_Y.txt',
                         'meta_info': f'{data_dir}/(mapped)LF-AmazonTitles-1.3M/raw_data/category.raw.txt',
@@ -265,7 +401,12 @@ def amazontitles(data_dir):
 
 # %% ../nbs/03_block.ipynb 12
 CFGS = {'wikiseealso':wikiseealso, 'wikititles':wikititles, 'amazontitles':amazontitles}
-TFMS = {'xc': [XCPadFeatTfm, AlignInputIdsTfm], 'ng': [NGPadFeatTfm],}
+TFMS = {
+    'xc': [XCPadFeatTfm, AlignInputIdsTfm], 
+    'ng': [NGPadFeatTfm], 
+    'xcnlg': [XCSamplePadFeatTfm], 
+    'rm':[RamenPadFeatTfm],
+}
 
 # %% ../nbs/03_block.ipynb 13
 class XCBlock:

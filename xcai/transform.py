@@ -2,10 +2,11 @@
 
 # %% auto 0
 __all__ = ['PadTfm', 'CollapseTfm', 'CollateFeatTfm', 'PadFeatTfm', 'AlignInputIdsTfm', 'XCPadFeatTfm', 'XCPadOutputTfm',
-           'NGSampleFeatTfm', 'NGPadFeatTfm', 'TfmPipeline', 'AugmentMetaInputIdsTfm', 'TriePruneInputIdsTfm']
+           'SampleFeatTfm', 'XCSamplePadFeatTfm', 'RamenPadFeatTfm', 'RemoveColumnTfm', 'NGPadFeatTfm', 'TfmPipeline',
+           'AugmentMetaInputIdsTfm', 'TriePruneInputIdsTfm']
 
 # %% ../nbs/01_transform.ipynb 2
-import torch, numpy as np, re
+import torch, numpy as np, re, pickle
 from tqdm.auto import tqdm
 from scipy import sparse
 from transformers import AutoTokenizer, BatchEncoding
@@ -32,7 +33,7 @@ class PadTfm:
         store_attr('pad_tok,pad_side,ret_t,in_place')
 
     def _sz_help(self, x:List, sz:List, lev:int):
-        if isinstance(x[0], list):
+        if len(x) and isinstance(x[0], list):
             l = max(len(o) for o in x)
             if len(sz) > lev: sz[lev] = max(sz[lev], l)
             else: sz.append(l)
@@ -297,66 +298,220 @@ class XCPadOutputTfm:
         
 
 # %% ../nbs/01_transform.ipynb 52
-class NGSampleFeatTfm:
+class SampleFeatTfm:
 
-    def __init__(self, prefix:Optional[str]=None, smp_prefix:Optional[str]='', **kwargs):
-        store_attr('prefix,smp_prefix')
+    def __init__(self, feat_type:Optional[str]=None, smp_prefix:Optional[str]='', **kwargs):
+        store_attr('feat_type,smp_prefix')
 
     def _get_feat(self, x:Dict):
-        if self.prefix is None: raise ValueError('`prefix` is None.')
-        feat, ptr = [o for o in x if re.match(f'^{self.prefix}_.*', o)], None
-        if len(feat) > 0:
-            for i,o in enumerate(feat):
-                if re.match(f'.*2ptr$', o): ptr=o; feat.pop(i); break
-        return feat, ptr
+        if self.feat_type is None: raise ValueError('`feat_type` is None.')
+        return [o for o in x if re.match(f'^({self.feat_type})_.*', o)]
 
-    @typedispatch
-    def proc(self, x:Dict):
-        feat, pn = self._get_feat(x)
-        smp_prefix = self.smp_prefix if self.smp_prefix == '' else f'{self.smp_prefix}2'
-        if len(feat) > 0:
-            if pn is None: raise ValueError(f'`ptr` is empty for `prefix`({self.prefix})')
-            smp_idx = torch.cat([torch.randint(high=o, size=(1,)) for o in x[pn]])
-            ptr = x[pn].cumsum(0)
-            smp_idx[1:] = smp_idx[1:]+ptr[:-1]
-            for o in feat:
-                if isinstance(x[o], torch.Tensor): x[smp_prefix+o] = x[o][smp_idx]
-                else: x[smp_prefix+o] = [x[o][i] for i in smp_idx]
-            x[smp_prefix+o] = torch.ones(len(smp_idx), dtype=torch.int64)
-        return x
-
-    @typedispatch
-    def proc(self, x:List):
-        out, (feat, _) = {}, self._get_feat(x[0])
+    def proc(self, x:List, lev:int, n_samples:Optional[int]=1):
+        feat = self._get_feat(x[0])
+        out, coll_proc = {}, CollapseTfm()
+        
         if len(feat) > 0:
             smp_prefix = self.smp_prefix if self.smp_prefix == '' else f'{self.smp_prefix}2'
-            rnd_idx = [np.random.randint(len(o[feat[0]])) for o in x]
-            out = [{smp_prefix+k:o[k][i] for k in feat if isinstance(o[k], list)} for i,o in zip(rnd_idx, x)]
-            for o in out: o[smp_prefix+self.prefix+'_data2ptr'] = 1
+            def _size(o, l): return len(coll_proc(o[feat[0]],l)[0])
+            rnd_idx = [np.random.permutation(_size(o,lev))[:n_samples] if _size(o,lev) else [] for o in x]
+            
+            out = []
+            for idx,o in zip(rnd_idx, x):
+                d = {}
+                for k in feat: c = coll_proc(o[k],lev)[0]; d.update({smp_prefix+k:[c[i] for i in idx] if len(idx) >= 0 else []})
+                out.append(d) 
         return out
 
-    def __call__(self, x:[List,Dict], prefix:Optional[str]=None, smp_prefix:Optional[str]=None, **kwargs):
-        store_attr('prefix,smp_prefix', is_none=False)
-        return self.proc(x)
+    def __call__(self, x:[List,Dict,BatchEncoding], lev:int, n_samples:Optional[int]=1, 
+                 feat_type:Optional[str]=None, smp_prefix:Optional[str]=None, **kwargs):
+        store_attr('feat_type,smp_prefix', is_none=False)
+        return self.proc(x, lev, n_samples)
         
 
-# %% ../nbs/01_transform.ipynb 67
+# %% ../nbs/01_transform.ipynb 59
+class XCSamplePadFeatTfm:
+
+    def __init__(self, smp_features:Optional[List]=None, **kwargs):
+        store_attr('smp_features')
+        self.smp_proc, self.pad_proc = SampleFeatTfm(**kwargs), PadFeatTfm(**kwargs)
+        
+    def extract_ptr(self, x:Dict, suffix:str):
+        ptr_name = [k for k in x if re.match(f'.*{suffix}$',k)]
+        ptr = [x.pop(k) for k in ptr_name]
+        return ptr[0] if len(ptr) else None
+        
+    def sample_feat(self, x:List, feat:str, lev:int, n_samples:Optional[int]=1):
+        out = self.pad_proc(x, prefix=f'{feat}_idx', lev=lev, in_place=False, drop=False)
+        
+        if f'{feat}_idx' in out:
+            
+            out[f'p{feat}_idx'] = out.pop(f'{feat}_idx')
+            out[f'p{feat}_data2ptr'] = out.pop(f'{feat}_idx_ptr-1')
+            if f'{feat}_idx_ptr-2' in out: out.pop(f'{feat}_idx_ptr-2')
+                
+            o = self.pad_proc(self.smp_proc(x, lev=lev-1, n_samples=n_samples, feat_type=feat), 
+                              prefix=feat, lev=1, in_place=True, drop=True)
+            o[f'{feat}_data2ptr'] = self.extract_ptr(o, 'ptr-1')
+            self.extract_ptr(o, 'ptr-2')
+            
+            out.update(o)
+        return out
+
+    def __call__(self, x:List, smp_features:Optional[List]=None):
+        store_attr('smp_features', is_none=False)
+        
+        out, smp_features = BatchEncoding({}), () 
+        if self.smp_features is not None:
+            for feat,lev,n in self.smp_features: out.update(self.sample_feat(x, feat, lev, n))
+            smp_features = list(zip(*self.smp_features))[0]
+            
+        out.update(self.pad_proc(x, prefix='data', lev=0, in_place=True, drop=True))
+        
+        meta_names = set([o.split('_',maxsplit=1)[0] for o in x[0]]).difference(smp_features+('data',))
+        if 'lbl2data' in meta_names:
+            out.update(self.pad_proc(x, prefix='lbl2data', lev=1, in_place=True, drop=True))
+            out['lbl2data_data2ptr'] = self.extract_ptr(out, 'ptr-1')
+        
+        for k in meta_names.difference(['lbl2data']):
+            if k.endswith('2lbl2data'): 
+                o = self.pad_proc(x, prefix=k, lev=2, in_place=True, drop=True)
+                o[f'{k}_data2ptr'] = self.extract_ptr(o, 'ptr-1')
+                if 'lbl2data' in meta_names: o[f'{k}_lbl2data2ptr'] = self.extract_ptr(o, 'ptr-2')
+                else: o[f'{k}_plbl2data2ptr'] = self.extract_ptr(o, 'ptr-2')
+            elif k.endswith('2data'): 
+                o = self.pad_proc(x, prefix=k, lev=1, in_place=True, drop=True)
+                o[f'{k}_data2ptr'] = self.extract_ptr(o, 'ptr-1')
+            else: raise ValueError(f'Invalid metadata name ({k})')
+            out.update(o)
+        return out
+        
+
+# %% ../nbs/01_transform.ipynb 70
+class RamenPadFeatTfm:
+
+    def __init__(self, smp_features:Optional[List]=None, **kwargs):
+        store_attr('smp_features')
+        self.smp_proc, self.pad_proc = SampleFeatTfm(**kwargs), PadFeatTfm(**kwargs)
+        
+    def extract_ptr(self, x:Dict, suffix:str):
+        ptr_name = [k for k in x if re.match(f'.*{suffix}$',k)]
+        ptr = [x.pop(k) for k in ptr_name]
+        return ptr[0] if len(ptr) else None
+    
+    def get_feat(self, x, feat_type): return [o for o in x[0] if o.startswith(f'{feat_type}_')]
+
+    def smp_feat(self, x:List, feat_type:str, n_samples:Optional[int]=1):
+        feat = self.get_feat(x, feat_type)
+        rnd_idx = [[np.random.permutation(len(v))[:n_samples] if len(v) else [-1] for v in o[feat[0]]] for o in x]
+
+        out = []
+        for o,idx in zip(x, rnd_idx):
+            out.append({k:[[v[i] for i in ii if i >= 0] for v,ii in zip(o[k], idx)] for k in feat})
+        return out
+
+        
+    def sample_feat(self, x:List, feat:str, lev:int, n_samples:Optional[Union[int,List]]=1):
+        f = feat.split("|")
+        
+        if isinstance(n_samples, int):
+            n_samples = (n_samples,)*len(f)
+        else:
+            if len(n_samples) != len(f): 
+                raise ValueError(f"Size of `n_samples`({len(n_samples)}) should be equal to number of features.")
+        
+        f,of = f[0], f[1:]
+        n_sample, n_samples = n_samples[0], n_samples[1:]
+        
+        out = self.pad_proc(x, prefix=f'{f}_idx', lev=1, in_place=False, drop=False)
+        if f'{f}_idx' in out:
+            out[f'p{f}_idx'],out[f'p{f}_{f.split("2")[-1]}2ptr'] = out.pop(f'{f}_idx'), self.extract_ptr(out, 'ptr-1')
+            self.extract_ptr(out, 'ptr-2')
+
+            smp_out = self.smp_proc(x, lev=0, n_samples=n_sample, feat_type=feat)
+
+            o = self.pad_proc(smp_out, prefix=f, lev=1, in_place=True, drop=True)
+            o[f'{f}_{f.split("2")[-1]}2ptr'] = self.extract_ptr(o, 'ptr-1')
+            self.extract_ptr(o, 'ptr-2')
+            out.update(o)
+
+            for f,n_sample in zip(of,n_samples):
+                o = self.pad_proc(smp_out, prefix=f'{f}_idx', lev=2, in_place=False, drop=False)
+                if f'{f}_idx' in o:
+                    o[f'p{"2".join(f.split("2")[:-1])}_idx'] = o.pop(f'{f}_idx')
+                    o[f'p{"2".join(f.split("2")[:-1])}_{"2".join(f.split("2")[-2:])}2ptr'] = self.extract_ptr(o, 'ptr-2')
+                    o[f'p{"2".join(f.split("2")[:-1])}_{f.split("2")[-1]}2ptr'] = self.extract_ptr(o, 'ptr-1')
+                    out.update(o)
+
+                    o = self.pad_proc(self.smp_feat(smp_out, f, n_sample), prefix=f, lev=2, in_place=True, drop=True)
+                    feat = list(o.keys())
+                    for k in feat:
+                        p,q = k.split('_', maxsplit=1)
+                        o["_".join(["2".join(p.split("2")[:-1]),q])] = o.pop(k)
+                    o[f'{"2".join(p.split("2")[:-1])}_{"2".join(f.split("2")[-2:])}2ptr'] = self.extract_ptr(o, 'ptr-2')
+                    o[f'{"2".join(p.split("2")[:-1])}_{f.split("2")[-1]}2ptr'] = self.extract_ptr(o, 'ptr-1')
+                    out.update(o)
+        return out
+    
+
+    def __call__(self, x:List, smp_features:Optional[List]=None):
+        store_attr('smp_features', is_none=False)
+        
+        out, smp_features = BatchEncoding({}), () 
+        if self.smp_features is not None:
+            for feat,lev,n in self.smp_features: out.update(self.sample_feat(x, feat, lev, n))
+            smp_features = list(chain(*[o[0].split('|') for o in self.smp_features]))
+            
+        out.update(self.pad_proc(x, prefix='data', lev=0, in_place=True, drop=True))
+        
+        meta_names = set([o.split('_',maxsplit=1)[0] for o in x[0]]).difference(smp_features+['data'])
+        if 'lbl2data' in meta_names:
+            out.update(self.pad_proc(x, prefix='lbl2data', lev=1, in_place=True, drop=True))
+            out['lbl2data_data2ptr'] = self.extract_ptr(out, 'ptr-1')
+        
+        for k in meta_names.difference(['lbl2data']):
+            if k.endswith('2lbl2data'): 
+                o = self.pad_proc(x, prefix=k, lev=2, in_place=True, drop=True)
+                o[f'{k}_data2ptr'] = self.extract_ptr(o, 'ptr-1')
+                if 'lbl2data' in meta_names: o[f'{k}_lbl2data2ptr'] = self.extract_ptr(o, 'ptr-2')
+                else: o[f'{k}_plbl2data2ptr'] = self.extract_ptr(o, 'ptr-2')
+            elif k.endswith('2data'): 
+                o = self.pad_proc(x, prefix=k, lev=1, in_place=True, drop=True)
+                o[f'{k}_data2ptr'] = self.extract_ptr(o, 'ptr-1')
+            else: raise ValueError(f'Invalid metadata name ({k})')
+            out.update(o)
+        return out
+        
+
+# %% ../nbs/01_transform.ipynb 76
+class RemoveColumnTfm:
+    
+    def __init__(self, column:List, **kwargs):
+        self.column = column
+    
+    def __call__(self, x:Dict):
+        for k in self.column: 
+            if k in x: x.pop(k)
+        return x
+
+# %% ../nbs/01_transform.ipynb 79
 class NGPadFeatTfm:
 
     def __init__(self, **kwargs):
-        self.smp_proc, self.pad_proc = NGSampleFeatTfm(**kwargs), PadFeatTfm(**kwargs)
+        self.smp_proc, self.pad_proc = SampleFeatTfm(**kwargs), PadFeatTfm(**kwargs)
 
     def __call__(self, x:Dict):
         out = self.pad_proc(x, prefix='lbl2data_idx', lev=1, in_place=False, drop=False)
         if 'lbl2data_idx' in out:
             out['plbl2data_idx'] = out['lbl2data_idx']
             out['plbl2data_data2ptr'] = out.pop('lbl2data_idx_ptr-1')
-            out.update(self.pad_proc(self.smp_proc(x, prefix='lbl2data'), prefix='lbl2data', lev=0, in_place=True, drop=True))
+            out.update(self.pad_proc(self.smp_proc(x, lev=0, feat_type='lbl2data', ptr_type='data'), 
+                                     prefix='lbl2data', lev=1, in_place=True, drop=True))
         out.update(self.pad_proc(x, prefix='data', lev=0, in_place=True, drop=True))
         return out
         
 
-# %% ../nbs/01_transform.ipynb 76
+# %% ../nbs/01_transform.ipynb 88
 class TfmPipeline:
 
     def __init__(self, tfms:List):
@@ -367,7 +522,7 @@ class TfmPipeline:
         return x
         
 
-# %% ../nbs/01_transform.ipynb 104
+# %% ../nbs/01_transform.ipynb 116
 class AugmentMetaInputIdsTfm:
 
     def __init__(self, meta:str, max_len:Optional[int]=None, exclude_sep:Optional[bool]=False):
@@ -377,7 +532,7 @@ class AugmentMetaInputIdsTfm:
         meta2data_ids = []
         for d_ids, d_meta in progress_bar(zip(data_ids, data_meta), total=len(data_ids)):
             m2d_ids, sep_tok = d_ids[:-1].copy() if self.exclude_sep else d_ids.copy(), d_ids[-1:]
-            for o in d_meta.indices:
+            for o in d_meta.indices[np.random.permutation(len(d_meta.indices))]:
                 if self.exclude_sep: m2d_ids.extend(meta_ids[o][1:-1])
                 else: m2d_ids.extend(meta_ids[o][1:])
                 if self.max_len is not None and len(m2d_ids)>=self.max_len: m2d_ids = m2d_ids[:self.max_len-1]; break
@@ -404,19 +559,20 @@ class AugmentMetaInputIdsTfm:
         return self(block, meta, max_len, exclude_sep)
         
 
-# %% ../nbs/01_transform.ipynb 120
+# %% ../nbs/01_transform.ipynb 133
 class TriePruneInputIdsTfm:
 
     def prune(self, block:XCDataBlock, loc:str, fld:str):
         x = get_attr(block, loc)
         if fld in x:
-            trie = Trie.from_list(x[fld])
+            trie = Trie.from_list(x[fld], None)
             trie.prune()
             x[f'{fld}_prn_tre'] = [trie.prefix(o) for o in x[fld]]
 
     def align(self, block:XCDataBlock, loc:str, inp:str, targ:str):
         x = get_attr(block, loc)
-        x[f'{targ}_prn_tre'] = [q[:len(p)] for i,(p,q) in enumerate(zip(x[inp],x[targ]))]
+        if inp in x and targ in x:
+            x[f'{targ}_prn_tre'] = [q[:len(p)] for i,(p,q) in enumerate(zip(x[inp],x[targ]))]
         
     def proc(self, block:XCDataBlock, loc:str):
         self.prune(block, loc, 'input_ids')

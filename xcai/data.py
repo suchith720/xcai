@@ -150,24 +150,27 @@ class MetaXCDataset(BaseXCDataset):
                  data_meta:sparse.csr_matrix, 
                  lbl_meta:sparse.csr_matrix, 
                  meta_info:Optional[Dict]=None, 
-                 n_meta_samples:Optional[int]=None, 
+                 n_data_meta_samples:Optional[int]=None,
+                 n_lbl_meta_samples:Optional[int]=None,
                  **kwargs):
-        store_attr('prefix,data_meta,lbl_meta,meta_info,n_meta_samples')
+        store_attr('prefix,data_meta,lbl_meta,meta_info,n_data_meta_samples,n_lbl_meta_samples')
         self._verify_inputs()
 
     def _getitems(self, idxs:List):
-        return MetaXCDataset(self.prefix, self.data_meta[idxs], self.lbl_meta, self.meta_info, self.n_meta_samples)
+        return MetaXCDataset(self.prefix, self.data_meta[idxs], self.lbl_meta, self.meta_info, 
+                             self.n_data_meta_samples, self.n_lbl_meta_samples)
         
     @classmethod
     @delegates(MetaXCData.from_file)
-    def from_file(cls, n_meta_samples:Optional[int]=None, **kwargs):
-        return cls(**MetaXCData.from_file(**kwargs), n_meta_samples=n_meta_samples)
+    def from_file(cls, n_data_meta_samples:Optional[int]=None, n_lbl_meta_samples:Optional[int]=None, **kwargs):
+        return cls(**MetaXCData.from_file(**kwargs), n_data_meta_samples=n_data_meta_samples, 
+                   n_lbl_meta_samples=n_lbl_meta_samples)
 
     @typedispatch
     def get_lbl_meta(self, idx:int):
         prefix = f'{self.prefix}2lbl2data'
         x = {f'{prefix}_idx': self.lbl_meta[idx].indices.tolist()}
-        if self.n_meta_samples: x[f'{prefix}_idx'] = [x[f'{prefix}_idx'][i] for i in np.random.permutation(len(x[f'{prefix}_idx']))[:self.n_meta_samples]]
+        if self.n_lbl_meta_samples: x[f'{prefix}_idx'] = [x[f'{prefix}_idx'][i] for i in np.random.permutation(len(x[f'{prefix}_idx']))[:self.n_lbl_meta_samples]]
         if self.meta_info is not None:
             x.update({f'{prefix}_{k}':[v[i] for i in x[f'{prefix}_idx']] for k,v in self.meta_info.items()})
         return x
@@ -176,7 +179,7 @@ class MetaXCDataset(BaseXCDataset):
     def get_lbl_meta(self, idxs:List):
         prefix = f'{self.prefix}2lbl2data'
         x = {f'{prefix}_idx': [self.lbl_meta[idx].indices.tolist() for idx in idxs]}
-        if self.n_meta_samples: x[f'{prefix}_idx'] = [[o[i] for i in np.random.permutation(len(o))[:self.n_meta_samples]] for o in x[f'{prefix}_idx']]
+        if self.n_lbl_meta_samples: x[f'{prefix}_idx'] = [[o[i] for i in np.random.permutation(len(o))[:self.n_lbl_meta_samples]] for o in x[f'{prefix}_idx']]
         if self.meta_info is not None:
             x.update({f'{prefix}_{k}':[[v[i] for i in o] for o in x[f'{prefix}_idx']] for k,v in self.meta_info.items()})
         return x
@@ -184,7 +187,7 @@ class MetaXCDataset(BaseXCDataset):
     def get_data_meta(self, idx:int):
         prefix = f'{self.prefix}2data'
         x = {f'{prefix}_idx': self.data_meta[idx].indices.tolist()}
-        if self.n_meta_samples: x[f'{prefix}_idx'] = [x[f'{prefix}_idx'][i] for i in np.random.permutation(len(x[f'{prefix}_idx']))[:self.n_meta_samples]]
+        if self.n_data_meta_samples: x[f'{prefix}_idx'] = [x[f'{prefix}_idx'][i] for i in np.random.permutation(len(x[f'{prefix}_idx']))[:self.n_data_meta_samples]]
         if self.meta_info is not None:
             x.update({f'{prefix}_{k}':[v[i] for i in x[f'{prefix}_idx']] for k,v in self.meta_info.items()})
         return x
@@ -205,9 +208,13 @@ class MetaXCDataset(BaseXCDataset):
 # %% ../nbs/02_data.ipynb 31
 @patch
 def _verify_inputs(cls:MetaXCDataset):
-    cls.n_data, cls.n_lbl, cls.n_meta = cls.data_meta.shape[0], cls.lbl_meta.shape[0], cls.data_meta.shape[1]
-    if cls.lbl_meta.shape[1] != cls.n_meta:
-        raise ValueError(f'`lbl_meta`({cls.lbl_meta.shape[1]}) should have same number of columns as `data_meta`({cls.n_meta}).')
+    cls.n_data,cls.n_meta = cls.data_meta.shape[0],cls.data_meta.shape[1]
+    
+    if cls.lbl_meta is not None:
+        cls.n_lbl = cls.lbl_meta.shape[0]
+        if cls.lbl_meta.shape[1] != cls.n_meta:
+            raise ValueError(f'`lbl_meta`({cls.lbl_meta.shape[1]}) should have same number of columns as `data_meta`({cls.n_meta}).')
+
     if cls.meta_info is not None:
         n_meta = cls._verify_info(cls.meta_info)
         if n_meta != cls.n_meta:
@@ -253,7 +260,7 @@ class XCDataset(BaseXCDataset):
                 if meta.n_data != self.n_data: raise ValueError(f'`meta`({meta.n_data}) and `data`({self.n_data}) should have the same number of datapoints.')
                 if self.n_lbl is not None and meta.n_lbl != self.n_lbl: 
                     raise ValueError(f'`meta`({meta.n_lbl}) and `data`({self.n_lbl}) should have the same number of labels.')
-                if meta.n_meta != self.n_meta: raise ValueError(f'Every `meta`({meta.n_meta},{self.n_meta}) should have the same number of entries.')
+
 
     def __getitem__(self, idx:int):
         x = self.data[idx]
@@ -406,6 +413,6 @@ class XCDataBlock:
                  seed=None):
         if isinstance(cfg, str): cfg = cls.load_cfg(cfg)
         blks = {o:BaseXCDataBlock.from_file(**cfg['path'][o], **cfg['parameters'], collate_fn=collate_fn) for o in ['train', 'valid', 'test'] if o in cfg['path']}
-        if 'valid' not in blks: blks['train'], blks['valid'] = blks['train'].splitter(valid_pct, seed=seed)
+        # if 'valid' not in blks: blks['train'], blks['valid'] = blks['train'].splitter(valid_pct, seed=seed)
         return cls(**blks)
         
