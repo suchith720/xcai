@@ -696,6 +696,7 @@ class Encoder002(DistilBertPreTrainedModel):
         for m_key, m_args in meta_kwargs.items():
             idx = torch.where(m_args['data2ptr'] > 0)[0]
             meta_repr[m_key] = torch.empty(0, self.config.dim).to(embed)
+            
             if len(idx):
                 if 'meta_repr' in m_args:
                     m_repr,m_repr_mask = m_args['meta_repr'],torch.any(m_args['attention_mask'], dim=1).long().view(-1,1)
@@ -923,7 +924,7 @@ class RAD002(DistilBertPreTrainedModel):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         **kwargs
-    ): 
+    ):  
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
         
         if self.use_encoder_parallel: 

@@ -87,11 +87,14 @@ FSDP_MODEL_NAME = "pytorch_model_fsdp"
 
 logger = logging.get_logger(__name__)
 
-# %% ../nbs/06_learner.ipynb 18
-pkl_dir = '/home/scai/phd/aiz218323/scratch/datasets'
-pkl_file = f'{pkl_dir}/processed/wikiseealso_data_distilbert-base-uncased_xcnlg_ngame.pkl'
+# %% ../nbs/06_learner.ipynb 7
+from .data import *
 
-# %% ../nbs/06_learner.ipynb 21
+# %% ../nbs/06_learner.ipynb 19
+pkl_dir = '/home/scai/phd/aiz218323/scratch/datasets'
+pkl_file = f'{pkl_dir}/processed/wikiseealso_data-metas_distilbert-base-uncased_rm_radga-final.pkl'
+
+# %% ../nbs/06_learner.ipynb 23
 def scatter(inputs, target_gpus, chunk_sizes=None, dim=0):
     def scatter_map(obj):
         if isinstance(obj, torch.Tensor):
@@ -127,7 +130,7 @@ def scatter_kwargs(
     return scattered_inputs, scattered_kwargs
     
 
-# %% ../nbs/06_learner.ipynb 22
+# %% ../nbs/06_learner.ipynb 24
 class XCDataParallel(DataParallel):
 
     @delegates(DataParallel.__init__)
@@ -167,7 +170,7 @@ class XCDataParallel(DataParallel):
         return tuple(scattered_inputs), tuple(scattered_kwargs)
         
 
-# %% ../nbs/06_learner.ipynb 35
+# %% ../nbs/06_learner.ipynb 37
 class XCEvalLoopOutput(NamedTuple):
     pred_idx: Union[np.ndarray, Tuple[np.ndarray]]
     pred_ptr: Union[np.ndarray, Tuple[np.ndarray]]
@@ -189,7 +192,7 @@ class XCPredictionOutput(NamedTuple):
     num_samples: Optional[int]
     
 
-# %% ../nbs/06_learner.ipynb 36
+# %% ../nbs/06_learner.ipynb 38
 class XCLearningArguments(Seq2SeqTrainingArguments):
 
     @delegates(Seq2SeqTrainingArguments.__init__)
@@ -230,6 +233,7 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
                  metadata_representation_attribute:Optional[str]='data_repr',
                  data_augmentation_attribute:Optional[str]='data_repr',
                  use_distributional_representation:Optional[bool]=False,
+                 use_label_metadata:Optional[bool]=True,
                  **kwargs):
         super().__init__(**kwargs)
         store_attr('generation_num_beams,generation_length_penalty,generation_max_info,generation_eos_token')
@@ -243,12 +247,13 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
         store_attr('data_aug_meta_name,augmentation_num_beams,predict_with_augmentation')
         store_attr('use_augmentation_index_representation,metadata_representation_attribute,data_augmentation_attribute')
         store_attr('use_distributional_representation')
+        store_attr('use_label_metadata')
         self.minimum_clusters = max(1, minimum_clusters)
         self.maximum_clusters = max(minimum_clusters, maximum_clusters) if maximum_clusters is not None else minimum_clusters
         self.minimum_cluster_size = max(1, minimum_cluster_size)
         
 
-# %% ../nbs/06_learner.ipynb 38
+# %% ../nbs/06_learner.ipynb 40
 class XCLearner(Seq2SeqTrainer):
 
     @delegates(Seq2SeqTrainer.__init__)
@@ -339,7 +344,7 @@ class XCLearner(Seq2SeqTrainer):
             
             
 
-# %% ../nbs/06_learner.ipynb 39
+# %% ../nbs/06_learner.ipynb 41
 @patch
 def _build_aug_index(self:XCLearner, dataset:Optional[Dataset]=None):
     dataset = dataset if self.eval_dataset is None else self.eval_dataset
@@ -359,8 +364,6 @@ def _build_aug_index(self:XCLearner, dataset:Optional[Dataset]=None):
         aug_dset = MainXCDataset(self.aug_info)
         aug_dl = self.get_test_dataloader(aug_dset)
         aug_repr = self.get_meta_representation(aug_dl, to_cpu=isinstance(self.aug_idxs, IndexSearch))
-        if self.args.use_distributional_representation: aug_repr = F.log_softmax(aug_repr, dim=-1)
-            
         self.aug_idxs.build(aug_repr)
 
 @patch
@@ -372,20 +375,19 @@ def _build_lbl_index(self:XCLearner, dataset:Optional[Dataset]=None):
         lbl_dset = dataset.lbl_dset
         
         meta_name = f'{self.args.data_aug_meta_name}_meta' if self.args.data_aug_meta_name is not None else None
-        if meta_name is not None and dataset.meta is not None and meta_name in dataset.meta:
+        if meta_name is not None and dataset.meta is not None and meta_name in dataset.meta and self.args.use_label_metadata:
             prefix,lbl_meta,meta_info  = dataset.meta[meta_name].prefix,dataset.meta[meta_name].lbl_meta,dataset.meta[meta_name].meta_info
             meta_kwargs = {meta_name: MetaXCDataset(prefix, lbl_meta, lbl_meta, meta_info, n_data_meta_samples=self.args.augmentation_num_beams)}
             lbl_dset = XCDataset(lbl_dset, **meta_kwargs)
         
         lbl_dl = self.get_test_dataloader(lbl_dset)
         lbl_repr = self.get_representation(lbl_dl, to_cpu=isinstance(self.idxs, IndexSearch))
-        if self.args.use_distributional_representation: lbl_repr = F.log_softmax(lbl_repr, dim=-1)
-            
+        
         self.idxs.build(lbl_repr)
     else: raise ValueError('Failed to build `self.idxs`')
         
 
-# %% ../nbs/06_learner.ipynb 40
+# %% ../nbs/06_learner.ipynb 42
 @patch
 def generation_output(
     self:XCLearner,
@@ -413,7 +415,7 @@ def representation_output(
     
     with torch.no_grad(): 
         o = getattr(model(**inputs), self.args.representation_attribute)
-        if self.args.use_distributional_representation: o = F.softmax(o, dim=-1)
+        if self.args.use_distributional_representation: o = o.exp()
             
     o = self.idxs.proc(o, n_bm=n_bm)
         
@@ -432,8 +434,8 @@ def augmentation_output(
     n_bm = kwargs.pop("aug_num_beams") if "aug_num_beams" in kwargs and kwargs["aug_num_beams"] is not None else self.args.augmentation_num_beams
     
     with torch.no_grad(): 
-        o = getattr(model(**inputs), self.args.data_augmentation_attribute)
-        if self.args.use_distributional_representation: o = F.softmax(o, dim=-1)
+        o = getattr(model(**{'data_input_ids':inputs['data_input_ids'], 'data_attention_mask':inputs['data_attention_mask']}), self.args.data_augmentation_attribute)
+        if self.args.use_distributional_representation: o = o.exp()
             
     o = self.aug_idxs.proc(o, n_bm=n_bm)
     
@@ -445,6 +447,7 @@ def augmentation_output(
     if self.args.use_augmentation_index_representation:
         meta_repr = torch.tensor(self.aug_idxs.index.get_items(o['info2data_idx']))
         return {
+            f'{self.args.data_aug_meta_name}2data_idx':o['info2data_idx'], 
             f'{self.args.data_aug_meta_name}2data_meta_repr': meta_repr,
             f'{self.args.data_aug_meta_name}2data_attention_mask': aug_info['meta_attention_mask'],
             f'{self.args.data_aug_meta_name}2data_data2ptr': o['info2data_data2ptr'],
@@ -458,7 +461,7 @@ def augmentation_output(
         }
     
 
-# %% ../nbs/06_learner.ipynb 41
+# %% ../nbs/06_learner.ipynb 43
 @patch
 def _perform_generation(self:XCLearner, model:nn.Module, predict_with_generation:Optional[bool]=None):
     model = unwrap_model(model)
@@ -478,7 +481,7 @@ def _perform_augmentation(self:XCLearner, model:nn.Module, predict_with_augmenta
     return getattr(model,'use_augmentation') if hasattr(model,'use_augmentation') else predict_with_augmentation
 
 
-# %% ../nbs/06_learner.ipynb 42
+# %% ../nbs/06_learner.ipynb 44
 @patch
 def resize_pred(cls:XCLearner, t, n_t):
     max_n_t = n_t.max()
@@ -516,7 +519,7 @@ def concatenate_output(cls:XCLearner, gen_o:Dict, repr_o:Dict):
     }
     
 
-# %% ../nbs/06_learner.ipynb 43
+# %% ../nbs/06_learner.ipynb 45
 @patch
 def prediction_step(
     self:XCLearner,
@@ -556,7 +559,7 @@ def prediction_step(
     return loss, output
     
 
-# %% ../nbs/06_learner.ipynb 44
+# %% ../nbs/06_learner.ipynb 46
 @patch
 def evaluation_loop(
     self:XCLearner,
@@ -570,6 +573,9 @@ def evaluation_loop(
 ) -> XCEvalLoopOutput:
     args = self.args
     prediction_loss_only = prediction_loss_only if prediction_loss_only is not None else args.prediction_loss_only
+    
+    if hasattr(self.model, 'disable_noise') and callable(getattr(self.model, 'disable_noise')):
+        use_noise = self.model.disable_noise()
 
     model = self._wrap_model(self.model, training=False, dataloader=dataloader)
 
@@ -580,9 +586,9 @@ def evaluation_loop(
         if self.is_deepspeed_enabled: self.deepspeed = self.model_wrapped
 
     batch_size = self.args.eval_batch_size
-    
-    model.eval()
 
+    model.eval()
+    
     self.callback_handler.eval_dataloader = dataloader
     eval_dataset = getattr(dataloader, "dataset", None)
     
@@ -659,6 +665,9 @@ def evaluation_loop(
         
     for key in list(metrics.keys()):
         if not key.startswith(f"{metric_key_prefix}_"): metrics[f"{metric_key_prefix}_{key}"] = metrics.pop(key)
+        
+    if hasattr(self.model, 'disable_noise') and callable(getattr(self.model, 'disable_noise')):
+        self.model.set_noise(use_noise)
     
     return XCEvalLoopOutput(pred_idx=all_output.get('pred_idx'), pred_ptr=all_output.get('pred_ptr'), 
                             pred_score=all_output.get('pred_score'),targ_idx=all_output.get('targ_idx'), 
@@ -666,7 +675,7 @@ def evaluation_loop(
                             metrics=metrics, num_samples=num_samples)
     
 
-# %% ../nbs/06_learner.ipynb 45
+# %% ../nbs/06_learner.ipynb 47
 @patch
 def get_meta_representation(self:XCLearner, dataloader: DataLoader, to_cpu:Optional[bool]=True):
     data_host, all_data = None, None
@@ -706,7 +715,7 @@ def get_representation(self:XCLearner, dataloader: DataLoader, to_cpu:Optional[b
     return self._gather_all_output(data_host, all_data, to_cpu=to_cpu)
     
 
-# %% ../nbs/06_learner.ipynb 47
+# %% ../nbs/06_learner.ipynb 49
 @patch
 def _get_train_sampler(self:XCLearner):
     if self.train_dataset is None or not has_length(self.train_dataset):
@@ -735,7 +744,7 @@ def _get_train_sampler(self:XCLearner):
         return RandomSampler(self.train_dataset)
         
 
-# %% ../nbs/06_learner.ipynb 48
+# %% ../nbs/06_learner.ipynb 50
 @patch
 def get_train_dataloader(self:XCLearner):
     if self.train_dataset is None:
@@ -765,7 +774,7 @@ def get_train_dataloader(self:XCLearner):
     return DataLoader(train_dataset, **dataloader_params)
     
 
-# %% ../nbs/06_learner.ipynb 49
+# %% ../nbs/06_learner.ipynb 51
 @patch
 def _get_min_cluster_sz(self:XCLearner, epochs_trained:int, num_train_epochs:int):
     
@@ -792,14 +801,22 @@ def _get_min_cluster_sz(self:XCLearner, epochs_trained:int, num_train_epochs:int
     else: raise ValueError(f'Invalid `clustering_type`({self.args.clustering_type}).')
     
 
-# %% ../nbs/06_learner.ipynb 50
+# %% ../nbs/06_learner.ipynb 52
 @patch
 def _get_train_data_cluster(self:XCLearner, epochs_trained:int, num_train_epochs:int):
-    dataset = self.train_dataset.data_dset
-    dataloader = self.get_test_dataloader(dataset)
+    dataset = self.train_dataset
+    data_dset = dataset.data_dset
+    
+    meta_name = f'{self.args.data_aug_meta_name}_meta' if self.args.data_aug_meta_name is not None else None
+    if meta_name is not None and dataset.meta is not None and meta_name in dataset.meta:
+        prefix,data_meta,meta_info  = dataset.meta[meta_name].prefix,dataset.meta[meta_name].data_meta,dataset.meta[meta_name].meta_info
+        meta_kwargs = {meta_name: MetaXCDataset(prefix, data_meta, data_meta, meta_info, n_data_meta_samples=self.args.augmentation_num_beams)}
+        data_dset = XCDataset(data_dset, **meta_kwargs)
+            
+    dataloader = self.get_test_dataloader(data_dset)
     data_repr = self.get_representation(dataloader)
     
-    if self.args.use_distributional_representation: data_repr = F.softmax(data_repr, dim=-1)
+    if self.args.use_distributional_representation: data_repr = data_repr.exp()
         
     cluster = BalancedClusters.proc(data_repr, self._get_min_cluster_sz(epochs_trained, num_train_epochs), clustering_devices=self.args.clustering_devices)
     return cluster
@@ -811,7 +828,7 @@ def update_dataloader_sampler(self:XCLearner, dataloader:DataLoader, epochs_trai
         dataloader.sampler.set_cluster(cluster)
     
 
-# %% ../nbs/06_learner.ipynb 51
+# %% ../nbs/06_learner.ipynb 53
 @patch
 def _validate_group_by_cluster(self:XCLearner):
     if self.args.group_by_cluster and (not hasattr(self.model,'use_representation') or  not getattr(unwrap_model(self.model),'use_representation')):

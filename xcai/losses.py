@@ -222,12 +222,11 @@ class Entropy(BaseLoss):
     def __init__(self, 
                  margin:Optional[float]=0.8,
                  tau:Optional[float]=0.1,
-                 psi:Optional[float]=0.5,
                  apply_softmax:Optional[bool]=True,
                  n_negatives:Optional[int]=5,
                  **kwargs):
         super().__init__(**kwargs)
-        store_attr('margin,tau,psi,apply_softmax,n_negatives')
+        store_attr('margin,tau,apply_softmax,n_negatives')
         
 
 # %% ../nbs/04_losses.ipynb 63
@@ -240,16 +239,14 @@ def forward(cls:Entropy,
             pinp2targ_idx:torch.LongTensor,
             margin:Optional[float]=None,
             tau:Optional[float]=None,
-            psi:Optional[float]=None,
             apply_softmax:Optional[bool]=None,
             n_negatives:Optional[int]=None,
             **kwargs):
-    store_attr('margin,tau,psi,apply_softmax,n_negatives', is_none=False)
+    store_attr('margin,tau,apply_softmax,n_negatives', is_none=False)
     _, idx = torch.unique(torch.cat([inp2targ_idx, pinp2targ_idx]), return_inverse=True)
     ne = 1 - get_sparse_matrix(idx[len(inp2targ_idx):], n_pinp2targ).to_dense()[:, idx[:len(inp2targ_idx)]]
     
-    inp, targ = F.softmax(inp/cls.psi, dim=-1), F.log_softmax(targ/cls.psi, dim=-1)
-    sc = inp@targ.T
+    sc = targ.exp()@inp.T
     
     sc_p =  sc.diagonal().unsqueeze(1)
     _, ne_idx = torch.topk(torch.where(ne == 0, torch.finfo(sc.dtype).min, sc), min(cls.n_negatives, sc.shape[0]-1), dim=1, largest=True)
