@@ -21,7 +21,7 @@ from .core import *
 from .generation.trie import *
 from .data import XCDataBlock, BaseXCDataBlock
 
-# %% ../nbs/01_transform.ipynb 9
+# %% ../nbs/01_transform.ipynb 12
 class PadTfm:
 
     def __init__(self, 
@@ -68,7 +68,7 @@ class PadTfm:
         except: return x
         
 
-# %% ../nbs/01_transform.ipynb 13
+# %% ../nbs/01_transform.ipynb 16
 class CollapseTfm:
 
     def __init__(self, lev:int=0, use_ptr:int=True, **kwargs):
@@ -98,7 +98,7 @@ class CollapseTfm:
         return x, ptr
 
 
-# %% ../nbs/01_transform.ipynb 17
+# %% ../nbs/01_transform.ipynb 20
 class CollateFeatTfm:
 
     def __init__(self, prefix:Optional[str]=None, drop:Optional[bool]=True, lev:Optional[int]=0, **kwargs):
@@ -125,7 +125,7 @@ class CollateFeatTfm:
         
         
 
-# %% ../nbs/01_transform.ipynb 21
+# %% ../nbs/01_transform.ipynb 24
 class PadFeatTfm:
 
     def __init__(self,
@@ -179,7 +179,7 @@ class PadFeatTfm:
         return self.proc(feat)
         
 
-# %% ../nbs/01_transform.ipynb 29
+# %% ../nbs/01_transform.ipynb 32
 class AlignInputIdsTfm:
 
     def __init__(self,
@@ -251,7 +251,7 @@ class AlignInputIdsTfm:
         return x
         
 
-# %% ../nbs/01_transform.ipynb 42
+# %% ../nbs/01_transform.ipynb 45
 class XCPadFeatTfm:
 
     @delegates(PadFeatTfm.__init__)
@@ -280,7 +280,7 @@ class XCPadFeatTfm:
         return out
         
 
-# %% ../nbs/01_transform.ipynb 48
+# %% ../nbs/01_transform.ipynb 51
 class XCPadOutputTfm:
 
     @delegates(PadFeatTfm.__init__)
@@ -297,7 +297,7 @@ class XCPadOutputTfm:
         return out
         
 
-# %% ../nbs/01_transform.ipynb 52
+# %% ../nbs/01_transform.ipynb 55
 class SampleFeatTfm:
 
     def __init__(self, feat_type:Optional[str]=None, smp_prefix:Optional[str]='', **kwargs):
@@ -329,7 +329,7 @@ class SampleFeatTfm:
         return self.proc(x, lev, n_samples)
         
 
-# %% ../nbs/01_transform.ipynb 59
+# %% ../nbs/01_transform.ipynb 62
 class XCSamplePadFeatTfm:
 
     def __init__(self, smp_features:Optional[List]=None, **kwargs):
@@ -387,7 +387,7 @@ class XCSamplePadFeatTfm:
         return out
         
 
-# %% ../nbs/01_transform.ipynb 70
+# %% ../nbs/01_transform.ipynb 73
 class RamenPadFeatTfm:
 
     def __init__(self, smp_features:Optional[List]=None, **kwargs):
@@ -483,7 +483,7 @@ class RamenPadFeatTfm:
         return out
         
 
-# %% ../nbs/01_transform.ipynb 76
+# %% ../nbs/01_transform.ipynb 85
 class RemoveColumnTfm:
     
     def __init__(self, column:List, **kwargs):
@@ -494,7 +494,7 @@ class RemoveColumnTfm:
             if k in x: x.pop(k)
         return x
 
-# %% ../nbs/01_transform.ipynb 79
+# %% ../nbs/01_transform.ipynb 88
 class NGPadFeatTfm:
 
     def __init__(self, **kwargs):
@@ -511,7 +511,7 @@ class NGPadFeatTfm:
         return out
         
 
-# %% ../nbs/01_transform.ipynb 88
+# %% ../nbs/01_transform.ipynb 97
 class TfmPipeline:
 
     def __init__(self, tfms:List):
@@ -522,7 +522,7 @@ class TfmPipeline:
         return x
         
 
-# %% ../nbs/01_transform.ipynb 116
+# %% ../nbs/01_transform.ipynb 125
 class AugmentMetaInputIdsTfm:
 
     def __init__(self, meta:str, max_len:Optional[int]=None, exclude_sep:Optional[bool]=False):
@@ -539,27 +539,31 @@ class AugmentMetaInputIdsTfm:
             meta2data_ids.append(m2d_ids+sep_tok)
         return meta2data_ids
 
-    def proc(self, block:XCDataBlock, split:str, fld:str):
-        if fld in get_attr(block, f'{split}.dset.data.data_info'):
-            data_ids = get_attr(block, f'{split}.dset.data.data_info')[fld]
+    def proc(self, block:XCDataBlock, split:str, fld:str, side:Optional[str]='data'):
+        if side not in ['data', 'lbl']: 
+            raise ValueError("Invalid `side`, it should be in ['data','lbl']")
+            
+        if fld in get_attr(block, f'{split}.dset.data.{side}_info'):
+            data_ids = get_attr(block, f'{split}.dset.data.{side}_info')[fld]
             meta_ids = get_attr(block, f'{split}.dset.meta.{self.meta}.meta_info')[fld]
-            data_meta = get_attr(block, f'{split}.dset.meta.{self.meta}.data_meta')
-            get_attr(block, f'{split}.dset.data.data_info')[f'{fld}_aug_{self.meta.split("_")[0]}'] = self.augment(data_ids, data_meta, meta_ids)
+            data_meta = get_attr(block, f'{split}.dset.meta.{self.meta}.{side}_meta')
+            get_attr(block, f'{split}.dset.data.{side}_info')[f'{fld}_aug_{self.meta.split("_")[0]}'] = self.augment(data_ids, data_meta, meta_ids)
 
-    def __call__(self, block:XCDataBlock, meta:str, max_len:Optional[int]=None, exclude_sep:Optional[bool]=None):
+    def __call__(self, block:XCDataBlock, meta:str, side:Optional[str]='data', max_len:Optional[int]=None, 
+                 exclude_sep:Optional[bool]=None):
         store_attr('meta,max_len,exclude_sep', is_none=False)
         for split in master_bar(['train', 'valid', 'test']):
             if hasattr(block, split) and get_attr(block, split) is not None: 
-                for fld in ['input_ids', 'attention_mask', 'token_type_ids']: self.proc(block, split, fld)
+                for fld in ['input_ids', 'attention_mask', 'token_type_ids']: self.proc(block, split, fld, side)
         return block
         
     @classmethod
-    def apply(cls, block:XCDataBlock, meta:str, max_len:Optional[int]=None, exclude_sep:Optional[bool]=False):
+    def apply(cls, block:XCDataBlock, meta:str, side:Optional[str]='data', max_len:Optional[int]=None, exclude_sep:Optional[bool]=False):
         self = cls(meta, max_len, exclude_sep)
-        return self(block, meta, max_len, exclude_sep)
+        return self(block, meta, side, max_len, exclude_sep)
         
 
-# %% ../nbs/01_transform.ipynb 133
+# %% ../nbs/01_transform.ipynb 143
 class TriePruneInputIdsTfm:
 
     def prune(self, block:XCDataBlock, loc:str, fld:str):
