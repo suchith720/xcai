@@ -94,7 +94,7 @@ from .data import *
 pkl_dir = '/home/scai/phd/aiz218323/scratch/datasets'
 pkl_file = f'{pkl_dir}/processed/wikiseealso_data-metas_distilbert-base-uncased_rm_radga-final.pkl'
 
-# %% ../nbs/06_learner.ipynb 23
+# %% ../nbs/06_learner.ipynb 25
 def scatter(inputs, target_gpus, chunk_sizes=None, dim=0):
     def scatter_map(obj):
         if isinstance(obj, torch.Tensor):
@@ -130,7 +130,7 @@ def scatter_kwargs(
     return scattered_inputs, scattered_kwargs
     
 
-# %% ../nbs/06_learner.ipynb 24
+# %% ../nbs/06_learner.ipynb 26
 class XCDataParallel(DataParallel):
 
     @delegates(DataParallel.__init__)
@@ -170,7 +170,7 @@ class XCDataParallel(DataParallel):
         return tuple(scattered_inputs), tuple(scattered_kwargs)
         
 
-# %% ../nbs/06_learner.ipynb 37
+# %% ../nbs/06_learner.ipynb 39
 class XCEvalLoopOutput(NamedTuple):
     pred_idx: Union[np.ndarray, Tuple[np.ndarray]]
     pred_ptr: Union[np.ndarray, Tuple[np.ndarray]]
@@ -192,7 +192,7 @@ class XCPredictionOutput(NamedTuple):
     num_samples: Optional[int]
     
 
-# %% ../nbs/06_learner.ipynb 38
+# %% ../nbs/06_learner.ipynb 40
 class XCLearningArguments(Seq2SeqTrainingArguments):
 
     @delegates(Seq2SeqTrainingArguments.__init__)
@@ -234,6 +234,11 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
                  data_augmentation_attribute:Optional[str]='data_repr',
                  use_distributional_representation:Optional[bool]=False,
                  use_label_metadata:Optional[bool]=True,
+                 prune_metadata:Optional[bool]=False,
+                 num_metadata_prune_epochs:Optional[int]=1,
+                 metadata_prune_batch_size:Optional[int]=64,
+                 num_metadata_prune_warmup_epochs:Optional[int]=10,
+                 prune_metadata_names:Optional[List]=None,
                  **kwargs):
         super().__init__(**kwargs)
         store_attr('generation_num_beams,generation_length_penalty,generation_max_info,generation_eos_token')
@@ -248,12 +253,13 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
         store_attr('use_augmentation_index_representation,metadata_representation_attribute,data_augmentation_attribute')
         store_attr('use_distributional_representation')
         store_attr('use_label_metadata')
+        store_attr('prune_metadata,num_metadata_prune_epochs,num_metadata_prune_warmup_epochs,metadata_prune_batch_size,prune_metadata_names')
         self.minimum_clusters = max(1, minimum_clusters)
         self.maximum_clusters = max(minimum_clusters, maximum_clusters) if maximum_clusters is not None else minimum_clusters
         self.minimum_cluster_size = max(1, minimum_cluster_size)
         
 
-# %% ../nbs/06_learner.ipynb 40
+# %% ../nbs/06_learner.ipynb 42
 class XCLearner(Seq2SeqTrainer):
 
     @delegates(Seq2SeqTrainer.__init__)
@@ -344,7 +350,7 @@ class XCLearner(Seq2SeqTrainer):
             
             
 
-# %% ../nbs/06_learner.ipynb 41
+# %% ../nbs/06_learner.ipynb 43
 @patch
 def _build_aug_index(self:XCLearner, dataset:Optional[Dataset]=None):
     dataset = dataset if self.eval_dataset is None else self.eval_dataset
@@ -387,7 +393,7 @@ def _build_lbl_index(self:XCLearner, dataset:Optional[Dataset]=None):
     else: raise ValueError('Failed to build `self.idxs`')
         
 
-# %% ../nbs/06_learner.ipynb 42
+# %% ../nbs/06_learner.ipynb 44
 @patch
 def generation_output(
     self:XCLearner,
@@ -461,7 +467,7 @@ def augmentation_output(
         }
     
 
-# %% ../nbs/06_learner.ipynb 43
+# %% ../nbs/06_learner.ipynb 45
 @patch
 def _perform_generation(self:XCLearner, model:nn.Module, predict_with_generation:Optional[bool]=None):
     model = unwrap_model(model)
@@ -481,7 +487,7 @@ def _perform_augmentation(self:XCLearner, model:nn.Module, predict_with_augmenta
     return getattr(model,'use_augmentation') if hasattr(model,'use_augmentation') else predict_with_augmentation
 
 
-# %% ../nbs/06_learner.ipynb 44
+# %% ../nbs/06_learner.ipynb 46
 @patch
 def resize_pred(cls:XCLearner, t, n_t):
     max_n_t = n_t.max()
@@ -519,7 +525,7 @@ def concatenate_output(cls:XCLearner, gen_o:Dict, repr_o:Dict):
     }
     
 
-# %% ../nbs/06_learner.ipynb 45
+# %% ../nbs/06_learner.ipynb 47
 @patch
 def prediction_step(
     self:XCLearner,
@@ -559,7 +565,7 @@ def prediction_step(
     return loss, output
     
 
-# %% ../nbs/06_learner.ipynb 46
+# %% ../nbs/06_learner.ipynb 48
 @patch
 def evaluation_loop(
     self:XCLearner,
@@ -675,7 +681,7 @@ def evaluation_loop(
                             metrics=metrics, num_samples=num_samples)
     
 
-# %% ../nbs/06_learner.ipynb 47
+# %% ../nbs/06_learner.ipynb 49
 @patch
 def get_meta_representation(self:XCLearner, dataloader: DataLoader, to_cpu:Optional[bool]=True):
     data_host, all_data = None, None
@@ -715,7 +721,7 @@ def get_representation(self:XCLearner, dataloader: DataLoader, to_cpu:Optional[b
     return self._gather_all_output(data_host, all_data, to_cpu=to_cpu)
     
 
-# %% ../nbs/06_learner.ipynb 49
+# %% ../nbs/06_learner.ipynb 51
 @patch
 def _get_train_sampler(self:XCLearner):
     if self.train_dataset is None or not has_length(self.train_dataset):
@@ -744,7 +750,7 @@ def _get_train_sampler(self:XCLearner):
         return RandomSampler(self.train_dataset)
         
 
-# %% ../nbs/06_learner.ipynb 50
+# %% ../nbs/06_learner.ipynb 52
 @patch
 def get_train_dataloader(self:XCLearner):
     if self.train_dataset is None:
@@ -774,7 +780,7 @@ def get_train_dataloader(self:XCLearner):
     return DataLoader(train_dataset, **dataloader_params)
     
 
-# %% ../nbs/06_learner.ipynb 51
+# %% ../nbs/06_learner.ipynb 53
 @patch
 def _get_min_cluster_sz(self:XCLearner, epochs_trained:int, num_train_epochs:int):
     
@@ -801,7 +807,7 @@ def _get_min_cluster_sz(self:XCLearner, epochs_trained:int, num_train_epochs:int
     else: raise ValueError(f'Invalid `clustering_type`({self.args.clustering_type}).')
     
 
-# %% ../nbs/06_learner.ipynb 52
+# %% ../nbs/06_learner.ipynb 54
 @patch
 def _get_train_data_cluster(self:XCLearner, epochs_trained:int, num_train_epochs:int):
     dataset = self.train_dataset
@@ -828,7 +834,32 @@ def update_dataloader_sampler(self:XCLearner, dataloader:DataLoader, epochs_trai
         dataloader.sampler.set_cluster(cluster)
     
 
-# %% ../nbs/06_learner.ipynb 53
+# %% ../nbs/06_learner.ipynb 55
+@patch
+def prune_metadata(self:XCLearner):
+    if self.train_dataset.meta is None: return
+        
+    data_dset = self.train_dataset.data_dset
+    dataloader = self.get_test_dataloader(data_dset)
+    data_repr = self.get_representation(dataloader)
+
+    lbl_dset = self.train_dataset.lbl_dset
+    dataloader = self.get_test_dataloader(lbl_dset)
+    lbl_repr = self.get_representation(dataloader)
+
+    prune_metadata_names = list(self.train_dataset.meta.keys()) if self.args.prune_metadata_names is None else self.args.prune_metadata_names
+    for m in self.args.prune_metadata_names:
+        if m not in self.train_dataset.meta: raise ValueError(f'Invalid metadata name: {m}')
+            
+        meta_dset = self.train_dataset.meta[m]
+        dataloader = self.get_test_dataloader(MainXCDataset(meta_dset.meta_info))
+        meta_repr = self.get_representation(dataloader)
+
+        meta_dset.prune_data_meta(data_repr, meta_repr, batch_size=self.args.metadata_prune_batch_size)
+        meta_dset.prune_lbl_meta(lbl_repr, meta_repr, batch_size=self.args.metadata_prune_batch_size)
+        
+
+# %% ../nbs/06_learner.ipynb 56
 @patch
 def _validate_group_by_cluster(self:XCLearner):
     if self.args.group_by_cluster and (not hasattr(self.model,'use_representation') or  not getattr(unwrap_model(self.model),'use_representation')):
@@ -1111,6 +1142,9 @@ def _inner_training_loop(
     for epoch in range(epochs_trained, num_train_epochs):
         if self.args.group_by_cluster and (epoch % self.args.num_cluster_update_epochs == 0 or epoch == self.args.num_clustering_warmup_epochs) and epoch >= self.args.num_clustering_warmup_epochs:
             self.update_dataloader_sampler(train_dataloader, epoch, num_train_epochs)
+        
+        if self.args.prune_metadata and (epoch % self.args.num_metadata_prune_epochs == 0 or epoch == self.args.num_metadata_prune_warmup_epochs) and epoch >= self.args.num_metadata_prune_warmup_epochs: 
+            self.prune_metadata()
         
         epoch_iterator = train_dataloader
         if hasattr(epoch_iterator, "set_epoch"):

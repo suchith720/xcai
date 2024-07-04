@@ -6,7 +6,8 @@ __all__ = ['MainXCData', 'MetaXCData', 'BaseXCDataset', 'MainXCDataset', 'MetaXC
 
 # %% ../nbs/02_data.ipynb 3
 from scipy import sparse
-import torch, inspect, numpy as np, pandas as pd
+from tqdm.auto import tqdm
+import torch, inspect, numpy as np, pandas as pd, torch.nn.functional as F
 from IPython.display import display
 from typing import Dict, Optional, Callable
 from torch.utils.data import Dataset,DataLoader
@@ -84,6 +85,21 @@ class BaseXCDataset(Dataset):
         df = pd.DataFrame({k:[o[k] for o in d] for k in d[0]})
         with pd.option_context('display.max_colwidth', None, 'display.max_columns', None):
             display(df)
+
+    def prune_data_lbl(self, data_lbl:sparse.csr_matrix, data_repr:torch.Tensor, lbl_repr:torch.Tensor, batch_size:Optional[int]=64):
+        data_repr,lbl_repr = F.normalize(data_repr, dim=1), F.normalize(lbl_repr, dim=1)
+        curr_data_lbl = data_lbl.copy()
+        rows, cols = data_lbl.nonzero()
+        dl = DataLoader(list(zip(rows, cols)), batch_size=batch_size, shuffle=False)
+        score = None
+        for b in tqdm(dl, total=len(dl)): 
+            sc = data_repr[b[0]].unsqueeze(1)@lbl_repr[b[1]].unsqueeze(2)
+            sc = sc.squeeze()
+            sc = torch.where(sc < 0, 0, 1)
+            score = sc if score is None else torch.hstack([score, sc])
+        curr_data_lbl.data[:] = score
+        curr_data_lbl.eliminate_zeros()
+        return curr_data_lbl
             
 
 # %% ../nbs/02_data.ipynb 16
@@ -154,8 +170,15 @@ class MetaXCDataset(BaseXCDataset):
                  n_lbl_meta_samples:Optional[int]=None,
                  **kwargs):
         store_attr('prefix,data_meta,lbl_meta,meta_info,n_data_meta_samples,n_lbl_meta_samples')
+        self.curr_data_meta,self.curr_lbl_meta = data_meta,lbl_meta
         self._verify_inputs()
 
+    def prune_data_meta(self, data_repr:torch.Tensor, meta_repr:torch.Tensor, batch_size:Optional[int]=64):
+        self.curr_data_meta = self.prune_data_lbl(self.data_meta, data_repr, meta_repr, batch_size)
+
+    def prune_lbl_meta(self, lbl_repr:torch.Tensor, meta_repr:torch.Tensor, batch_size:Optional[int]=64):
+        self.curr_lbl_meta = self.prune_data_lbl(self.lbl_meta, lbl_repr, meta_repr, batch_size)
+        
     def _getitems(self, idxs:List):
         return MetaXCDataset(self.prefix, self.data_meta[idxs], self.lbl_meta, self.meta_info, 
                              self.n_data_meta_samples, self.n_lbl_meta_samples)
@@ -169,7 +192,7 @@ class MetaXCDataset(BaseXCDataset):
     @typedispatch
     def get_lbl_meta(self, idx:int):
         prefix = f'{self.prefix}2lbl2data'
-        x = {f'{prefix}_idx': self.lbl_meta[idx].indices.tolist()}
+        x = {f'{prefix}_idx': self.curr_lbl_meta[idx].indices.tolist()}
         if self.n_lbl_meta_samples: x[f'{prefix}_idx'] = [x[f'{prefix}_idx'][i] for i in np.random.permutation(len(x[f'{prefix}_idx']))[:self.n_lbl_meta_samples]]
         if self.meta_info is not None:
             x.update({f'{prefix}_{k}':[v[i] for i in x[f'{prefix}_idx']] for k,v in self.meta_info.items()})
@@ -178,7 +201,7 @@ class MetaXCDataset(BaseXCDataset):
     @typedispatch
     def get_lbl_meta(self, idxs:List):
         prefix = f'{self.prefix}2lbl2data'
-        x = {f'{prefix}_idx': [self.lbl_meta[idx].indices.tolist() for idx in idxs]}
+        x = {f'{prefix}_idx': [self.curr_lbl_meta[idx].indices.tolist() for idx in idxs]}
         if self.n_lbl_meta_samples: x[f'{prefix}_idx'] = [[o[i] for i in np.random.permutation(len(o))[:self.n_lbl_meta_samples]] for o in x[f'{prefix}_idx']]
         if self.meta_info is not None:
             x.update({f'{prefix}_{k}':[[v[i] for i in o] for o in x[f'{prefix}_idx']] for k,v in self.meta_info.items()})
@@ -186,7 +209,7 @@ class MetaXCDataset(BaseXCDataset):
         
     def get_data_meta(self, idx:int):
         prefix = f'{self.prefix}2data'
-        x = {f'{prefix}_idx': self.data_meta[idx].indices.tolist()}
+        x = {f'{prefix}_idx': self.curr_data_meta[idx].indices.tolist()}
         if self.n_data_meta_samples: x[f'{prefix}_idx'] = [x[f'{prefix}_idx'][i] for i in np.random.permutation(len(x[f'{prefix}_idx']))[:self.n_data_meta_samples]]
         if self.meta_info is not None:
             x.update({f'{prefix}_{k}':[v[i] for i in x[f'{prefix}_idx']] for k,v in self.meta_info.items()})
