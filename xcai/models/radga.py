@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['RADOutput', 'EncoderOutput', 'Pooling', 'CrossAttention', 'RepresentationHead', 'GenerationHead', 'Parameters',
-           'Encoder', 'RAD001', 'Encoder002', 'RAD002']
+           'Encoder', 'RAD001', 'Encoder002', 'RAD002', 'Encoder003', 'RAD003']
 
 # %% ../../nbs/15_models.radga.ipynb 2
 import torch, re, inspect, pickle, os, torch.nn as nn, math
@@ -25,7 +25,7 @@ from ..losses import *
 from ..core import store_attr
 from ..learner import XCDataParallel
 
-# %% ../../nbs/15_models.radga.ipynb 17
+# %% ../../nbs/15_models.radga.ipynb 20
 @dataclass
 class RADOutput(ModelOutput):
     loss: Optional[torch.FloatTensor] = None
@@ -34,9 +34,9 @@ class RADOutput(ModelOutput):
     data_fused_repr: Optional[torch.FloatTensor] = None
     lbl2data_repr: Optional[torch.FloatTensor] = None
     lbl2data_fused_repr: Optional[torch.FloatTensor] = None
-        
 
-# %% ../../nbs/15_models.radga.ipynb 18
+
+# %% ../../nbs/15_models.radga.ipynb 21
 @dataclass
 class EncoderOutput(ModelOutput):
     rep: Optional[torch.FloatTensor] = None
@@ -44,9 +44,9 @@ class EncoderOutput(ModelOutput):
     logits: Optional[torch.FloatTensor] = None
     fusion_weights: Optional[torch.FloatTensor] = None
     meta_repr: Optional[torch.FloatTensor] = None
-        
 
-# %% ../../nbs/15_models.radga.ipynb 19
+
+# %% ../../nbs/15_models.radga.ipynb 22
 class Pooling:
 
     @staticmethod
@@ -55,9 +55,9 @@ class Pooling:
         return torch.sum(data_embeds * data_attention_mask, 1) / torch.clamp(data_attention_mask.sum(1), min=1e-9)
 
 
-# %% ../../nbs/15_models.radga.ipynb 21
+# %% ../../nbs/15_models.radga.ipynb 24
 class CrossAttention(nn.Module):
-    
+
     def __init__(self, config: PretrainedConfig):
         super().__init__()
         self.config, self.n_h, self.dim = config, config.n_heads, config.dim
@@ -65,7 +65,7 @@ class CrossAttention(nn.Module):
 
         if self.dim % self.n_h != 0:
             raise ValueError(f"self.n_heads: {self.n_h} must divide self.dim: {self.dim} evenly.")
-            
+
         self.q = nn.Linear(in_features=config.dim, out_features=config.dim)
         self.k = nn.Linear(in_features=config.dim, out_features=config.dim)
         self.v = nn.Linear(in_features=config.dim, out_features=config.dim)
@@ -78,15 +78,15 @@ class CrossAttention(nn.Module):
         self.o.weight.data = torch.eye(self.o.out_features, self.o.in_features, dtype=self.o.weight.dtype)
 
     def forward(
-        self, 
+        self,
         q: torch.Tensor,
         q_m: torch.Tensor,
-        k: torch.Tensor, 
+        k: torch.Tensor,
         k_m: torch.Tensor,
         output_attentions:Optional[bool] = False,
     ):
         bs, q_len, dim = q.size()
-        v, k_len = k, k.size(1) 
+        v, k_len = k, k.size(1)
 
         h_dim = self.dim//self.n_h
 
@@ -100,66 +100,66 @@ class CrossAttention(nn.Module):
 
         q = q / math.sqrt(h_dim)  # (bs, n_h, q_len, h_dim)
         sc = torch.matmul(q, k.transpose(2, 3))  # (bs, n_h, q_len, k_len)
-        
+
         q_m, k_m = q_m.view(bs, 1, -1, 1).to(q.dtype), k_m.view(bs, 1, 1, -1).to(q.dtype)
         mask = torch.matmul(q_m, k_m).expand_as(sc)  # (bs, n_h, q_len, k_len)
-        
+
         sc = sc.masked_fill(mask.bool(), torch.tensor(torch.finfo(sc.dtype).min))  # (bs, n_h, q_len, k_len)
 
         w = nn.functional.softmax(sc, dim=-1)  # (bs, n_h, q_len, k_len)
         w = self.dropout(w)  # (bs, n_h, q_len, k_len)
 
         o = self.o(unshape(torch.matmul(w, v))) # (bs, q_len, dim)
-        
+
         if output_attentions: return (o, w)
         else: return (o,)
-        
 
-# %% ../../nbs/15_models.radga.ipynb 28
+
+# %% ../../nbs/15_models.radga.ipynb 31
 class RepresentationHead(nn.Module):
-    
+
     def __init__(self, config):
         super().__init__()
         self.transform = nn.Linear(config.dim, config.dim)
         self.layer_norm = nn.LayerNorm(config.dim, eps=1e-12)
         self.projector = nn.Linear(config.dim, config.dim)
-        
+
         self.post_init()
-        
+
     def post_init(self):
-        self.transform.weight.data = torch.eye(self.transform.out_features, self.transform.in_features, 
+        self.transform.weight.data = torch.eye(self.transform.out_features, self.transform.in_features,
                                                dtype=self.transform.weight.dtype)
-        self.projector.weight.data = torch.eye(self.projector.out_features, self.projector.in_features, 
+        self.projector.weight.data = torch.eye(self.projector.out_features, self.projector.in_features,
                                                dtype=self.projector.weight.dtype)
-        
+
     def forward(self, x:torch.Tensor):
         x = self.transform(x)
         x = self.layer_norm(x)
         x = self.projector(x)
         return x
-    
 
-# %% ../../nbs/15_models.radga.ipynb 29
+
+# %% ../../nbs/15_models.radga.ipynb 32
 class GenerationHead(nn.Module):
-    
+
     def __init__(self, config):
         super().__init__()
         self.transform = nn.Linear(config.dim, config.dim)
         self.layer_norm = nn.LayerNorm(config.dim, eps=1e-12)
         self.projector = nn.Linear(config.dim, config.vocab_size)
         self.activation = get_activation(config.activation)
-        
+
     def forward(self, x:torch.Tensor):
         x = self.transform(x)
         x = self.activation(x)
         x = self.layer_norm(x)
         x = self.projector(x)
         return x
-    
 
-# %% ../../nbs/15_models.radga.ipynb 35
+
+# %% ../../nbs/15_models.radga.ipynb 38
 class Parameters:
-    
+
     @staticmethod
     def from_meta_aug_prefix(prefix:str, **kwargs):
         inputs = {}
@@ -168,25 +168,25 @@ class Parameters:
             meta,param = arg.split('_', maxsplit=1)
             inputs.setdefault(meta, {})[param] = kwargs[arg]
         return inputs
-    
+
     @staticmethod
     def from_feat_meta_aug_prefix(feat:str, prefix:str, **kwargs):
         keys = ['attention_mask', 'input_ids', 'meta_repr']
-        
+
         inputs = {f'{prefix}_{k}': kwargs[f'{prefix}_{k}'] for k in keys if f'{prefix}_{k}' in kwargs}
         if prefix is not None and f'{prefix}_{feat}2ptr' in kwargs:
             inputs.update({f'{prefix}_data2ptr': kwargs[f'{prefix}_{feat}2ptr']})
         return inputs
-    
+
     @staticmethod
     def from_meta_pred_prefix(prefix:str, **kwargs):
         inputs = {}
         args = [arg for arg in kwargs if prefix is not None and re.match(f'^[p]?{prefix}.*', arg)]
         for arg in args:
             meta,param = arg.split('_', maxsplit=1)
-            if arg[0] == 'p': 
+            if arg[0] == 'p':
                 inputs.setdefault(meta[1:], {})[f'p{param}'] = kwargs[arg]
-            else: 
+            else:
                 inputs.setdefault(meta, {})[param] = kwargs[arg]
         return inputs
 
@@ -198,44 +198,44 @@ class Parameters:
         else:
             if len(lw) != n_meta: raise ValueError(f'length of `lw` should be equal to number of metadata.')
             return lw
-        
 
-# %% ../../nbs/15_models.radga.ipynb 37
+
+# %% ../../nbs/15_models.radga.ipynb 40
 class Encoder(DistilBertPreTrainedModel):
-    
+
     def __init__(self, config:PretrainedConfig, use_noise:Optional[bool]=True, resize_length:Optional[int]=None):
         super().__init__(config)
         store_attr('use_noise')
-        
+
         self.dr_head = RepresentationHead(config)
         self.meta_head = RepresentationHead(config)
         self.gen_head = GenerationHead(config)
         self.cross_head = CrossAttention(config)
-        
+
         self.layer_norm = nn.LayerNorm(config.dim, eps=1e-12)
-         
+
         self.ones = torch.ones(resize_length, dtype=torch.long, device=self.device) if resize_length is not None else None
         self.post_init()
-        
+
     def get_position_embeddings(self) -> nn.Embedding:
         return self.distilbert.get_position_embeddings()
-    
+
     def resize_position_embeddings(self, new_num_position_embeddings: int):
         self.distilbert.resize_position_embeddings(new_num_position_embeddings)
-        
+
     def get_output_embeddings(self) -> nn.Module:
         return self.gen_head.projector
 
     def set_output_embeddings(self, new_embeddings: nn.Module):
         self.gen_head.projector = new_embeddings
-        
+
     def resize(self, inputs:torch.Tensor, mask:torch.Tensor, num_inputs:torch.Tensor):
         if torch.any(num_inputs == 0): raise ValueError("`num_inputs` should be non-zero positive integer.")
         bsz, dim, total_num_inputs = num_inputs.shape[0], inputs.shape[-1], inputs.shape[0]
-        
+
         self.ones = self.ones.to(inputs.device)
         ones = (
-            torch.ones(total_num_inputs, dtype=torch.long, device=inputs.device) 
+            torch.ones(total_num_inputs, dtype=torch.long, device=inputs.device)
             if self.ones is None or self.ones.shape[0] < total_num_inputs else self.ones[:total_num_inputs]
         )
 
@@ -244,43 +244,43 @@ class Encoder(DistilBertPreTrainedModel):
 
         inputs_ptr = num_inputs.cumsum(dim=0)-1
         repeat_inputs = ones.scatter(0, inputs_ptr, xnum_inputs)
-        
+
         resized_inputs = inputs.repeat_interleave(repeat_inputs, dim=0)
         resized_mask = mask.repeat_interleave(repeat_inputs, dim=0)
-        
+
         ignore_mask_idx = ones.scatter(0, inputs_ptr, 0).repeat_interleave(repeat_inputs, dim=0).view(bsz, -1)
         ignore_mask_idx[:, -1] = 1; ignore_mask_idx = ignore_mask_idx.view(-1, 1)
-        
+
         resized_mask *= ignore_mask_idx
 
         return resized_inputs,resized_mask
-    
+
     def get_noise(self, inputs:torch.Tensor, mask:torch.Tensor, num_inputs:torch.Tensor):
         if torch.any(num_inputs == 0): raise ValueError("`num_inputs` should be non-zero positive integer.")
         rnd_idx = torch.randperm(len(num_inputs))
         last_idx = num_inputs.cumsum(dim=0) - 1
         return inputs[last_idx][rnd_idx], mask[last_idx][rnd_idx]
-    
+
     def add_noise(self, inputs:torch.Tensor, mask:torch.Tensor, noise_inputs:torch.Tensor, noise_mask:torch.Tensor):
         bsz, seq_len = noise_inputs.shape[0], inputs.shape[-1]
-        
+
         inputs = torch.concat([inputs.view(bsz,-1,seq_len), noise_inputs.view(bsz,1,-1)], dim=1)
         mask = torch.concat([mask.view(bsz,-1,seq_len), noise_mask.view(bsz,1,-1)], dim=1)
-        
+
         return inputs.view(-1, seq_len), mask.view(-1, seq_len)
-        
-        
-    
-        
-        
-        
+
+
+
+
+
+
     def encode(self, input_ids:torch.Tensor, attention_mask:torch.Tensor, **kwargs):
         return self.distilbert(
             input_ids=input_ids,
             attention_mask=attention_mask,
             **kwargs
         )
-    
+
     def dr(self, embed:torch.Tensor, attention_mask:torch.Tensor):
         embed = self.dr_head(embed)
         return F.normalize(Pooling.mean_pooling(embed, attention_mask), dim=1)
@@ -288,22 +288,22 @@ class Encoder(DistilBertPreTrainedModel):
     def meta(self, embed:torch.Tensor, attention_mask:torch.Tensor):
         embed = self.meta_head(embed)
         return F.normalize(Pooling.mean_pooling(embed, attention_mask), dim=1)
-    
+
     def meta_unnormalized(self, embed:torch.Tensor, attention_mask:torch.Tensor):
         embed = self.meta_head(embed)
         return Pooling.mean_pooling(embed, attention_mask)
-    
+
     def gen(self, x:torch.Tensor):
         return self.gen_head(x)
-    
-    
 
 
-    
+
+
+
     def fuse_meta_into_embeddings(self, embed:torch.Tensor, attention_mask:torch.Tensor, prefix:str, **kwargs):
         meta_kwargs = Parameters.from_meta_aug_prefix(prefix, **kwargs)
         meta_repr, weights, performed_fusion = {}, [], False
-        
+
         for m_key, m_args in meta_kwargs.items():
             idx = torch.where(m_args['data2ptr'] > 0)[0]
             meta_repr[m_key] = torch.empty(0, self.config.dim).to(embed)
@@ -314,35 +314,35 @@ class Encoder(DistilBertPreTrainedModel):
                     m_repr,m_repr_mask = self.resize(m_repr, m_repr_mask, m_args['data2ptr'][idx])
                     m_repr_mask = m_repr_mask.bool()
                 else:
-                    m_input_ids, m_attention_mask = self.resize(m_args['input_ids'], m_args['attention_mask'], 
+                    m_input_ids, m_attention_mask = self.resize(m_args['input_ids'], m_args['attention_mask'],
                                                                 m_args['data2ptr'][idx])
 
                     if self.use_noise:
-                        n_input_ids, n_attention_mask = self.get_noise(m_args['input_ids'], m_args['attention_mask'], 
+                        n_input_ids, n_attention_mask = self.get_noise(m_args['input_ids'], m_args['attention_mask'],
                                                                        m_args['data2ptr'][idx])
-                        m_input_ids, m_attention_mask = self.add_noise(m_input_ids, m_attention_mask, 
+                        m_input_ids, m_attention_mask = self.add_noise(m_input_ids, m_attention_mask,
                                                                        n_input_ids, n_attention_mask)
 
                     m_embed = self.encode(m_input_ids, m_attention_mask)[0]
 
                     m_repr = self.meta_unnormalized(m_embed, m_attention_mask)
                     m_repr_mask = torch.any(m_attention_mask, dim=1)
-                    
+
                 m_repr, m_repr_mask = m_repr.view(len(idx), -1, self.config.dim), m_repr_mask.view(len(idx), -1)
-                
+
                 meta_repr[m_key] = m_repr[:, :-1][m_repr_mask[:, :-1]] if self.use_noise else m_repr[m_repr_mask]
                 meta_repr[m_key] = F.normalize(meta_repr[m_key], dim=1)
-                
+
                 fused_embed, w = self.cross_head(embed[idx], attention_mask[idx], m_repr, m_repr_mask, output_attentions=True)
                 embed[idx] += fused_embed
                 weights.append(w)
-        
-        if performed_fusion: embed = self.layer_norm(embed)        
+
+        if performed_fusion: embed = self.layer_norm(embed)
         return embed, weights, meta_repr
-    
+
     def forward(
-        self, 
-        data_input_ids: torch.Tensor, 
+        self,
+        data_input_ids: torch.Tensor,
         data_attention_mask: torch.Tensor,
         data_aug_meta_prefix: Optional[str]=None,
         data_gen_idx:Optional[torch.Tensor]=None,
@@ -351,110 +351,110 @@ class Encoder(DistilBertPreTrainedModel):
         **kwargs
     ):
         data_o = self.encode(data_input_ids, data_attention_mask)
-        
+
         if data_type is not None and data_type == "meta":
             data_repr = self.meta_unnormalized(data_o[0], data_attention_mask) if data_unnormalized else self.meta(data_o[0], data_attention_mask)
-        else: 
+        else:
             data_repr = self.dr(data_o[0], data_attention_mask)
-        
+
         data_fused_repr = data_fused_logits = fusion_weights = meta_repr = None
         if data_aug_meta_prefix is not None:
-            data_fused_embed, fusion_weights, meta_repr = self.fuse_meta_into_embeddings(data_o[0], 
-                                                                                         data_attention_mask, 
-                                                                                         data_aug_meta_prefix, 
+            data_fused_embed, fusion_weights, meta_repr = self.fuse_meta_into_embeddings(data_o[0],
+                                                                                         data_attention_mask,
+                                                                                         data_aug_meta_prefix,
                                                                                          **kwargs)
             data_fused_repr = self.dr(data_fused_embed, data_attention_mask)
             data_fused_logits = self.gen(data_fused_embed if data_gen_idx is None else data_fused_embed[data_gen_idx])
-        
+
         return EncoderOutput(
             rep=data_repr,
             fused_rep=data_fused_repr,
             logits=data_fused_logits,
-            
+
             meta_repr=meta_repr,
         )
-        
 
-# %% ../../nbs/15_models.radga.ipynb 39
+
+# %% ../../nbs/15_models.radga.ipynb 42
 class RAD001(DistilBertForMaskedLM):
     use_generation,use_representation = True,True
-    _tied_weights_keys = ["encoder.distilbert", "encoder.gen_head.transform", "encoder.gen_head.layer_norm", 
+    _tied_weights_keys = ["encoder.distilbert", "encoder.gen_head.transform", "encoder.gen_head.layer_norm",
                           "encoder.gen_head.projector"]
-    
+
     def __init__(
         self, config,
-        
-        num_batch_labels:Optional[int]=None, 
+
+        num_batch_labels:Optional[int]=None,
         ignore_token:Optional[int]=0,
         batch_size:Optional[int]=None,
         margin:Optional[int]=0.3,
         num_negatives:Optional[int]=5,
         tau:Optional[float]=0.1,
         apply_softmax:Optional[bool]=True,
-        
-        data_aug_meta_prefix:Optional[List]=None, 
-        lbl2data_aug_meta_prefix:Optional[List]=None, 
+
+        data_aug_meta_prefix:Optional[List]=None,
+        lbl2data_aug_meta_prefix:Optional[List]=None,
         resize_length:Optional[int]=None,
-        
+
         gen_loss_weight:Optional[float]=0.01,
-        meta_loss_weight:Optional[Union[List,float]]=0.3, 
+        meta_loss_weight:Optional[Union[List,float]]=0.3,
         pred_meta_prefix:Optional[List]=None,
-        
+
         fusion_loss_weight:Optional[int]=0.1,
         use_fusion_loss:Optional[bool]=True,
         use_noise:Optional[bool]=True,
-        
+
         use_encoder_parallel:Optional[bool]=True,
     ):
         super().__init__(config)
         self.lw, self.m_lw, self.f_lw = gen_loss_weight, meta_loss_weight, fusion_loss_weight
         store_attr('pred_meta_prefix,data_aug_meta_prefix,lbl2data_aug_meta_prefix,use_fusion_loss,use_encoder_parallel')
-        
+
         self.encoder = Encoder(config, use_noise=use_noise, resize_length=resize_length)
-        
+
         self.post_init()
-        
+
         self.gen_loss_fn = MultiCrossEntropy(tn_targ=num_batch_labels, ig_tok=ignore_token, reduce='mean')
-        self.rep_loss_fn = MultiTriplet(bsz=batch_size, tn_targ=num_batch_labels, margin=margin, 
-                                        n_negatives=num_negatives, tau=tau, apply_softmax=apply_softmax, 
+        self.rep_loss_fn = MultiTriplet(bsz=batch_size, tn_targ=num_batch_labels, margin=margin,
+                                        n_negatives=num_negatives, tau=tau, apply_softmax=apply_softmax,
                                         reduce='mean')
-        
+
         self.remap_post_init()
         self.init_retrieval_head()
-        
+
     def init_retrieval_head(self):
         self.encoder.dr_head.post_init()
         self.encoder.meta_head.post_init()
-            
+
     def init_generation_head(self):
         self.encoder.gen_head.projector.weight.data = self.get_input_embeddings().weight.data.clone()
-        
+
     def remap_post_init(self):
-        self.encoder.distilbert = self.distilbert 
+        self.encoder.distilbert = self.distilbert
         self.encoder.gen_head.transform = self.vocab_transform
         self.encoder.gen_head.layer_norm = self.vocab_layer_norm
         self.encoder.gen_head.projector = self.vocab_projector
-        
-        
-        
-        
-    def compute_loss(self, inp_logits, inp_repr, targ_logits, targ_repr, 
+
+
+
+
+    def compute_loss(self, inp_logits, inp_repr, targ_logits, targ_repr,
                      inp_input_ids, targ_input_ids, targ_ptr, targ_idx, ptarg_ptr, ptarg_idx):
-        
+
         gen_loss = self.gen_loss_fn(inp_logits, targ_input_ids, targ_ptr) + self.gen_loss_fn(targ_logits, inp_input_ids)
-        
+
         rep_loss = self.rep_loss_fn(inp_repr, targ_repr, targ_ptr, targ_idx, ptarg_ptr, ptarg_idx)
-        
+
         return rep_loss + self.lw * gen_loss
-    
+
     def compute_meta_loss(self, data_repr, lbl2data_repr, **kwargs):
-        if self.use_encoder_parallel: 
+        if self.use_encoder_parallel:
             encoder = XCDataParallel(module=self.encoder)
         else: encoder = self.encoder
-            
+
         meta_inputs = Parameters.from_meta_pred_prefix(self.pred_meta_prefix, **kwargs)
         m_lw = Parameters.get_meta_loss_weights(self.m_lw, len(meta_inputs))
-        
+
         loss = 0.0
         for inputs,lw in zip(meta_inputs.values(), m_lw):
             if 'lbl2data2ptr' in inputs:
@@ -469,18 +469,18 @@ class RAD001(DistilBertForMaskedLM):
             elif 'data2ptr' in inputs:
                 idx = torch.where(inputs['data2ptr'])[0]
                 if len(idx) > 0:
-                    inputs_o = encoder(data_input_ids=inputs['input_ids'], 
+                    inputs_o = encoder(data_input_ids=inputs['input_ids'],
                                        data_attention_mask=inputs['attention_mask'], data_type="meta")
-                    m_loss = self.rep_loss_fn(data_repr[idx], inputs_o.rep, inputs['data2ptr'][idx], inputs['idx'], 
+                    m_loss = self.rep_loss_fn(data_repr[idx], inputs_o.rep, inputs['data2ptr'][idx], inputs['idx'],
                                               inputs['pdata2ptr'][idx], inputs['pidx'])
-                    loss += lw * m_loss       
+                    loss += lw * m_loss
 
             else: raise ValueError('Invalid metadata input arguments.')
         return loss
-    
+
     def compute_fusion_loss(self, data_repr, meta_repr:Dict, prefix:str, **kwargs):
         meta_inputs = Parameters.from_meta_pred_prefix(prefix, **kwargs)
-        
+
         loss = 0.0
         for key,input_repr in meta_repr.items():
             inputs = meta_inputs[key]
@@ -494,25 +494,25 @@ class RAD001(DistilBertForMaskedLM):
             elif 'data2ptr' in inputs:
                 idx = torch.where(inputs['data2ptr'])[0]
                 if len(idx) > 0:
-                    m_loss = self.rep_loss_fn(data_repr[idx], input_repr, inputs['data2ptr'][idx], inputs['idx'], 
+                    m_loss = self.rep_loss_fn(data_repr[idx], input_repr, inputs['data2ptr'][idx], inputs['idx'],
                                               inputs['pdata2ptr'][idx], inputs['pidx'])
-                    loss += self.f_lw * m_loss       
+                    loss += self.f_lw * m_loss
 
             else: raise ValueError('Invalid metadata input arguments.')
         return loss
-    
-        
+
+
 
     def disable_noise(self):
         use_noise = self.encoder.module.use_noise if isinstance(self.encoder, XCDataParallel) else self.encoder.use_noise
         if isinstance(self.encoder, XCDataParallel): self.encoder.module.use_noise = False
         else: self.encoder.use_noise = False
         return use_noise
-    
+
     def set_noise(self, use_noise):
         if isinstance(self.encoder, XCDataParallel): self.encoder.module.use_noise = use_noise
         else: self.encoder.use_noise = use_noise
-            
+
     def get_noise(self):
         return self.encoder.module.use_noise if isinstance(self.encoder, XCDataParallel) else self.encoder.use_noise
 
@@ -522,19 +522,19 @@ class RAD001(DistilBertForMaskedLM):
         data_attention_mask:Optional[torch.Tensor]=None,
         **kwargs
     ):
-        if self.use_encoder_parallel: 
+        if self.use_encoder_parallel:
             encoder = XCDataParallel(module=self.encoder)
         else: encoder = self.encoder
-            
-        data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask, 
+
+        data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask,
                          data_unnormalized=True, data_type="meta")
         return RADOutput(
             logits=data_o.logits,
             data_repr=data_o.rep,
             data_fused_repr=data_o.fused_rep,
         )
-        
-        
+
+
     def get_last_item_mask(self, num_input:torch.Tensor, input_sz:int):
         idx = torch.where(num_input > 0)[0]
         input_ptr = num_input[idx].cumsum(dim=0)-1
@@ -555,82 +555,82 @@ class RAD001(DistilBertForMaskedLM):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         **kwargs
-    ):  
+    ):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-        
-        if self.use_encoder_parallel: 
+
+        if self.use_encoder_parallel:
             encoder = XCDataParallel(module=self.encoder)
         else: encoder = self.encoder
-        
+
         data_meta_kwargs = Parameters.from_feat_meta_aug_prefix('data', self.data_aug_meta_prefix, **kwargs)
-        data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask, 
+        data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask,
                          data_aug_meta_prefix=self.data_aug_meta_prefix, **data_meta_kwargs)
-        
-        
+
+
         loss = None; lbl2data_o = EncoderOutput()
         if lbl2data_input_ids is not None:
             lbl2data_gen_idx = self.get_last_item_mask(lbl2data_data2ptr, len(lbl2data_idx))
             lbl2data_meta_kwargs = Parameters.from_feat_meta_aug_prefix('lbl2data', self.lbl2data_aug_meta_prefix, **kwargs)
-            
-            lbl2data_o = encoder(data_input_ids=lbl2data_input_ids, data_attention_mask=lbl2data_attention_mask, 
+
+            lbl2data_o = encoder(data_input_ids=lbl2data_input_ids, data_attention_mask=lbl2data_attention_mask,
                                  data_aug_meta_prefix=self.lbl2data_aug_meta_prefix, data_gen_idx=lbl2data_gen_idx,
                                  **lbl2data_meta_kwargs)
-            
-            loss = self.compute_loss(data_o.logits, data_o.fused_rep, lbl2data_o.logits, lbl2data_o.fused_rep, 
+
+            loss = self.compute_loss(data_o.logits, data_o.fused_rep, lbl2data_o.logits, lbl2data_o.fused_rep,
                                      data_input_ids,lbl2data_input_ids,lbl2data_data2ptr,lbl2data_idx,
                                      plbl2data_data2ptr,plbl2data_idx)
-            
+
             loss += self.compute_meta_loss(data_o.fused_rep, lbl2data_o.fused_rep, **kwargs)
-            
+
             if self.use_fusion_loss:
                 loss += self.compute_fusion_loss(data_o.fused_rep, data_o.meta_repr, self.data_aug_meta_prefix, **kwargs)
                 loss += self.compute_fusion_loss(lbl2data_o.fused_rep, lbl2data_o.meta_repr, self.lbl2data_aug_meta_prefix, **kwargs)
-            
+
         if not return_dict:
             o = (data_o.logits,data_o.rep,data_o.fused_rep,lbl2data_o.logits,lbl2data_o.rep,lbl2data_o.fused_rep)
             return ((loss,) + o) if loss is not None else o
-        
-        
+
+
         return RADOutput(
             loss=loss,
-            
+
             logits=data_o.logits,
             data_repr=data_o.rep,
             data_fused_repr=data_o.fused_rep,
-            
+
             lbl2data_repr=lbl2data_o.rep,
             lbl2data_fused_repr=lbl2data_o.fused_rep,
         )
-        
 
-# %% ../../nbs/15_models.radga.ipynb 48
+
+# %% ../../nbs/15_models.radga.ipynb 51
 class Encoder002(DistilBertPreTrainedModel):
-    
+
     def __init__(self, config:PretrainedConfig, use_noise:Optional[bool]=True, resize_length:Optional[int]=None):
         super().__init__(config)
         store_attr('use_noise')
         self.distilbert = DistilBertModel(config)
-        
+
         self.dr_head = RepresentationHead(config)
         self.meta_head = RepresentationHead(config)
         self.cross_head = CrossAttention(config)
-         
+
         self.ones = torch.ones(resize_length, dtype=torch.long, device=self.device) if resize_length is not None else None
         self.post_init()
-        
+
     def get_position_embeddings(self) -> nn.Embedding:
         return self.distilbert.get_position_embeddings()
-    
+
     def resize_position_embeddings(self, new_num_position_embeddings: int):
         self.distilbert.resize_position_embeddings(new_num_position_embeddings)
-        
+
     def resize(self, inputs:torch.Tensor, mask:torch.Tensor, num_inputs:torch.Tensor):
         if torch.any(num_inputs == 0): raise ValueError("`num_inputs` should be non-zero positive integer.")
         bsz, dim, total_num_inputs = num_inputs.shape[0], inputs.shape[-1], inputs.shape[0]
-        
+
         self.ones = self.ones.to(inputs.device)
         ones = (
-            torch.ones(total_num_inputs, dtype=torch.long, device=inputs.device) 
+            torch.ones(total_num_inputs, dtype=torch.long, device=inputs.device)
             if self.ones is None or self.ones.shape[0] < total_num_inputs else self.ones[:total_num_inputs]
         )
 
@@ -639,41 +639,41 @@ class Encoder002(DistilBertPreTrainedModel):
 
         inputs_ptr = num_inputs.cumsum(dim=0)-1
         repeat_inputs = ones.scatter(0, inputs_ptr, xnum_inputs)
-        
+
         resized_inputs = inputs.repeat_interleave(repeat_inputs, dim=0)
         resized_mask = mask.repeat_interleave(repeat_inputs, dim=0)
-        
+
         ignore_mask_idx = ones.scatter(0, inputs_ptr, 0).repeat_interleave(repeat_inputs, dim=0).view(bsz, -1)
         ignore_mask_idx[:, -1] = 1; ignore_mask_idx = ignore_mask_idx.view(-1, 1)
-        
+
         resized_mask *= ignore_mask_idx
 
         return resized_inputs,resized_mask
-    
+
     def get_noise(self, inputs:torch.Tensor, mask:torch.Tensor, num_inputs:torch.Tensor):
         if torch.any(num_inputs == 0): raise ValueError("`num_inputs` should be non-zero positive integer.")
         rnd_idx = torch.randperm(len(num_inputs))
         last_idx = num_inputs.cumsum(dim=0) - 1
         return inputs[last_idx][rnd_idx], mask[last_idx][rnd_idx]
-    
+
     def add_noise(self, inputs:torch.Tensor, mask:torch.Tensor, noise_inputs:torch.Tensor, noise_mask:torch.Tensor):
         bsz, seq_len = noise_inputs.shape[0], inputs.shape[-1]
-        
+
         inputs = torch.concat([inputs.view(bsz,-1,seq_len), noise_inputs.view(bsz,1,-1)], dim=1)
         mask = torch.concat([mask.view(bsz,-1,seq_len), noise_mask.view(bsz,1,-1)], dim=1)
-        
+
         return inputs.view(-1, seq_len), mask.view(-1, seq_len)
-        
-        
-    
-        
+
+
+
+
     def encode(self, input_ids:torch.Tensor, attention_mask:torch.Tensor, **kwargs):
         return self.distilbert(
             input_ids=input_ids,
             attention_mask=attention_mask,
             **kwargs
         )
-    
+
     def dr(self, embed:torch.Tensor, attention_mask:torch.Tensor):
         embed = self.dr_head(embed)
         return F.normalize(Pooling.mean_pooling(embed, attention_mask), dim=1)
@@ -681,57 +681,57 @@ class Encoder002(DistilBertPreTrainedModel):
     def meta(self, embed:torch.Tensor, attention_mask:torch.Tensor):
         embed = self.meta_head(embed)
         return F.normalize(Pooling.mean_pooling(embed, attention_mask), dim=1)
-    
+
     def meta_unnormalized(self, embed:torch.Tensor, attention_mask:torch.Tensor):
         embed = self.meta_head(embed)
         return Pooling.mean_pooling(embed, attention_mask)
-    
 
 
-    
+
+
     def fuse_meta_into_embeddings(self, embed:torch.Tensor, attention_mask:torch.Tensor, prefix:str, **kwargs):
         meta_kwargs = Parameters.from_meta_aug_prefix(prefix, **kwargs)
         meta_repr, weights = {}, []
-        
+
         for m_key, m_args in meta_kwargs.items():
             idx = torch.where(m_args['data2ptr'] > 0)[0]
             meta_repr[m_key] = torch.empty(0, self.config.dim).to(embed)
-            
+
             if len(idx):
                 if 'meta_repr' in m_args:
                     m_repr,m_repr_mask = m_args['meta_repr'],torch.any(m_args['attention_mask'], dim=1).long().view(-1,1)
                     m_repr,m_repr_mask = self.resize(m_repr, m_repr_mask, m_args['data2ptr'][idx])
                     m_repr_mask = m_repr_mask.bool()
                 else:
-                    m_input_ids, m_attention_mask = self.resize(m_args['input_ids'], m_args['attention_mask'], 
+                    m_input_ids, m_attention_mask = self.resize(m_args['input_ids'], m_args['attention_mask'],
                                                                 m_args['data2ptr'][idx])
 
                     if self.use_noise:
-                        n_input_ids, n_attention_mask = self.get_noise(m_args['input_ids'], m_args['attention_mask'], 
+                        n_input_ids, n_attention_mask = self.get_noise(m_args['input_ids'], m_args['attention_mask'],
                                                                        m_args['data2ptr'][idx])
-                        m_input_ids, m_attention_mask = self.add_noise(m_input_ids, m_attention_mask, 
+                        m_input_ids, m_attention_mask = self.add_noise(m_input_ids, m_attention_mask,
                                                                        n_input_ids, n_attention_mask)
 
                     m_embed = self.encode(m_input_ids, m_attention_mask)[0]
 
                     m_repr = self.meta_unnormalized(m_embed, m_attention_mask)
                     m_repr_mask = torch.any(m_attention_mask, dim=1)
-                    
+
                 m_repr, m_repr_mask = m_repr.view(len(idx), -1, self.config.dim), m_repr_mask.view(len(idx), -1)
-                
+
                 meta_repr[m_key] = m_repr[:, :-1][m_repr_mask[:, :-1]] if self.use_noise else m_repr[m_repr_mask]
                 meta_repr[m_key] = F.normalize(meta_repr[m_key], dim=1)
-                
+
                 fused_embed, w = self.cross_head(embed[idx], attention_mask[idx], m_repr, m_repr_mask, output_attentions=True)
                 embed[idx] += fused_embed
                 weights.append(w)
-               
+
         return embed, weights, meta_repr
-        
-    
+
+
     def forward(
-        self, 
-        data_input_ids: torch.Tensor, 
+        self,
+        data_input_ids: torch.Tensor,
         data_attention_mask: torch.Tensor,
         data_aug_meta_prefix: Optional[str]=None,
         data_type:Optional[str]=None,
@@ -739,91 +739,91 @@ class Encoder002(DistilBertPreTrainedModel):
         **kwargs
     ):
         data_o = self.encode(data_input_ids, data_attention_mask)
-        
+
         if data_type is not None and data_type == "meta":
             data_repr = self.meta_unnormalized(data_o[0], data_attention_mask) if data_unnormalized else self.meta(data_o[0], data_attention_mask)
-        else: 
+        else:
             data_repr = self.dr(data_o[0], data_attention_mask)
-        
+
         data_fused_repr = data_fused_logits = fusion_weights = meta_repr = None
         if data_aug_meta_prefix is not None:
-            data_fused_embed, fusion_weights, meta_repr = self.fuse_meta_into_embeddings(data_o[0], 
-                                                                                         data_attention_mask, 
-                                                                                         data_aug_meta_prefix, 
+            data_fused_embed, fusion_weights, meta_repr = self.fuse_meta_into_embeddings(data_o[0],
+                                                                                         data_attention_mask,
+                                                                                         data_aug_meta_prefix,
                                                                                          **kwargs)
             data_fused_repr = self.dr(data_fused_embed, data_attention_mask)
-        
+
         return EncoderOutput(
             rep=data_repr,
             fused_rep=data_fused_repr,
             meta_repr=meta_repr,
         )
-        
 
-# %% ../../nbs/15_models.radga.ipynb 49
+
+# %% ../../nbs/15_models.radga.ipynb 52
 class RAD002(DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
-    
+
     def __init__(
         self, config,
-        
-        num_batch_labels:Optional[int]=None, 
+
+        num_batch_labels:Optional[int]=None,
         batch_size:Optional[int]=None,
         margin:Optional[int]=0.3,
         num_negatives:Optional[int]=5,
         tau:Optional[float]=0.1,
         apply_softmax:Optional[bool]=True,
-        
-        data_aug_meta_prefix:Optional[List]=None, 
-        lbl2data_aug_meta_prefix:Optional[List]=None, 
+
+        data_aug_meta_prefix:Optional[List]=None,
+        lbl2data_aug_meta_prefix:Optional[List]=None,
         resize_length:Optional[int]=None,
-        
+
         gen_loss_weight:Optional[float]=0.01,
-        meta_loss_weight:Optional[Union[List,float]]=0.3, 
+        meta_loss_weight:Optional[Union[List,float]]=0.3,
         pred_meta_prefix:Optional[List]=None,
-        
+
         fusion_loss_weight:Optional[int]=0.1,
         use_fusion_loss:Optional[bool]=True,
         use_noise:Optional[bool]=True,
-        
+
         use_encoder_parallel:Optional[bool]=True,
     ):
         super().__init__(config)
         self.lw, self.m_lw, self.f_lw = gen_loss_weight, meta_loss_weight, fusion_loss_weight
         store_attr('pred_meta_prefix,data_aug_meta_prefix,lbl2data_aug_meta_prefix,use_fusion_loss,use_encoder_parallel')
-        
+
         self.encoder = Encoder002(config, use_noise=use_noise, resize_length=resize_length)
-        
+
         self.post_init()
-        self.rep_loss_fn = MultiTriplet(bsz=batch_size, tn_targ=num_batch_labels, margin=margin, n_negatives=num_negatives, 
+        self.rep_loss_fn = MultiTriplet(bsz=batch_size, tn_targ=num_batch_labels, margin=margin, n_negatives=num_negatives,
                                         tau=tau, apply_softmax=apply_softmax, reduce='mean')
         self.remap_post_init()
         self.init_retrieval_head()
         self.init_cross_head()
-        
+
     def init_retrieval_head(self):
         self.encoder.dr_head.post_init()
         self.encoder.meta_head.post_init()
 
     def init_cross_head(self):
         self.encoder.cross_head.post_init()
-            
+
     def remap_post_init(self):
          self.distilbert = self.encoder.distilbert
-        
+
     def compute_loss(self, inp_repr, targ_repr, targ_ptr, targ_idx, ptarg_ptr, ptarg_idx):
         rep_loss = self.rep_loss_fn(inp_repr, targ_repr, targ_ptr, targ_idx, ptarg_ptr, ptarg_idx)
         return rep_loss
-    
+
     def compute_meta_loss(self, data_repr, lbl2data_repr, **kwargs):
-        if self.use_encoder_parallel: 
+        if self.use_encoder_parallel:
             encoder = XCDataParallel(module=self.encoder)
         else: encoder = self.encoder
-            
+
         meta_inputs = Parameters.from_meta_pred_prefix(self.pred_meta_prefix, **kwargs)
         m_lw = Parameters.get_meta_loss_weights(self.m_lw, len(meta_inputs))
-        
+
         loss = 0.0
         for inputs,lw in zip(meta_inputs.values(), m_lw):
             if 'lbl2data2ptr' in inputs:
@@ -838,18 +838,18 @@ class RAD002(DistilBertPreTrainedModel):
             elif 'data2ptr' in inputs:
                 idx = torch.where(inputs['data2ptr'])[0]
                 if len(idx) > 0:
-                    inputs_o = encoder(data_input_ids=inputs['input_ids'], 
+                    inputs_o = encoder(data_input_ids=inputs['input_ids'],
                                        data_attention_mask=inputs['attention_mask'], data_type="meta")
-                    m_loss = self.rep_loss_fn(data_repr[idx], inputs_o.rep, inputs['data2ptr'][idx], inputs['idx'], 
+                    m_loss = self.rep_loss_fn(data_repr[idx], inputs_o.rep, inputs['data2ptr'][idx], inputs['idx'],
                                               inputs['pdata2ptr'][idx], inputs['pidx'])
-                    loss += lw * m_loss       
+                    loss += lw * m_loss
 
             else: raise ValueError('Invalid metadata input arguments.')
         return loss
-    
+
     def compute_fusion_loss(self, data_repr, meta_repr:Dict, prefix:str, **kwargs):
         meta_inputs = Parameters.from_meta_pred_prefix(prefix, **kwargs)
-        
+
         loss = 0.0
         for key,input_repr in meta_repr.items():
             inputs = meta_inputs[key]
@@ -863,25 +863,25 @@ class RAD002(DistilBertPreTrainedModel):
             elif 'data2ptr' in inputs:
                 idx = torch.where(inputs['data2ptr'])[0]
                 if len(idx) > 0:
-                    m_loss = self.rep_loss_fn(data_repr[idx], input_repr, inputs['data2ptr'][idx], inputs['idx'], 
+                    m_loss = self.rep_loss_fn(data_repr[idx], input_repr, inputs['data2ptr'][idx], inputs['idx'],
                                               inputs['pdata2ptr'][idx], inputs['pidx'])
-                    loss += self.f_lw * m_loss       
+                    loss += self.f_lw * m_loss
 
             else: raise ValueError('Invalid metadata input arguments.')
         return loss
-    
-        
+
+
 
     def disable_noise(self):
         use_noise = self.encoder.module.use_noise if isinstance(self.encoder, XCDataParallel) else self.encoder.use_noise
         if isinstance(self.encoder, XCDataParallel): self.encoder.module.use_noise = False
         else: self.encoder.use_noise = False
         return use_noise
-    
+
     def set_noise(self, use_noise):
         if isinstance(self.encoder, XCDataParallel): self.encoder.module.use_noise = use_noise
         else: self.encoder.use_noise = use_noise
-            
+
     def get_noise(self):
         return self.encoder.module.use_noise if isinstance(self.encoder, XCDataParallel) else self.encoder.use_noise
 
@@ -891,19 +891,19 @@ class RAD002(DistilBertPreTrainedModel):
         data_attention_mask:Optional[torch.Tensor]=None,
         **kwargs
     ):
-        if self.use_encoder_parallel: 
+        if self.use_encoder_parallel:
             encoder = XCDataParallel(module=self.encoder)
         else: encoder = self.encoder
-            
-        data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask, 
+
+        data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask,
                          data_unnormalized=True, data_type="meta")
         return RADOutput(
             logits=data_o.logits,
             data_repr=data_o.rep,
             data_fused_repr=data_o.fused_rep,
         )
-        
-        
+
+
     def get_last_item_mask(self, num_input:torch.Tensor, input_sz:int):
         idx = torch.where(num_input > 0)[0]
         input_ptr = num_input[idx].cumsum(dim=0)-1
@@ -924,46 +924,329 @@ class RAD002(DistilBertPreTrainedModel):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         **kwargs
-    ):  
+    ):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-        
-        if self.use_encoder_parallel: 
+
+        if self.use_encoder_parallel:
             encoder = XCDataParallel(module=self.encoder)
         else: encoder = self.encoder
-        
+
         data_meta_kwargs = Parameters.from_feat_meta_aug_prefix('data', self.data_aug_meta_prefix, **kwargs)
-        data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask, 
+        data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask,
                          data_aug_meta_prefix=self.data_aug_meta_prefix, **data_meta_kwargs)
-        
-        
+
+
         loss = None; lbl2data_o = EncoderOutput()
         if lbl2data_input_ids is not None:
             lbl2data_meta_kwargs = Parameters.from_feat_meta_aug_prefix('lbl2data', self.lbl2data_aug_meta_prefix, **kwargs)
-            
-            lbl2data_o = encoder(data_input_ids=lbl2data_input_ids, data_attention_mask=lbl2data_attention_mask, 
+
+            lbl2data_o = encoder(data_input_ids=lbl2data_input_ids, data_attention_mask=lbl2data_attention_mask,
                                  data_aug_meta_prefix=self.lbl2data_aug_meta_prefix, **lbl2data_meta_kwargs)
-            
+
             loss = self.compute_loss(data_o.fused_rep, lbl2data_o.fused_rep,lbl2data_data2ptr,lbl2data_idx,
                                      plbl2data_data2ptr,plbl2data_idx)
-            
+
             loss += self.compute_meta_loss(data_o.fused_rep, lbl2data_o.fused_rep, **kwargs)
-            
+
             if self.use_fusion_loss:
                 loss += self.compute_fusion_loss(data_o.fused_rep, data_o.meta_repr, self.data_aug_meta_prefix, **kwargs)
                 loss += self.compute_fusion_loss(lbl2data_o.fused_rep, lbl2data_o.meta_repr, self.lbl2data_aug_meta_prefix, **kwargs)
-            
+
         if not return_dict:
             o = (data_o.logits,data_o.rep,data_o.fused_rep,lbl2data_o.logits,lbl2data_o.rep,lbl2data_o.fused_rep)
             return ((loss,) + o) if loss is not None else o
-        
-        
+
+
         return RADOutput(
             loss=loss,
-            
+
             data_repr=data_o.rep,
             data_fused_repr=data_o.fused_rep,
-            
+
             lbl2data_repr=lbl2data_o.rep,
             lbl2data_fused_repr=lbl2data_o.fused_rep,
         )
-        
+
+
+# %% ../../nbs/15_models.radga.ipynb 61
+class Encoder003(DistilBertPreTrainedModel):
+
+    def __init__(self, config:PretrainedConfig):
+        super().__init__(config)
+        self.distilbert = DistilBertModel(config)
+
+        self.dr_head = RepresentationHead(config)
+        self.meta_head = RepresentationHead(config)
+        self.fused_dr_head = RepresentationHead(config)
+        self.cross_head = CrossAttention(config)
+
+        self.post_init()
+
+    def get_position_embeddings(self) -> nn.Embedding:
+        return self.distilbert.get_position_embeddings()
+
+    def resize_position_embeddings(self, new_num_position_embeddings: int):
+        self.distilbert.resize_position_embeddings(new_num_position_embeddings)
+
+    def encode(self, input_ids:torch.Tensor, attention_mask:torch.Tensor, **kwargs):
+        return self.distilbert(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            **kwargs
+        )
+
+
+    def dr(self, embed:torch.Tensor, attention_mask:torch.Tensor):
+        embed = self.dr_head(embed)
+        return F.normalize(Pooling.mean_pooling(embed, attention_mask), dim=1)
+
+    def fused_dr(self, embed:torch.Tensor, attention_mask:torch.Tensor):
+        embed = self.fused_dr_head(embed)
+        return F.normalize(Pooling.mean_pooling(embed, attention_mask), dim=1)
+
+    def meta(self, embed:torch.Tensor, attention_mask:torch.Tensor):
+        embed = self.meta_head(embed)
+        return F.normalize(Pooling.mean_pooling(embed, attention_mask), dim=1)
+
+    def meta_unnormalized(self, embed:torch.Tensor, attention_mask:torch.Tensor):
+        embed = self.meta_head(embed)
+        return Pooling.mean_pooling(embed, attention_mask)
+
+
+    def fuse_meta_into_embeddings(self, embed:torch.Tensor, attention_mask:torch.Tensor, meta_kwargs:Dict):
+        meta_repr, weights = {}, []
+
+        for m_key, m_args in meta_kwargs.items():
+            idx = torch.where(m_args['data2ptr'] > 0)[0]
+            meta_repr[m_key] = torch.empty(0, self.config.dim).to(embed)
+
+            if len(idx):
+                if not torch.all(m_args['data2ptr'][idx] == m_args['data2ptr'].max()):
+                    raise ValueError(f'All datapoints should have same number of metadata.')
+
+                if 'meta_repr' in m_args:
+                    m_repr,m_repr_mask = m_args['meta_repr'],torch.any(m_args['attention_mask'], dim=1).long().view(-1,1)
+                    m_repr,m_repr_mask = self.resize(m_repr, m_repr_mask, m_args['data2ptr'][idx])
+                    m_repr_mask = m_repr_mask.bool()
+                else:
+                    m_input_ids, m_attention_mask = m_args['input_ids'], m_args['attention_mask']
+                    m_embed = self.encode(m_input_ids, m_attention_mask)[0]
+
+                    m_repr = self.meta_unnormalized(m_embed, m_attention_mask)
+                    m_repr_mask = torch.any(m_attention_mask, dim=1)
+
+                m_repr, m_repr_mask = m_repr.view(len(idx), -1, self.config.dim), m_repr_mask.view(len(idx), -1)
+
+                meta_repr[m_key] = m_repr[m_repr_mask]
+                meta_repr[m_key] = F.normalize(meta_repr[m_key], dim=1)
+
+                fused_embed, w = self.cross_head(embed[idx], attention_mask[idx], m_repr, m_repr_mask, output_attentions=True)
+                embed[idx] += fused_embed
+                weights.append(w)
+
+        return embed, weights, meta_repr
+
+
+    def forward(
+        self,
+        data_input_ids: torch.Tensor,
+        data_attention_mask: torch.Tensor,
+        data_aug_meta_prefix: Optional[str]=None,
+        data_type:Optional[str]=None,
+        data_unnormalized:Optional[bool]=False,
+        **kwargs
+    ):
+        data_o = self.encode(data_input_ids, data_attention_mask)
+
+        if data_type is not None and data_type == "meta":
+            data_repr = self.meta_unnormalized(data_o[0], data_attention_mask) if data_unnormalized else self.meta(data_o[0], data_attention_mask)
+        else:
+            data_repr = self.dr(data_o[0], data_attention_mask)
+
+        data_fused_repr = data_fused_logits = fusion_weights = meta_repr = None
+        if data_aug_meta_prefix is not None:
+            meta_kwargs = Parameters.from_meta_aug_prefix(data_aug_meta_prefix, **kwargs)
+            if len(meta_kwargs):
+                data_fused_embed, fusion_weights, meta_repr = self.fuse_meta_into_embeddings(data_o[0],
+                                                                                             data_attention_mask,
+                                                                                             meta_kwargs)
+                data_fused_repr = self.fused_dr_head(data_fused_embed, data_attention_mask)
+
+        return EncoderOutput(
+            rep=data_repr,
+            fused_rep=data_fused_repr,
+            meta_repr=meta_repr,
+        )
+
+
+# %% ../../nbs/15_models.radga.ipynb 62
+class RAD003(DistilBertPreTrainedModel):
+    use_generation,use_representation = False,True
+    _tied_weights_keys = ["encoder.distilbert"]
+
+    def __init__(
+        self, config,
+
+        num_batch_labels:Optional[int]=None,
+        batch_size:Optional[int]=None,
+        margin:Optional[float]=0.3,
+        num_negatives:Optional[int]=5,
+        tau:Optional[float]=0.1,
+        apply_softmax:Optional[bool]=True,
+
+        calib_margin:Optional[float]=0.3,
+        calib_num_negatives:Optional[int]=5,
+        calib_tau:Optional[float]=0.1,
+        calib_apply_softmax:Optional[bool]=True,
+
+        data_aug_meta_prefix:Optional[List]=None,
+        lbl2data_aug_meta_prefix:Optional[List]=None,
+
+        meta_loss_weight:Optional[Union[List,float]]=0.3,
+        pred_meta_prefix:Optional[List]=None,
+
+        use_encoder_parallel:Optional[bool]=True,
+    ):
+        super().__init__(config)
+        self.m_lw = meta_loss_weight
+        store_attr('pred_meta_prefix,data_aug_meta_prefix,lbl2data_aug_meta_prefix,use_encoder_parallel')
+
+        self.encoder = Encoder003(config)
+
+        self.post_init()
+        self.rep_loss_fn = MultiTriplet(bsz=batch_size, tn_targ=num_batch_labels, margin=margin, n_negatives=num_negatives,
+                                        tau=tau, apply_softmax=apply_softmax, reduce='mean')
+        self.cab_loss_fn = Calibration(margin=calib_margin, tau=calib_tau, n_negatives=calib_num_negatives,
+                                       apply_softmax=calib_apply_softmax, reduce='mean')
+
+        self.remap_post_init()
+        self.init_retrieval_head()
+        self.init_cross_head()
+
+    def init_retrieval_head(self):
+        self.encoder.dr_head.post_init()
+        self.encoder.meta_head.post_init()
+        self.encoder.fused_dr_head.post_init()
+
+    def init_cross_head(self):
+        self.encoder.cross_head.post_init()
+
+    def remap_post_init(self):
+         self.distilbert = self.encoder.distilbert
+
+    def compute_loss(self, inp_repr, targ_repr, targ_ptr, targ_idx, ptarg_ptr, ptarg_idx):
+        rep_loss = self.rep_loss_fn(inp_repr, targ_repr, targ_ptr, targ_idx, ptarg_ptr, ptarg_idx)
+        return rep_loss
+
+    def calibration_loss(self, einp_repr, inp_repr, targ_repr, targ_ptr, targ_idx, ptarg_ptr, ptarg_idx):
+        return self.cab_loss_fn(einp_repr, inp_repr, targ_repr, targ_ptr, targ_idx, ptarg_ptr, ptarg_idx)
+
+    def compute_meta_loss(self, data_repr, lbl2data_repr, **kwargs):
+        if self.use_encoder_parallel:
+            encoder = XCDataParallel(module=self.encoder)
+        else: encoder = self.encoder
+
+        meta_inputs = Parameters.from_meta_pred_prefix(self.pred_meta_prefix, **kwargs)
+        m_lw = Parameters.get_meta_loss_weights(self.m_lw, len(meta_inputs))
+
+        loss = 0.0
+        for inputs,lw in zip(meta_inputs.values(), m_lw):
+            if 'lbl2data2ptr' in inputs:
+                idx = torch.where(inputs['lbl2data2ptr'])[0]
+                if len(idx) > 0:
+                    inputs_o = encoder(data_input_ids=inputs['input_ids'], data_attention_mask=inputs['attention_mask'],
+                                       data_type="meta")
+                    m_loss = self.rep_loss_fn(lbl2data_repr[idx], inputs_o.rep, inputs['data2ptr'][idx],
+                                              inputs['idx'], inputs['pdata2ptr'][idx], inputs['pidx'])
+                    loss += lw * m_loss
+
+            elif 'data2ptr' in inputs:
+                idx = torch.where(inputs['data2ptr'])[0]
+                if len(idx) > 0:
+                    inputs_o = encoder(data_input_ids=inputs['input_ids'], data_attention_mask=inputs['attention_mask'],
+                                       data_type="meta")
+                    m_loss = self.rep_loss_fn(data_repr[idx], inputs_o.rep, inputs['data2ptr'][idx], inputs['idx'],
+                                              inputs['pdata2ptr'][idx], inputs['pidx'])
+                    loss += lw * m_loss
+
+            else: raise ValueError('Invalid metadata input arguments.')
+        return loss
+
+    def get_meta_representation(
+        self,
+        data_input_ids:Optional[torch.Tensor]=None,
+        data_attention_mask:Optional[torch.Tensor]=None,
+        **kwargs
+    ):
+        if self.use_encoder_parallel:
+            encoder = XCDataParallel(module=self.encoder)
+        else: encoder = self.encoder
+
+        data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask,
+                         data_unnormalized=True, data_type="meta")
+        return RADOutput(
+            logits=data_o.logits,
+            data_repr=data_o.rep,
+            data_fused_repr=data_o.fused_rep,
+        )
+
+    def forward(
+        self,
+        data_input_ids:Optional[torch.Tensor]=None,
+        data_attention_mask:Optional[torch.Tensor]=None,
+        lbl2data_data2ptr:Optional[torch.Tensor]=None,
+        lbl2data_idx:Optional[torch.Tensor]=None,
+        lbl2data_input_ids:Optional[torch.Tensor]=None,
+        lbl2data_attention_mask:Optional[torch.Tensor]=None,
+        plbl2data_data2ptr:Optional[torch.Tensor]=None,
+        plbl2data_idx:Optional[torch.Tensor]=None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+        **kwargs
+    ):
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        if self.use_encoder_parallel:
+            encoder = XCDataParallel(module=self.encoder)
+        else: encoder = self.encoder
+
+        data_meta_kwargs = Parameters.from_feat_meta_aug_prefix('data', self.data_aug_meta_prefix, **kwargs)
+        data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask,
+                         data_aug_meta_prefix=self.data_aug_meta_prefix, **data_meta_kwargs)
+
+
+        loss = None; lbl2data_o = EncoderOutput()
+        if lbl2data_input_ids is not None:
+            lbl2data_meta_kwargs = Parameters.from_feat_meta_aug_prefix('lbl2data', self.lbl2data_aug_meta_prefix, **kwargs)
+
+            lbl2data_o = encoder(data_input_ids=lbl2data_input_ids, data_attention_mask=lbl2data_attention_mask,
+                                 data_aug_meta_prefix=self.lbl2data_aug_meta_prefix, **lbl2data_meta_kwargs)
+
+            loss = self.compute_loss(data_o.rep, lbl2data_o.rep,lbl2data_data2ptr,lbl2data_idx,
+                                     plbl2data_data2ptr,plbl2data_idx)
+
+            if data_o.fused_rep is not None:
+                loss += self.compute_loss(data_o.fused_rep, lbl2data_o.rep,lbl2data_data2ptr,lbl2data_idx,
+                                          plbl2data_data2ptr,plbl2data_idx)
+
+                loss += self.calibration_loss(data_o.fused_rep, data_o.rep, lbl2data_o.rep,lbl2data_data2ptr,lbl2data_idx,
+                                              plbl2data_data2ptr,plbl2data_idx)
+
+            loss += self.compute_meta_loss(data_o.rep, lbl2data_o.rep, **kwargs)
+
+        if not return_dict:
+            o = (data_o.logits,data_o.rep,data_o.fused_rep,lbl2data_o.logits,lbl2data_o.rep,lbl2data_o.fused_rep)
+            return ((loss,) + o) if loss is not None else o
+
+
+        return RADOutput(
+            loss=loss,
+
+            data_repr=data_o.rep,
+            data_fused_repr=data_o.fused_rep,
+
+            lbl2data_repr=lbl2data_o.rep,
+            lbl2data_fused_repr=lbl2data_o.fused_rep,
+        )
+
