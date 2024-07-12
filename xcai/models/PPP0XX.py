@@ -348,7 +348,7 @@ class DBT010(DBT009):
             data_repr=data_repr,
             lbl2data_repr=lbl2data_repr,
             data_embed=data_o.last_hidden_state,
-            lbl2data_embed=lbl2data_o.last_hidden_state,
+            lbl2data_embed=None if lbl2data_o is None else lbl2data_o.last_hidden_state,
         )
             
 
