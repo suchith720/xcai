@@ -14,7 +14,8 @@ from .PPP0XX import XCModelOutput
 
 # %% ../../nbs/17_models.distillation.ipynb 9
 class DTL001(nn.Module):
-
+    use_representation,use_generation = True,False
+    
     def __init__(
         self,
         m_student:nn.Module,
