@@ -329,7 +329,7 @@ class DBT010(DBT009):
                                     output_hidden_states=output_hidden_states,
                                     return_dict=return_dict)
         
-        loss, lbl2data_repr = None, None
+        loss, lbl2data_repr, lbl2data_o = None, None, None
         if lbl2data_input_ids is not None:
             lbl2data_o, lbl2data_repr = encoder(lbl2data_input_ids, lbl2data_attention_mask, 
                                                 output_attentions=output_attentions, 
