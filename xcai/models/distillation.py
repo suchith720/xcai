@@ -8,6 +8,7 @@ import torch, numpy as np
 import torch.nn as nn
 from typing import Optional
 
+from ..core import store_attr
 from ..losses import Cosine
 from .PPP0XX import XCModelOutput
 
