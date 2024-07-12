@@ -38,6 +38,8 @@ class XCModelOutput(ModelOutput):
     dr_loss: Optional[torch.FloatTensor] = None
     data_repr: Optional[torch.FloatTensor] = None
     lbl2data_repr: Optional[torch.FloatTensor] = None
+    data_embed: Optional[torch.FloatTensor] = None
+    lbl2data_embed: Optional[torch.FloatTensor] = None
     data_hidden_states: Optional[Tuple[torch.FloatTensor, ...]] = None
     data_attentions: Optional[Tuple[torch.FloatTensor, ...]] = None
     data_cross_attentions: Optional[Tuple[torch.FloatTensor, ...]] = None
@@ -345,6 +347,8 @@ class DBT010(DBT009):
             loss=loss,
             data_repr=data_repr,
             lbl2data_repr=lbl2data_repr,
+            data_embed=data_o.last_hidden_state,
+            lbl2data_embed=lbl2data_o.last_hidden_state,
         )
             
 

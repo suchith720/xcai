@@ -258,7 +258,7 @@ class ScoreFusion():
                n_samples:Optional[int]=None):
         if n_samples is not None and n_samples > 0 and n_samples < score_a.shape[0]:
             rnd_idx = np.random.permutation(score_a.shape[0])[:n_samples]
-            score_a, score_b, targ = score_a[rnd_idx], score_b[rnd_idx]
+            score_a, score_b = score_a[rnd_idx], score_b[rnd_idx]
             targ = targ if targ is None else targ[rnd_idx]
         return score_a, score_b, targ
     
@@ -278,7 +278,7 @@ class ScoreFusion():
         
     def fit(self, score_a:sparse.csr_matrix, score_b:sparse.csr_matrix, targ:Optional[sparse.csr_matrix]=None, 
             n_samples:Optional[int]=None):
-        score, targ, _ = self.prepare_inputs(score_a, score_b, targ)
+        score, targ, _ = self.prepare_inputs(score_a, score_b, targ, n_samples)
         self.clf.fit(score, targ)
 
     def predict(self, score_a:sparse.csr_matrix, score_b:sparse.csr_matrix, beta:Optional[int]=1):

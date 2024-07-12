@@ -21,6 +21,7 @@ class IndexSearch:
                  n_bm:Optional[int]=50, 
                  n_threads:Optional[int]=84):
         store_attr('index,space,efc,m,efs,n_bm,n_threads')
+        self.data,self.info = None,None
 
     def build(self, data:Optional[Union[torch.Tensor,np.array]], info:Optional[Union[torch.Tensor,np.array]]=None):
         if info is None: info = np.arange(data.shape[0])
@@ -29,11 +30,16 @@ class IndexSearch:
             
         if isinstance(data, torch.Tensor): data = data.cpu()
         if isinstance(info, torch.Tensor): info = info.cpu()
-            
+        
         self.index = hnswlib.Index(space=self.space, dim=data.shape[1])
         self.index.init_index(max_elements=data.shape[0], ef_construction=self.efc, M=self.m)
         self.index.add_items(data, info, num_threads=self.n_threads)
+        self.data,self.info = data,info
         self.index.set_ef(self.efs)
+
+    def get_items(self, idx:Optional[Union[torch.Tensor,np.array]]):
+        if isinstance(idx, torch.Tensor): idx = idx.cpu()
+        return self.data[idx]
 
     def proc(self, inputs:Optional[Union[torch.Tensor,np.array]], n_bm:Optional[int]=None):
         n_bm = self.n_bm if n_bm is None else n_bm
@@ -44,7 +50,7 @@ class IndexSearch:
         return {'info2data_idx':info, 'info2data_score':1.0-sc, 'info2data_data2ptr':ptr}
         
 
-# %% ../../nbs/11_representation.search.ipynb 12
+# %% ../../nbs/11_representation.search.ipynb 13
 class BruteForceSearch:
     
     def __init__(self, 
@@ -55,14 +61,17 @@ class BruteForceSearch:
     def build(self, data:Optional[torch.Tensor], info:Optional[torch.Tensor]=None):
         if info is not None and data.shape[0] != info.shape[0]: 
             raise ValueError(f'`data`({data.shape[0]}) and `info`({info.shape[0]}) should have same size.')
-        self.index = (F.normalize(data, dim=1), info)
+        self.index = (data, info)
+
+    def get_items(self, idx:Optional[Union[torch.Tensor,np.array]]):
+        return self.index[0][idx]
     
     def proc(self, inputs:Optional[torch.Tensor], n_bm:Optional[int]=None):
         store_attr('n_bm', is_none=False)
         index, info = self.index
         inputs, n_bm = F.normalize(inputs, dim=1), min(index.shape[0], self.n_bm)
         
-        sc, idx = torch.topk(inputs@index.T, n_bm, dim=1, largest=True)
+        sc, idx = torch.topk(inputs@F.normalize(index, dim=1).T, n_bm, dim=1, largest=True)
         if info is None: info = idx
         else: info = info.unsqueeze(0).expand((idx.shape[0],-1)).gather(1, idx)
             
