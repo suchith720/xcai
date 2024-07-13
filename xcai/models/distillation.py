@@ -28,6 +28,10 @@ class DTL001(nn.Module):
         
         self.loss_fn = Cosine(reduce='mean')
 
+    @property
+    def device(self):
+        return self.m_student.device
+
     def forward(
         self,
         data_input_ids:Optional[torch.Tensor]=None,
