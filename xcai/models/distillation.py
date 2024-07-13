@@ -11,18 +11,22 @@ from typing import Optional
 from ..core import store_attr
 from ..losses import Cosine
 from .PPP0XX import XCModelOutput
+from transformers import DistilBertPreTrainedModel,DistilBertConfig
 
 # %% ../../nbs/17_models.distillation.ipynb 9
-class DTL001(nn.Module):
+class DTL001(DistilBertPreTrainedModel):
     use_representation,use_generation = True,False
+    _tied_weights_keys = ["m_student.encoder.distilbert,m_teacher.encoder.distilbert"]
     
     def __init__(
         self,
+        config,
         m_student:nn.Module,
         m_teacher:nn.Module,
         embed_sim_loss_weight:Optional[float]=1.0,
+        **kwargs
     ):
-        super().__init__()
+        super().__init__(config, **kwargs)
         store_attr('m_student,m_teacher')
         self.s_lw = embed_sim_loss_weight
         
