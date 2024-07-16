@@ -823,7 +823,7 @@ class RAD002(RAD000, DistilBertPreTrainedModel):
         self.distilbert = self.encoder.distilbert
         
 
-# %% ../../nbs/15_models.radga.ipynb 72
+# %% ../../nbs/15_models.radga.ipynb 71
 class Encoder003(Encoder):
 
     def __init__(self, config:PretrainedConfig, use_noise:Optional[bool]=True, noise_pct:Optional[float]=0.5, resize_length:Optional[int]=None):
@@ -893,7 +893,7 @@ class Encoder003(Encoder):
         )
         
 
-# %% ../../nbs/15_models.radga.ipynb 73
+# %% ../../nbs/15_models.radga.ipynb 72
 class RAD003(RAD000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -991,7 +991,7 @@ class RAD003(RAD000, DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/15_models.radga.ipynb 82
+# %% ../../nbs/15_models.radga.ipynb 81
 class Encoder004(Encoder):
     
     def __init__(self, config:PretrainedConfig, use_noise:Optional[bool]=True, noise_pct:Optional[float]=0.5, resize_length:Optional[int]=None,
@@ -1036,7 +1036,7 @@ class Encoder004(Encoder):
         return embed, meta_repr
         
 
-# %% ../../nbs/15_models.radga.ipynb 83
+# %% ../../nbs/15_models.radga.ipynb 82
 class RAD004(RAD000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]

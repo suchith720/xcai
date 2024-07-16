@@ -230,6 +230,7 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
                  maximum_cluster_size:Optional[int]=None,
                  clustering_devices:Optional[List]=None,
                  use_data_metadata_for_clustering:Optional[bool]=False,
+                 clustering_representation_attribute:Optional[str]='data_repr',
                  
                  target_indices_key:Optional[str]='lbl2data_idx',
                  target_pointer_key:Optional[str]='lbl2data_data2ptr',
@@ -257,7 +258,8 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
                  use_data_metadata_for_pruning:Optional[bool]=True,
                  **kwargs):
         super().__init__(**kwargs)
-        store_attr('output_representation_attribute,representation_attribute,label_representation_attribute,use_data_metadata_for_clustering')
+        store_attr('output_representation_attribute,representation_attribute,label_representation_attribute')
+        store_attr('clustering_representation_attribute,use_data_metadata_for_clustering')
         
         store_attr('generation_num_beams,generation_length_penalty,generation_max_info,generation_eos_token')
         store_attr('representation_accumulation_steps,representation_num_beams,representation_search_type')
@@ -885,7 +887,7 @@ def _get_train_data_cluster(self:XCLearner, epochs_trained:int, num_train_epochs
 
     dataset = self._get_dataset(self.train_dataset, dset_type='data', use_metadata=self.args.use_data_metadata_for_clustering)
     dataloader = self.get_test_dataloader(dataset)
-    data_repr = self.get_representation(dataloader, representation_attribute=self.args.output_representation_attribute)
+    data_repr = self.get_representation(dataloader, representation_attribute=self.args.clustering_representation_attribute)
     if self.args.use_distributional_representation: data_repr = data_repr.exp()
         
     cluster = BalancedClusters.proc(data_repr, self._get_min_cluster_sz(epochs_trained, num_train_epochs), clustering_devices=self.args.clustering_devices)
