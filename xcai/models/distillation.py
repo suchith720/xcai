@@ -15,14 +15,14 @@ from .PPP0XX import XCModelOutput
 from transformers import DistilBertPreTrainedModel,DistilBertConfig
 from transformers.utils.generic import ModelOutput
 
-# %% ../../nbs/17_models.distillation.ipynb 23
+# %% ../../nbs/17_models.distillation.ipynb 22
 @dataclass
 class TCHOutput(ModelOutput):
     data_repr: Optional[torch.FloatTensor] = None
     lbl2data_repr: Optional[torch.FloatTensor] = None
     
 
-# %% ../../nbs/17_models.distillation.ipynb 24
+# %% ../../nbs/17_models.distillation.ipynb 23
 class TCH001(DistilBertPreTrainedModel):
 
     def __init__(self, config, n_data:int, n_lbl:int, **kwargs):
@@ -46,7 +46,7 @@ class TCH001(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/17_models.distillation.ipynb 37
+# %% ../../nbs/17_models.distillation.ipynb 36
 class DTL001(DistilBertPreTrainedModel):
     use_representation,use_generation = True,False
     _tied_weights_keys = ["m_student.encoder.distilbert,m_teacher.encoder.distilbert"]
@@ -92,7 +92,7 @@ class DTL001(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/17_models.distillation.ipynb 48
+# %% ../../nbs/17_models.distillation.ipynb 47
 class DTL002(DistilBertPreTrainedModel):
     use_representation,use_generation = True,False
     _tied_weights_keys = ["m_student.encoder.distilbert"]
@@ -109,13 +109,15 @@ class DTL002(DistilBertPreTrainedModel):
         apply_softmax:Optional[bool]=False,
         n_negatives:Optional[int]=5,
         distil_loss_weight:Optional[float]=1.0,
+        mse_loss_weight:Optional[float]=0.1,
         **kwargs
     ):
         super().__init__(config, **kwargs)
-        self.lw = distil_loss_weight
+        self.d_lw,self.m_lw = distil_loss_weight,mse_loss_weight
         store_attr('m_student,m_teacher')
-        self.loss_fn = MultiTriplet(bsz=bsz, tn_targ=tn_targ, margin=margin, n_negatives=n_negatives, tau=tau, 
-                                    apply_softmax=apply_softmax, reduce='mean')
+        self.mse_loss_fn = nn.MSELoss()
+        self.rep_loss_fn = MultiTriplet(bsz=bsz, tn_targ=tn_targ, margin=margin, n_negatives=n_negatives, tau=tau, 
+                                        apply_softmax=apply_softmax, reduce='mean')
         
     def forward(
         self,
@@ -134,13 +136,15 @@ class DTL002(DistilBertPreTrainedModel):
             with torch.no_grad(): 
                 teacher_o = self.m_teacher(data_idx=data_idx, lbl2data_idx=lbl2data_idx)
 
-            dloss = self.loss_fn(teacher_o.data_repr, student_o.lbl2data_repr, kwargs['lbl2data_data2ptr'], lbl2data_idx, 
-                                kwargs['plbl2data_data2ptr'], kwargs['plbl2data_idx'], **kwargs)
+            dloss = self.rep_loss_fn(teacher_o.data_repr, student_o.lbl2data_repr, kwargs['lbl2data_data2ptr'], lbl2data_idx, 
+                                     kwargs['plbl2data_data2ptr'], kwargs['plbl2data_idx'], **kwargs)
             
-            dloss += self.loss_fn(student_o.data_repr, teacher_o.lbl2data_repr, kwargs['lbl2data_data2ptr'], lbl2data_idx, 
-                                  kwargs['plbl2data_data2ptr'], kwargs['plbl2data_idx'], **kwargs)
+            dloss += self.rep_loss_fn(student_o.data_repr, teacher_o.lbl2data_repr, kwargs['lbl2data_data2ptr'], lbl2data_idx, 
+                                      kwargs['plbl2data_data2ptr'], kwargs['plbl2data_idx'], **kwargs)
+
+            mloss = self.mse_loss_fn(teacher_o.data_repr, student_o.data_repr) + self.mse_loss_fn(teacher_o.lbl2data_repr, student_o.lbl2data_repr)
             
-            loss = student_o.loss + self.lw * dloss
+            loss = student_o.loss + self.d_lw * dloss + self.m_lw * mloss
             
         return XCModelOutput(
             loss=loss,
