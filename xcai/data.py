@@ -139,6 +139,7 @@ def _verify_inputs(cls:MainXCDataset):
 @patch
 def __getitem__(cls:MainXCDataset, idx:int):
     x = {f'data_{k}': v[idx] for k,v in cls.data_info.items()}
+    x['data_idx'] = idx
     if cls.n_lbl is not None:
         prefix = 'lbl2data'
         x[f'{prefix}_idx'] = cls.data_lbl[idx].indices.tolist()

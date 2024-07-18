@@ -160,9 +160,8 @@ class GatedCrossAttention(nn.Module):
         k = shape(self.k(k))  # (bs, n_h, k_len, h_dim)
         v = shape(self.v(v))  # (bs, n_h, k_len, h_dim)
 
-        q = q / math.sqrt(h_dim)  # (bs, n_h, q_len, h_dim)
+        q = q * math.sqrt(h_dim)*self.tau  # (bs, n_h, q_len, h_dim)
         sc = torch.matmul(q, k.transpose(2, 3))  # (bs, n_h, q_len, k_len)
-        sc = sc / self.tau
 
         q_m, k_m = q_m.view(bs, 1, -1, 1).to(q.dtype), k_m.view(bs, 1, 1, -1).to(q.dtype)
         mask = torch.matmul(q_m, k_m).expand_as(sc)  # (bs, n_h, q_len, k_len)
@@ -170,12 +169,12 @@ class GatedCrossAttention(nn.Module):
 
         q_norm, k_norm = F.normalize(q, dim=-1), F.normalize(k, dim=-1)
         gated_sc = torch.matmul(q_norm, k_norm.transpose(2, 3))
-        gated_sc = F.relu(gated_sc - self.margin)
+        gated_sc = F.relu(gated_sc)
         gated_mask = gated_sc != 0 
         sc = sc.masked_fill(gated_mask == 0, torch.tensor(torch.finfo(sc.dtype).min))
 
         w = nn.functional.softmax(sc, dim=-1)  # (bs, n_h, q_len, k_len)
-        w *= mask * gated_sc
+        w = w * mask * gated_mask
         w = self.dropout(w)  # (bs, n_h, q_len, k_len)
 
         o = self.o(unshape(torch.matmul(w, v))) # (bs, q_len, dim)
