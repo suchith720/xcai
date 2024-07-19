@@ -15,14 +15,14 @@ from .PPP0XX import XCModelOutput
 from transformers import DistilBertPreTrainedModel,DistilBertConfig
 from transformers.utils.generic import ModelOutput
 
-# %% ../../nbs/17_models.distillation.ipynb 22
+# %% ../../nbs/17_models.distillation.ipynb 24
 @dataclass
 class TCHOutput(ModelOutput):
     data_repr: Optional[torch.FloatTensor] = None
     lbl2data_repr: Optional[torch.FloatTensor] = None
     
 
-# %% ../../nbs/17_models.distillation.ipynb 23
+# %% ../../nbs/17_models.distillation.ipynb 25
 class TCH001(DistilBertPreTrainedModel):
 
     def __init__(self, config, n_data:int, n_lbl:int, **kwargs):
@@ -32,8 +32,8 @@ class TCH001(DistilBertPreTrainedModel):
         self.lbl_repr = nn.Embedding(self.n_lbl, config.dim)
 
     def init_embeddings(self, data_repr:torch.Tensor, lbl_repr:torch.Tensor):
-        self.data_repr.data = data_repr
-        self.lbl_repr.data = lbl_repr
+        self.data_repr.weight.data = data_repr
+        self.lbl_repr.weight.data = lbl_repr
 
     def forward(
         self,
@@ -46,7 +46,7 @@ class TCH001(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/17_models.distillation.ipynb 36
+# %% ../../nbs/17_models.distillation.ipynb 40
 class DTL001(DistilBertPreTrainedModel):
     use_representation,use_generation = True,False
     _tied_weights_keys = ["m_student.encoder.distilbert,m_teacher.encoder.distilbert"]
@@ -92,7 +92,7 @@ class DTL001(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/17_models.distillation.ipynb 47
+# %% ../../nbs/17_models.distillation.ipynb 51
 class DTL002(DistilBertPreTrainedModel):
     use_representation,use_generation = True,False
     _tied_weights_keys = ["m_student.encoder.distilbert"]
