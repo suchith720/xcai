@@ -952,21 +952,22 @@ class DBT021(DBT010):
     def __init__(self, 
                  config, 
                  m_lw:Optional[Union[float,List]]=0.2, 
-                 meta_prefix:Optional[str]=None,
+                 data_meta_prefix:Optional[str]=None,
+                 lbl2data_meta_prefix:Optional[str]=None,
                  task_repr_type:Optional[str]='pool',
                  meta_repr_type:Optional[str]='pool',
                  *args, **kwargs):
         super().__init__(config, *args, **kwargs)
-        self.m_lw, self.meta_prefix = m_lw, meta_prefix
+        self.m_lw, self.data_meta_prefix, self.lbl2data_meta_prefix = m_lw, data_meta_prefix, lbl2data_meta_prefix
         self.task_repr_type, self.meta_repr_type = task_repr_type, meta_repr_type
         
         self.encoder = DBT021Encoder(config)
         self.post_init()
         self.remap_post_init()
         
-    def _get_meta_inputs(self, **kwargs):
+    def _get_meta_inputs(self, meta_prefix, **kwargs):
         inputs = {}
-        for t in [o for o in kwargs if self.meta_prefix is not None and re.match(f'^[p]?{self.meta_prefix}.*', o)]:
+        for t in [o for o in kwargs if meta_prefix is not None and re.match(f'^[p]?{meta_prefix}.*', o)]:
             p,q = t.split('_', maxsplit=1)
             if t[0] == 'p': inputs.setdefault(p[1:], {})[f'p{q}'] = kwargs[t]
             else: inputs.setdefault(p, {})[q] = kwargs[t]
@@ -986,7 +987,10 @@ class DBT021(DBT010):
             encoder = nn.DataParallel(module=self.encoder)
         else: encoder = self.encoder
 
-        meta_inputs = self._get_meta_inputs(**kwargs)
+        data_meta_inputs = self._get_meta_inputs(self.data_meta_prefix, **kwargs)
+        lbl2data_meta_inputs = self._get_meta_inputs(self.lbl2data_meta_prefix, **kwargs)
+        meta_inputs = {**data_meta_inputs, **lbl2data_meta_inputs}
+        
         m_lw = self._get_meta_loss_weights(self.m_lw, len(meta_inputs))
         
         loss = 0.0
@@ -997,8 +1001,8 @@ class DBT021(DBT010):
                     inputs_o = encoder(input_ids=inputs['input_ids'],
                                        attention_mask=inputs['attention_mask'], 
                                        input_type="meta", repr_type=self.meta_repr_type)
-                    m_loss = self.loss_fn(lbl2data_repr[idx], inputs_o[1], inputs['data2ptr'][idx],
-                                          inputs['idx'], inputs['pdata2ptr'][idx], inputs['pidx'])
+                    m_loss = self.loss_fn(lbl2data_repr[idx], inputs_o[1], inputs['lbl2data2ptr'][idx],
+                                          inputs['idx'], inputs['plbl2data2ptr'][idx], inputs['pidx'])
                     loss += lw * m_loss
 
             elif 'data2ptr' in inputs:
