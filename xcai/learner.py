@@ -608,7 +608,11 @@ def prediction_step(
 ) -> Tuple[Optional[float], Optional[torch.Tensor], Optional[torch.Tensor]]:
     with torch.no_grad():
         with self.compute_loss_context_manager(): outputs = model(**inputs)
-        loss = (outputs["loss"] if isinstance(outputs, dict) else outputs[0]).mean().detach()
+        if isinstance(outputs, dict):
+            loss = outputs["loss"] if "loss" in outputs else None
+        else:
+            loss = outputs[0]
+        if loss is not None: loss = loss.mean().detach()            
     prediction_loss_only = self.args.prediction_loss_only if prediction_loss_only is None else prediction_loss_only
     if prediction_loss_only: return loss, {}
     

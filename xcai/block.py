@@ -165,6 +165,47 @@ def wikiseealso(data_dir):
             },
             'parameters': PARAM,
         }, 
+        'data_catlnk' : {
+            'path': {
+                'train': {
+                    'data_lbl': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/trn_X_Y.txt',
+                    'data_info': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/train.raw.txt',
+                    'lbl_info': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/label.raw.txt',
+                    'data_lbl_filterer': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/filter_labels_train.txt',
+                    'cat_meta': {
+                        'prefix': 'cat',
+                        'data_meta': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/category_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/category_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/category.raw.txt'
+                    },
+                    'lnk_meta': {
+                        'prefix': 'lnk',
+                        'data_meta': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/category_renee_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/category_renee_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/category.raw.txt'
+                    },
+                },
+                'test': {
+                    'data_lbl': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/tst_X_Y.txt',
+                    'data_info': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/test.raw.txt',
+                    'lbl_info': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/label.raw.txt',
+                    'data_lbl_filterer': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/filter_labels_test.txt',
+                    'cat_meta': {
+                        'prefix': 'cat',
+                        'data_meta': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/category_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/category_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/category.raw.txt',
+                    },
+                    'lnk_meta': {
+                        'prefix': 'lnk',
+                        'data_meta': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/category_renee_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/category_renee_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/category.raw.txt',
+                    },
+                },
+            },
+            'parameters': PARAM,
+        }, 
     }
 
 # %% ../nbs/03_block.ipynb 9
@@ -272,6 +313,45 @@ def wikititles(data_dir):
                         'data_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/see_also_tst_X_Y.txt',
                         'lbl_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/see_also_lbl_X_Y.txt',
                         'meta_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/see_also.raw.txt',
+                    },
+                },
+            },
+            'parameters': PARAM,
+        },
+        'data_hlklnk' : {
+            'path': {
+                'train': {
+                    'data_lbl': f'{data_dir}/(mapped)LF-WikiTitles-500K/trn_X_Y.txt',
+                    'data_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/train.raw.txt',
+                    'lbl_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/label.raw.txt',
+                    'hlk_meta': {
+                        'prefix': 'hlk',
+                        'data_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/hyper_link_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/hyper_link_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/hyper_link.raw.txt'
+                    },
+                    'lnk_meta': {
+                        'prefix': 'lnk',
+                        'data_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/hyper_link_renee_mean_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/hyper_link_renee_mean_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/hyper_link.raw.txt'
+                    },
+                },
+                'test': {
+                    'data_lbl': f'{data_dir}/(mapped)LF-WikiTitles-500K/tst_X_Y.txt',
+                    'data_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/test.raw.txt',
+                    'lbl_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/label.raw.txt',
+                    'hlk_meta': {
+                        'prefix': 'hlk',
+                        'data_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/hyper_link_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/hyper_link_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/hyper_link.raw.txt',
+                    },
+                    'lnk_meta': {
+                        'prefix': 'lnk',
+                        'data_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/hyper_link_renee_mean_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/hyper_link_renee_mean_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/hyper_link.raw.txt',
                     },
                 },
             },
