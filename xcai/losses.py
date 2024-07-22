@@ -139,7 +139,7 @@ def forward(cls:Calibration,
     pos = get_sparse_matrix(idx[len(inp2targ_idx):], n_pinp2targ).to_dense()[:, idx[:len(inp2targ_idx)]]
     mul = torch.where(pos == 0, -1, 1) 
     
-    loss = F.relu((sc - esc + cls.margin)*mul)
+    loss = F.relu((sc-esc)*mul + cls.margin)
 
     if cls.n_negatives is not None:
         loss, idx = torch.topk(loss, min(cls.n_negatives, loss.shape[1]), dim=1, largest=True)
