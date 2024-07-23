@@ -1250,7 +1250,7 @@ class Encoder006(Encoder):
                 m_repr, m_repr_mask = m_repr.view(len(idx), -1, self.config.dim), m_repr_mask.view(len(idx), -1)
                 meta_repr[m_key] = F.normalize(m_repr[m_repr_mask], dim=1)
 
-                if self.use_noise: m_repr, m_repr_mask = self.add_noise(m_repr.clone(), m_repr_mask)
+                if self.use_noise: m_repr, m_repr_mask = self.add_noise(m_repr.clone(), m_repr_mask.clone())
                 
                 fused_embed = self.cross_head(embed[idx], attention_mask[idx], m_repr, m_repr_mask)[0]
 
