@@ -3,7 +3,8 @@
 # %% auto 0
 __all__ = ['RADOutput', 'EncoderOutput', 'Pooling', 'CrossAttention', 'GatedCrossAttention', 'GatedCrossAttention2',
            'RepresentationHead', 'GenerationHead', 'Parameters', 'Encoder', 'RAD000', 'RAD001Encoder', 'RAD001',
-           'RAD002', 'Encoder003', 'RAD003', 'Encoder004', 'RAD004', 'Encoder005', 'RAD005', 'Encoder006', 'RAD006']
+           'RAD002', 'Encoder003', 'RAD003', 'Encoder004', 'RAD004', 'Encoder005', 'RAD005', 'Encoder006', 'RAD006',
+           'Encoder007', 'RAD007']
 
 # %% ../../nbs/15_models.radga.ipynb 2
 import torch, re, inspect, pickle, os, torch.nn as nn, math
@@ -1212,8 +1213,14 @@ class RAD005(RAD000, DistilBertPreTrainedModel):
 # %% ../../nbs/15_models.radga.ipynb 106
 class Encoder006(Encoder):
     
-    def __init__(self, config:PretrainedConfig, use_noise:Optional[bool]=True, shuffle_noise_pct:Optional[float]=0.5, 
-                 dropout_noise_pct:Optional[float]=0.1, resize_length:Optional[int]=None):
+    def __init__(
+        self, 
+        config:PretrainedConfig, 
+        use_noise:Optional[bool]=True, 
+        shuffle_noise_pct:Optional[float]=0.5, 
+        dropout_noise_pct:Optional[float]=0.1, 
+        resize_length:Optional[int]=None
+    ):
         store_attr('dropout_noise_pct')
         super().__init__(config, use_noise, shuffle_noise_pct, resize_length)
 
@@ -1271,16 +1278,16 @@ class RAD006(RAD000, DistilBertPreTrainedModel):
     def __init__(
         self, config,
         resize_length:Optional[int]=None,
-        use_noise:Optional[bool]=True,
-        shuffle_noise_pct:Optional[float]=0.3,
-        dropout_noise_pct:Optional[float]=0.3,
+        use_noise:Optional[bool]=False,
+        shuffle_noise_pct:Optional[float]=0.1,
+        dropout_noise_pct:Optional[float]=0.1,
 
         calib_margin:Optional[float]=0.3,
-        calib_num_negatives:Optional[int]=5,
+        calib_num_negatives:Optional[int]=10,
         calib_tau:Optional[float]=0.1,
         calib_apply_softmax:Optional[bool]=True,
-        calib_loss_weight:Optional[float]=0.3,
-        use_calib_loss:Optional[float]=True,
+        calib_loss_weight:Optional[float]=0.1,
+        use_calib_loss:Optional[float]=False,
 
         use_query_loss:Optional[float]=False,
         
@@ -1292,7 +1299,6 @@ class RAD006(RAD000, DistilBertPreTrainedModel):
                                   resize_length=resize_length)
         self.cab_loss_fn = Calibration(margin=calib_margin, tau=calib_tau, n_negatives=calib_num_negatives, 
                                        apply_softmax=calib_apply_softmax, reduce='mean')
-        
         self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head()
         
     def calibration_loss(self, einp_repr, inp_repr, targ_repr, targ_ptr, targ_idx, ptarg_ptr, ptarg_idx):
@@ -1337,8 +1343,9 @@ class RAD006(RAD000, DistilBertPreTrainedModel):
                                      plbl2data_data2ptr,plbl2data_idx)
 
             if self.use_query_loss:
-                loss = self.compute_loss(data_o.rep, lbl2data_o.rep,lbl2data_data2ptr,lbl2data_idx,
-                                         plbl2data_data2ptr,plbl2data_idx)
+                loss += self.compute_loss(data_o.rep, lbl2data_o.rep,lbl2data_data2ptr,lbl2data_idx,
+                                          plbl2data_data2ptr,plbl2data_idx)
+            
             if self.use_calib_loss:
                 loss += self.calibration_loss(data_o.fused_rep, data_o.rep, lbl2data_o.rep,lbl2data_data2ptr,lbl2data_idx,
                                               plbl2data_data2ptr,plbl2data_idx)
@@ -1348,7 +1355,6 @@ class RAD006(RAD000, DistilBertPreTrainedModel):
             if self.use_fusion_loss:
                 loss += self.compute_fusion_loss(data_o.fused_rep, data_o.meta_repr, self.data_aug_meta_prefix, **kwargs)
                 loss += self.compute_fusion_loss(lbl2data_o.rep, lbl2data_o.meta_repr, self.lbl2data_aug_meta_prefix, **kwargs)
-            
             
         if not return_dict:
             o = (data_o.logits,data_o.rep,data_o.fused_rep,lbl2data_o.logits,lbl2data_o.rep,lbl2data_o.fused_rep)
@@ -1365,4 +1371,84 @@ class RAD006(RAD000, DistilBertPreTrainedModel):
             lbl2data_fused_repr=lbl2data_o.fused_rep,
         )
         
+        
+
+# %% ../../nbs/15_models.radga.ipynb 113
+class Encoder007(Encoder006):
+    
+    def __init__(self, config:PretrainedConfig, use_noise:Optional[bool]=True, shuffle_noise_pct:Optional[float]=0.5, 
+                 dropout_noise_pct:Optional[float]=0.1, resize_length:Optional[int]=None,
+                 cross_margin:Optional[float]=0.3, cross_tau:Optional[float]=0.1, cross_dropout:Optional[float]=0.1):
+        
+        super().__init__(config, use_noise, shuffle_noise_pct, dropout_noise_pct, resize_length)
+        self.cross_head = GatedCrossAttention2(config, margin=cross_margin, tau=cross_tau, dropout=cross_dropout)
+        self.cross_gate = nn.Parameter(torch.ones(1))
+
+    def fuse_meta_into_embeddings(self, embed:torch.Tensor, attention_mask:torch.Tensor, meta_kwargs:Dict):
+        meta_repr = {}
+        
+        for m_key, m_args in meta_kwargs.items():
+            idx = torch.where(m_args['data2ptr'] > 0)[0]
+            meta_repr[m_key] = torch.empty(0, self.config.dim).to(embed)
+            
+            if len(idx):
+                if 'meta_repr' in m_args:
+                    m_repr,m_repr_mask = m_args['meta_repr'],torch.any(m_args['attention_mask'], dim=1).long().view(-1,1)
+                    m_repr,m_repr_mask = self.resize(m_repr, m_repr_mask, m_args['data2ptr'][idx])
+                    m_repr_mask = m_repr_mask.bool()
+                else:
+                    m_input_ids, m_attention_mask = self.resize(m_args['input_ids'], m_args['attention_mask'], 
+                                                                m_args['data2ptr'][idx])
+                    n_meta = m_args['data2ptr'].max()
+                    m_embed = self.encode(m_input_ids, m_attention_mask)[0]
+
+                    m_repr = self.meta_unnormalized(m_embed, m_attention_mask)
+                    m_repr_mask = torch.any(m_attention_mask, dim=1)
+                    
+                m_repr, m_repr_mask = m_repr.view(len(idx), -1, self.config.dim), m_repr_mask.view(len(idx), -1)
+                meta_repr[m_key] = F.normalize(m_repr[m_repr_mask], dim=1)
+
+                if self.use_noise: m_repr, m_repr_mask = self.add_noise(m_repr.clone(), m_repr_mask.clone())
+                
+                fused_embed = self.cross_head(embed[idx], attention_mask[idx], m_repr, m_repr_mask)[0]
+
+                if self.use_noise:
+                    noise_mask = torch.rand(len(idx), device=fused_embed.device) > self.dropout_noise_pct
+                    embed[idx[noise_mask]] += self.cross_gate * fused_embed[noise_mask]
+                else:
+                    embed[idx] += self.cross_gate * fused_embed
+                
+        return embed, meta_repr
+        
+
+# %% ../../nbs/15_models.radga.ipynb 114
+class RAD007(RAD006, DistilBertPreTrainedModel):
+    use_generation,use_representation = False,True
+    _tied_weights_keys = ["encoder.distilbert"]
+    
+    def __init__(
+        self, config,
+        resize_length:Optional[int]=None,
+        use_noise:Optional[bool]=True,
+        shuffle_noise_pct:Optional[float]=0.3,
+        dropout_noise_pct:Optional[float]=0.3,
+        
+        cross_margin:Optional[float]=0.3,
+        cross_tau:Optional[float]=0.1,
+        cross_dropout:Optional[float]=0.1,
+        
+        **kwargs
+    ):
+        super().__init__(config, **kwargs)
+        self.encoder = Encoder007(config, use_noise=use_noise, shuffle_noise_pct=shuffle_noise_pct, dropout_noise_pct=dropout_noise_pct,
+                                  resize_length=resize_length, cross_margin=cross_margin, cross_tau=cross_tau, cross_dropout=cross_dropout)
+        
+        self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head(); self.init_cross_gate()
+        
+
+    def init_cross_gate(self):
+        self.encoder.cross_gate.data = torch.ones(1)
+            
+    def remap_post_init(self):
+         self.distilbert = self.encoder.distilbert
         
