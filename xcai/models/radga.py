@@ -4,7 +4,7 @@
 __all__ = ['RADOutput', 'EncoderOutput', 'Pooling', 'CrossAttention', 'GatedCrossAttention', 'GatedCrossAttention2',
            'RepresentationHead', 'GenerationHead', 'Parameters', 'Encoder', 'RAD000', 'RAD001Encoder', 'RAD001',
            'RAD002', 'Encoder003', 'RAD003', 'Encoder004', 'RAD004', 'Encoder005', 'RAD005', 'Encoder006', 'RAD006',
-           'Encoder007', 'RAD007']
+           'Encoder007', 'RAD007', 'Encoder008', 'RAD008']
 
 # %% ../../nbs/15_models.radga.ipynb 2
 import torch, re, inspect, pickle, os, torch.nn as nn, math
@@ -300,7 +300,7 @@ class Parameters:
     @staticmethod
     def from_meta_aug_prefix(prefix:str, **kwargs):
         inputs = {}
-        args = [arg for arg in kwargs if prefix is not None and re.match(f'^{prefix}.*_(input_ids|attention_mask|data2ptr|meta_repr)$', arg)]
+        args = [arg for arg in kwargs if prefix is not None and re.match(f'^{prefix}.*_(input_ids|attention_mask|data2ptr|meta_repr|idx)$', arg)]
         for arg in args:
             meta,param = arg.split('_', maxsplit=1)
             inputs.setdefault(meta, {})[param] = kwargs[arg]
@@ -308,7 +308,7 @@ class Parameters:
     
     @staticmethod
     def from_feat_meta_aug_prefix(feat:str, prefix:str, **kwargs):
-        keys = ['attention_mask', 'input_ids', 'meta_repr']
+        keys = ['attention_mask', 'input_ids', 'meta_repr', 'idx']
         
         inputs = {f'{prefix}_{k}': kwargs[f'{prefix}_{k}'] for k in keys if f'{prefix}_{k}' in kwargs}
         if prefix is not None and f'{prefix}_{feat}2ptr' in kwargs:
@@ -1371,9 +1371,8 @@ class RAD006(RAD000, DistilBertPreTrainedModel):
             lbl2data_fused_repr=lbl2data_o.fused_rep,
         )
         
-        
 
-# %% ../../nbs/15_models.radga.ipynb 113
+# %% ../../nbs/15_models.radga.ipynb 114
 class Encoder007(Encoder006):
     
     def __init__(self, config:PretrainedConfig, use_noise:Optional[bool]=True, shuffle_noise_pct:Optional[float]=0.5, 
@@ -1421,7 +1420,7 @@ class Encoder007(Encoder006):
         return embed, meta_repr
         
 
-# %% ../../nbs/15_models.radga.ipynb 114
+# %% ../../nbs/15_models.radga.ipynb 115
 class RAD007(RAD006, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -1451,4 +1450,127 @@ class RAD007(RAD006, DistilBertPreTrainedModel):
             
     def remap_post_init(self):
          self.distilbert = self.encoder.distilbert
+        
+
+# %% ../../nbs/15_models.radga.ipynb 122
+class Encoder008(Encoder):
+    
+    def __init__(
+        self, 
+        config:PretrainedConfig,
+        num_metadata:int,
+        use_noise:Optional[bool]=True, 
+        shuffle_noise_pct:Optional[float]=0.5, 
+        dropout_noise_pct:Optional[float]=0.1, 
+        resize_length:Optional[int]=None,
+    ):
+        store_attr('dropout_noise_pct')
+        super().__init__(config, use_noise, shuffle_noise_pct, resize_length)
+        self.meta_embeddings = nn.Embedding(num_metadata, config.dim)
+        self.fusion_layer_norm = nn.LayerNorm(config.dim, elementwise_affine=True)
+
+    def freeze_meta_embeddings(self):
+        self.meta_embeddings.requires_grad_(False)
+
+    def unfreeze_meta_embeddings(self):
+        self.meta_embeddings.requires_grad_(True)
+
+    def set_meta_embeddings(self, embed:torch.Tensor):
+        self.meta_embeddings.weight.data = embed
+
+    def resize(self, inputs:torch.Tensor, mask:torch.Tensor, idx:torch.Tensor, num_inputs:torch.Tensor):
+        if torch.any(num_inputs == 0): raise ValueError("`num_inputs` should be non-zero positive integer.")
+        bsz, dim, total_num_inputs = num_inputs.shape[0], inputs.shape[-1], inputs.shape[0]
+        
+        self.ones = self.ones.to(inputs.device)
+        ones = (
+            torch.ones(total_num_inputs, dtype=torch.long, device=inputs.device) 
+            if self.ones is None or self.ones.shape[0] < total_num_inputs else self.ones[:total_num_inputs]
+        )
+
+        max_num_inputs = num_inputs.max()
+        xnum_inputs = max_num_inputs-num_inputs+1
+
+        inputs_ptr = num_inputs.cumsum(dim=0)-1
+        repeat_inputs = ones.scatter(0, inputs_ptr, xnum_inputs)
+        
+        resized_inputs = inputs.repeat_interleave(repeat_inputs, dim=0)
+        resized_mask = mask.repeat_interleave(repeat_inputs, dim=0)
+        resized_idx = idx.repeat_interleave(repeat_inputs, dim=0)
+        
+        ignore_mask_idx = ones.scatter(0, inputs_ptr, 0).repeat_interleave(repeat_inputs, dim=0).view(bsz, -1)
+        ignore_mask_idx[:, -1] = 1; ignore_mask_idx = ignore_mask_idx.view(-1, 1)
+        
+        resized_mask *= ignore_mask_idx
+        
+        return resized_inputs,resized_mask,resized_idx
+
+    def fuse_meta_into_embeddings(self, embed:torch.Tensor, attention_mask:torch.Tensor, meta_kwargs:Dict):
+        meta_repr = {}
+        
+        for m_key, m_args in meta_kwargs.items():
+            idx = torch.where(m_args['data2ptr'] > 0)[0]
+            meta_repr[m_key] = torch.empty(0, self.config.dim).to(embed)
+            
+            if len(idx):
+                if 'meta_repr' in m_args:
+                    m_repr,m_repr_mask = m_args['meta_repr'],torch.any(m_args['attention_mask'], dim=1).long().view(-1,1)
+                    m_repr,m_repr_mask = self.resize(m_repr, m_repr_mask, m_args['data2ptr'][idx])
+                    m_repr_mask = m_repr_mask.bool()
+                else:
+                    m_input_ids, m_attention_mask, m_idx = self.resize(m_args['input_ids'], m_args['attention_mask'], m_args['idx'],
+                                                                       m_args['data2ptr'][idx])
+                    n_meta = m_args['data2ptr'].max()
+                    m_embed = self.encode(m_input_ids, m_attention_mask)[0]
+
+                    m_repr = self.meta(m_embed, m_attention_mask)
+                    m_repr_mask = torch.any(m_attention_mask, dim=1)
+
+                m_repr = self.fusion_layer_norm(m_repr + self.meta_embeddings(m_idx))
+                
+                m_repr, m_repr_mask = m_repr.view(len(idx), -1, self.config.dim), m_repr_mask.view(len(idx), -1)
+                meta_repr[m_key] = F.normalize(m_repr[m_repr_mask], dim=1)
+
+                if self.use_noise: m_repr, m_repr_mask = self.add_noise(m_repr.clone(), m_repr_mask.clone())
+                
+                fused_embed = self.cross_head(embed[idx], attention_mask[idx], m_repr, m_repr_mask)[0]
+
+                if self.use_noise:
+                    noise_mask = torch.rand(len(idx), device=fused_embed.device) > self.dropout_noise_pct
+                    embed[idx[noise_mask]] += fused_embed[noise_mask]
+                else:
+                    embed[idx] += fused_embed
+                
+        return embed, meta_repr
+        
+
+# %% ../../nbs/15_models.radga.ipynb 123
+class RAD008(RAD006):
+    use_generation,use_representation = False,True
+    _tied_weights_keys = ["encoder.distilbert"]
+
+    @delegates(RAD006.__init__)
+    def __init__(
+        self, config,
+        num_metadata:int,
+        resize_length:Optional[int]=None,
+        use_noise:Optional[bool]=False,
+        shuffle_noise_pct:Optional[float]=0.1,
+        dropout_noise_pct:Optional[float]=0.1,
+        **kwargs
+    ):
+        super().__init__(config, **kwargs)
+
+        
+        self.encoder = Encoder008(config, num_metadata=num_metadata, use_noise=use_noise, shuffle_noise_pct=shuffle_noise_pct, 
+                                  dropout_noise_pct=dropout_noise_pct, resize_length=resize_length)
+        self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head()
+
+    def init_fusion_layer_norm(self):
+        if self.encoder is None: raise ValueError('`self.encoder` is not initialized.')
+        self.encoder.fusion_layer_norm.weight.data = self.encoder.distilbert.transformer.layer[5].output_layer_norm.weight.data
+        self.encoder.fusion_layer_norm.bias.data = self.encoder.distilbert.transformer.layer[5].output_layer_norm.bias.data
+
+    def remap_post_init(self):
+        self.distilbert = self.encoder.distilbert
         
