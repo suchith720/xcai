@@ -205,6 +205,35 @@ def wikiseealso(data_dir):
                 },
             },
             'parameters': PARAM,
+        },
+        'data_linker' : {
+            'path': {
+                'train': {
+                    'data_lbl': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/trn_X_Y.txt',
+                    'data_info': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/train.raw.txt',
+                    'lbl_info': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/label.raw.txt',
+                    'data_lbl_filterer': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/filter_labels_train.txt',
+                    'lnk_meta': {
+                        'prefix': 'lnk',
+                        'data_meta': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/category_renee_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/category_renee_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/category.raw.txt'
+                    },
+                },
+                'test': {
+                    'data_lbl': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/tst_X_Y.txt',
+                    'data_info': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/test.raw.txt',
+                    'lbl_info': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/label.raw.txt',
+                    'data_lbl_filterer': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/filter_labels_test.txt',
+                    'lnk_meta': {
+                        'prefix': 'lnk',
+                        'data_meta': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/category_renee_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/category_renee_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/(mapped)LF-WikiSeeAlsoTitles-320K/raw_data/category.raw.txt',
+                    },
+                },
+            },
+            'parameters': PARAM,
         }, 
     }
 
