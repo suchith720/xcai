@@ -41,6 +41,9 @@ class TCH001(DistilBertPreTrainedModel):
         self.data_repr.requires_grad_(False)
         self.lbl_repr.requires_grad_(False)
 
+    def freeze_data_embeddings(self):
+        self.data_repr.requires_grad_(False)
+
     def unfreeze_embeddings(self):
         self.data_repr.requires_grad_(True)
         self.lbl_repr.requires_grad_(True)
@@ -64,19 +67,21 @@ class TCH002(DistilBertPreTrainedModel):
         store_attr('n_data,n_lbl')
         self.data_repr = nn.Embedding(self.n_data, config.dim)
         self.lbl_repr = nn.Embedding(self.n_lbl, config.dim)
+        
+        self.lbl_embeddings = nn.Embedding(self.n_lbl, config.dim)
 
-        self.data_embeddings = nn.Embedding(self.n_data, config.dim)
-        self.lbl_embeddings = nn.Embedding(self.n_data, config.dim)
-
-    def init_embeddings(self, data_repr:torch.Tensor, lbl_repr:torch.Tensor):
+    def init_representations(self, data_repr:torch.Tensor, lbl_repr:torch.Tensor):
         self.data_repr.weight.data = data_repr
         self.lbl_repr.weight.data = lbl_repr
 
-    def freeze_embeddings(self):
+    def init_lbl_embeddings(self):
+        self.lbl_embeddings.weight.data = torch.zeros_like(self.lbl_repr.weight.data, dtype=torch.float32)
+
+    def freeze_representations(self):
         self.data_repr.requires_grad_(False)
         self.lbl_repr.requires_grad_(False)
 
-    def unfreeze_embeddings(self):
+    def unfreeze_representations(self):
         self.data_repr.requires_grad_(True)
         self.lbl_repr.requires_grad_(True)
 
@@ -85,7 +90,7 @@ class TCH002(DistilBertPreTrainedModel):
         data_idx:torch.Tensor,
         lbl2data_idx:torch.Tensor,
     ):
-        data_repr = self.data_repr(data_idx) + self.data_embeddings(data_idx)
+        data_repr = self.data_repr(data_idx)
         lbl2data_repr = self.lbl_repr(lbl2data_idx) + self.lbl_embeddings(lbl2data_idx)
         return TCHOutput(
             data_repr=data_repr,
@@ -93,7 +98,7 @@ class TCH002(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/17_models.distillation.ipynb 49
+# %% ../../nbs/17_models.distillation.ipynb 52
 class DTL001(DistilBertPreTrainedModel):
     use_representation,use_generation = True,False
     _tied_weights_keys = ["m_student.encoder.distilbert,m_teacher.encoder.distilbert"]
@@ -139,7 +144,7 @@ class DTL001(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/17_models.distillation.ipynb 60
+# %% ../../nbs/17_models.distillation.ipynb 63
 class DTL002(DistilBertPreTrainedModel):
     use_representation,use_generation = True,False
     _tied_weights_keys = ["m_student.encoder.distilbert"]
@@ -200,7 +205,7 @@ class DTL002(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/17_models.distillation.ipynb 71
+# %% ../../nbs/17_models.distillation.ipynb 74
 class DTL003(DistilBertPreTrainedModel):
     use_representation,use_generation = True,False
     _tied_weights_keys = ["m_student.encoder.distilbert"]
@@ -273,7 +278,7 @@ class DTL003(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/17_models.distillation.ipynb 81
+# %% ../../nbs/17_models.distillation.ipynb 84
 class DTL004(DistilBertPreTrainedModel):
     use_representation,use_generation = True,False
     _tied_weights_keys = ["m_student.encoder.distilbert"]

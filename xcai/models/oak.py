@@ -580,6 +580,9 @@ class Encoder003(Encoder):
     def set_pretrained_meta_embeddings(self, embed:torch.Tensor):
         self.pretrained_meta_embeddings.weight.data = embed
 
+    def init_meta_embeddings(self):
+        self.meta_embeddings.weight.data = torch.zeros_like(self.meta_embeddings.weight.data)
+
     def fuse_meta_into_embeddings(self, data_repr:torch.Tensor, data_mask:torch.Tensor, meta_kwargs:Dict):
         meta_repr = {}
         
@@ -617,6 +620,9 @@ class OAK003(OAK000, DistilBertPreTrainedModel):
         super().__init__(config, **kwargs)
         self.encoder = Encoder003(config, num_metadata=num_metadata, resize_length=resize_length)
         self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head()
+
+    def init_meta_embeddings(self):
+        self.encoder.init_meta_embeddings()
 
     def remap_post_init(self):
         self.distilbert = self.encoder.distilbert
