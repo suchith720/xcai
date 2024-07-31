@@ -256,6 +256,10 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
                  num_metadata_prune_warmup_epochs:Optional[int]=10,
                  prune_metadata_names:Optional[List]=None,
                  use_data_metadata_for_pruning:Optional[bool]=True,
+
+                 free_parameter_warmup_steps:Optional[int]=0,
+                 free_parameter_lr_coefficient:[float]=1.0,
+                 
                  **kwargs):
         super().__init__(**kwargs)
         store_attr('output_representation_attribute,representation_attribute,label_representation_attribute')
@@ -277,6 +281,8 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
         
         store_attr('prune_metadata,num_metadata_prune_epochs,num_metadata_prune_warmup_epochs,metadata_prune_batch_size,prune_metadata_names')
         store_attr('use_data_metadata_for_pruning')
+
+        store_attr('free_parameter_warmup_steps,free_parameter_lr_coefficient')
         self.minimum_clusters = max(1, minimum_clusters)
         self.maximum_clusters = max(minimum_clusters, maximum_clusters) if maximum_clusters is not None else minimum_clusters
         self.minimum_cluster_size = max(1, minimum_cluster_size)

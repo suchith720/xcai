@@ -168,7 +168,7 @@ class Encoder(DistilBertPreTrainedModel):
         self.dr_fused_head = RepresentationHead(config)
         self.meta_head = RepresentationHead(config)
         self.cross_head = CrossAttention(config)
-        self.meta_embeddings = nn.Embedding(num_metadata, config.dim)
+        self.meta_embeddings = nn.Embedding(num_metadata, config.dim, sparse=True)
 
         self.ones = torch.ones(resize_length, dtype=torch.long, device=self.device) if resize_length is not None else None
         self.post_init()
