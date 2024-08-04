@@ -25,7 +25,7 @@ from ..core import store_attr
 from ..learner import XCDataParallel
 from .modeling_utils import *
 
-# %% ../../nbs/20_models.oak.ipynb 17
+# %% ../../nbs/20_models.oak.ipynb 18
 class CrossAttention(nn.Module):
     
     def __init__(self, config: PretrainedConfig):
@@ -85,12 +85,11 @@ class CrossAttention(nn.Module):
         else: return (o,)
         
 
-# %% ../../nbs/20_models.oak.ipynb 24
+# %% ../../nbs/20_models.oak.ipynb 25
 class NormCrossAttention(nn.Module):
     
-    def __init__(self, config: PretrainedConfig, margin:Optional[float]=0.3, tau:Optional[float]=0.1, dropout:Optional[float]=0.1):
+    def __init__(self, config: PretrainedConfig, tau:Optional[float]=0.1, dropout:Optional[float]=0.1):
         super().__init__()
-        self.margin = nn.Parameter(torch.tensor(margin, dtype=torch.float32))
         self.tau = nn.Parameter(torch.tensor(tau, dtype=torch.float32))
         
         self.config, self.n_h, self.dim = config, config.n_heads, config.dim
@@ -131,20 +130,17 @@ class NormCrossAttention(nn.Module):
         k = shape(self.k(k))  # (bs, n_h, k_len, h_dim)
         v = shape(self.v(v))  # (bs, n_h, k_len, h_dim)
 
-        q,k = F.normalize(q, dim=-1),F.normalize(k, dim=-1)
+        q = q / math.sqrt(h_dim)  # (bs, n_h, q_len, h_dim)
         sc = torch.matmul(q, k.transpose(2, 3))  # (bs, n_h, q_len, k_len)
-        sc = F.relu(sc - self.margin)
-
         sc = sc / self.tau
         
         q_m, k_m = q_m.view(bs, 1, -1, 1).to(q.dtype), k_m.view(bs, 1, 1, -1).to(q.dtype)
-        mask1 = torch.matmul(q_m, k_m).expand_as(sc)  # (bs, n_h, q_len, k_len)
-        sc = sc.masked_fill(mask1 == 0, torch.tensor(torch.finfo(sc.dtype).min))  # (bs, n_h, q_len, k_len)
-        mask2 = sc != 0
-        sc = sc.masked_fill(mask2 == 0, torch.tensor(torch.finfo(sc.dtype).min))
-
+        mask = torch.matmul(q_m, k_m).expand_as(sc)  # (bs, n_h, q_len, k_len)
+        
+        sc = sc.masked_fill(mask == 0, torch.tensor(torch.finfo(sc.dtype).min))  # (bs, n_h, q_len, k_len)
+        
         w = nn.functional.softmax(sc, dim=-1)  # (bs, n_h, q_len, k_len)
-        w = self.dropout(w * mask1 * mask2)  # (bs, n_h, q_len, k_len)
+        w = self.dropout(w)  # (bs, n_h, q_len, k_len)
 
         o = self.o(unshape(torch.matmul(w, v))) # (bs, q_len, dim)
         
@@ -152,7 +148,7 @@ class NormCrossAttention(nn.Module):
         else: return (o,)
         
 
-# %% ../../nbs/20_models.oak.ipynb 31
+# %% ../../nbs/20_models.oak.ipynb 32
 class Encoder(DistilBertPreTrainedModel):
     
     def __init__(
@@ -168,7 +164,7 @@ class Encoder(DistilBertPreTrainedModel):
         self.dr_fused_head = RepresentationHead(config)
         self.meta_head = RepresentationHead(config)
         self.cross_head = CrossAttention(config)
-        self.meta_embeddings = nn.Embedding(num_metadata, config.dim, sparse=True)
+        self.meta_embeddings = nn.Embedding(num_metadata, config.dim)
 
         self.ones = torch.ones(resize_length, dtype=torch.long, device=self.device) if resize_length is not None else None
         self.post_init()
@@ -286,7 +282,7 @@ class Encoder(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/20_models.oak.ipynb 33
+# %% ../../nbs/20_models.oak.ipynb 34
 class OAK000(nn.Module):
     
     def __init__(
@@ -494,7 +490,7 @@ class OAK000(nn.Module):
         )
         
 
-# %% ../../nbs/20_models.oak.ipynb 35
+# %% ../../nbs/20_models.oak.ipynb 36
 class OAK001(OAK000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -515,23 +511,22 @@ class OAK001(OAK000, DistilBertPreTrainedModel):
         self.distilbert = self.encoder.distilbert
         
 
-# %% ../../nbs/20_models.oak.ipynb 46
+# %% ../../nbs/20_models.oak.ipynb 47
 class Encoder002(Encoder):
 
     def __init__(
         self, 
         config,
-        cross_margin:Optional[float]=0.3, 
         cross_tau:Optional[float]=0.1, 
         cross_dropout:Optional[float]=0.1, 
         **kwargs
     ):
         super().__init__(config, **kwargs)
-        self.cross_head = NormCrossAttention(config, margin=cross_margin, tau=cross_tau, dropout=cross_dropout)
+        self.cross_head = NormCrossAttention(config, tau=cross_tau, dropout=cross_dropout)
         self.post_init()
     
 
-# %% ../../nbs/20_models.oak.ipynb 47
+# %% ../../nbs/20_models.oak.ipynb 48
 class OAK002(OAK000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -542,15 +537,14 @@ class OAK002(OAK000, DistilBertPreTrainedModel):
         config,
         num_metadata:int,
         resize_length:Optional[int]=None,
-
-        cross_margin:Optional[float]=0.3,
+        
         cross_tau:Optional[float]=0.1,
         cross_dropout:Optional[float]=0.1,
         
         **kwargs
     ):
         super().__init__(config, **kwargs)
-        self.encoder = Encoder002(config, cross_margin=cross_margin, cross_tau=cross_tau, cross_dropout=cross_dropout,
+        self.encoder = Encoder002(config, cross_tau=cross_tau, cross_dropout=cross_dropout,
                                   num_metadata=num_metadata, resize_length=resize_length)
         self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head()
 
@@ -558,7 +552,7 @@ class OAK002(OAK000, DistilBertPreTrainedModel):
         self.distilbert = self.encoder.distilbert
         
 
-# %% ../../nbs/20_models.oak.ipynb 56
+# %% ../../nbs/20_models.oak.ipynb 57
 class Encoder003(Encoder):
 
     def __init__(
@@ -604,7 +598,7 @@ class Encoder003(Encoder):
         return data_fused_repr.squeeze(), meta_repr
     
 
-# %% ../../nbs/20_models.oak.ipynb 57
+# %% ../../nbs/20_models.oak.ipynb 58
 class OAK003(OAK000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
