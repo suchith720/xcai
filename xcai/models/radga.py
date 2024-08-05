@@ -531,6 +531,7 @@ class RAD000(nn.Module):
     def init_retrieval_head(self):
         if self.encoder is None: raise ValueError('`self.encoder` is not initialized.')
         self.encoder.dr_head.post_init()
+        self.encoder.dr_fused_head.post_init()
         self.encoder.meta_head.post_init()
 
     def init_cross_head(self):
