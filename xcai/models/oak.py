@@ -133,7 +133,7 @@ class NormCrossAttention(nn.Module):
 
         q = q / math.sqrt(h_dim)  # (bs, n_h, q_len, h_dim)
         sc = torch.matmul(q, k.transpose(2, 3))  # (bs, n_h, q_len, k_len)
-        sc = sc / self.tau
+        sc = sc * self.tau
         
         q_m, k_m = q_m.view(bs, 1, -1, 1).to(q.dtype), k_m.view(bs, 1, 1, -1).to(q.dtype)
         mask = torch.matmul(q_m, k_m).expand_as(sc)  # (bs, n_h, q_len, k_len)

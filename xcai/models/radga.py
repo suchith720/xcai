@@ -260,6 +260,7 @@ class RepresentationHead(nn.Module):
         self.transform = nn.Linear(config.dim, config.dim)
         self.layer_norm = nn.LayerNorm(config.dim, eps=1e-12)
         self.projector = nn.Linear(config.dim, config.dim)
+        self.activation = get_activation(config.activation)
         
         self.post_init()
         
@@ -271,6 +272,7 @@ class RepresentationHead(nn.Module):
         
     def forward(self, x:torch.Tensor):
         x = self.transform(x)
+        x = self.activation(x)
         x = self.layer_norm(x)
         x = self.projector(x)
         return x
@@ -346,6 +348,7 @@ class Encoder(DistilBertPreTrainedModel):
         self.distilbert = DistilBertModel(config)
         
         self.dr_head = RepresentationHead(config)
+        self.dr_fused_head =  RepresentationHead(config)
         self.meta_head = RepresentationHead(config)
         self.cross_head = CrossAttention(config)
          
@@ -408,6 +411,10 @@ class Encoder(DistilBertPreTrainedModel):
     
     def dr(self, embed:torch.Tensor, attention_mask:torch.Tensor):
         embed = self.dr_head(embed)
+        return F.normalize(Pooling.mean_pooling(embed, attention_mask), dim=1)
+
+    def dr_fused(self, embed:torch.Tensor, attention_mask:torch.Tensor):
+        embed = self.dr_fused_head(embed)
         return F.normalize(Pooling.mean_pooling(embed, attention_mask), dim=1)
 
     def meta(self, embed:torch.Tensor, attention_mask:torch.Tensor):
@@ -477,7 +484,7 @@ class Encoder(DistilBertPreTrainedModel):
                 data_fused_embed, meta_repr = self.fuse_meta_into_embeddings(data_o[0], 
                                                                              data_attention_mask, 
                                                                              meta_kwargs)
-                data_fused_repr = self.dr(data_fused_embed, data_attention_mask)
+                data_fused_repr = self.dr_fused(data_fused_embed, data_attention_mask)
         
         return EncoderOutput(
             rep=data_repr,
@@ -735,7 +742,7 @@ class RAD001Encoder(Encoder):
                 data_fused_embed, meta_repr = self.fuse_meta_into_embeddings(data_embed, 
                                                                              data_attention_mask, 
                                                                              meta_kwargs)
-                data_fused_repr = self.dr(data_fused_embed, data_attention_mask)
+                data_fused_repr = self.dr_fused(data_fused_embed, data_attention_mask)
                 data_logits = self.gen(data_fused_embed if data_gen_idx is None else data_fused_embed[data_gen_idx])
                 
         if data_logits is None:
@@ -954,7 +961,7 @@ class Encoder003(Encoder):
                 data_fused_embed, meta_repr = self.fuse_meta_into_embeddings(data_o[0], 
                                                                              data_attention_mask, 
                                                                              meta_kwargs)
-                data_fused_repr = self.fused_dr(data_fused_embed, data_attention_mask)
+                data_fused_repr = self.dr_fused(data_fused_embed, data_attention_mask)
         
         return EncoderOutput(
             rep=data_repr,
@@ -1467,7 +1474,6 @@ class Encoder008(Encoder):
         store_attr('dropout_noise_pct')
         super().__init__(config, use_noise, shuffle_noise_pct, resize_length)
         self.meta_embeddings = nn.Embedding(num_metadata, config.dim)
-        self.fusion_layer_norm = nn.LayerNorm(config.dim, elementwise_affine=True)
 
     def freeze_meta_embeddings(self):
         self.meta_embeddings.requires_grad_(False)
@@ -1526,7 +1532,7 @@ class Encoder008(Encoder):
                     m_repr = self.meta(m_embed, m_attention_mask)
                     m_repr_mask = torch.any(m_attention_mask, dim=1)
 
-                m_repr = self.fusion_layer_norm(m_repr + self.meta_embeddings(m_idx))
+                m_repr = F.normalize(m_repr + self.meta_embeddings(m_idx), dim=-1)
                 
                 m_repr, m_repr_mask = m_repr.view(len(idx), -1, self.config.dim), m_repr_mask.view(len(idx), -1)
                 meta_repr[m_key] = F.normalize(m_repr[m_repr_mask], dim=1)
@@ -1542,6 +1548,38 @@ class Encoder008(Encoder):
                     embed[idx] += fused_embed
                 
         return embed, meta_repr
+
+    def forward(
+        self, 
+        data_input_ids: torch.Tensor, 
+        data_attention_mask: torch.Tensor,
+        data_aug_meta_prefix: Optional[str]=None,
+        data_type:Optional[str]=None,
+        data_unnormalized:Optional[bool]=False,
+        **kwargs
+    ):
+        data_o = self.encode(data_input_ids, data_attention_mask)
+        data_embed = F.normalize(data_o[0], dim=-1)
+        
+        if data_type is not None and data_type == "meta":
+            data_repr = self.meta(data_embed, data_attention_mask) 
+        else: 
+            data_repr = self.dr(data_embed, data_attention_mask)
+        
+        data_fused_repr = meta_repr = None
+        if data_aug_meta_prefix is not None:
+            meta_kwargs = Parameters.from_meta_aug_prefix(data_aug_meta_prefix, **kwargs)
+            if len(meta_kwargs):
+                data_fused_embed, meta_repr = self.fuse_meta_into_embeddings(data_embed, 
+                                                                             data_attention_mask, 
+                                                                             meta_kwargs)
+                data_fused_repr = self.dr_fused(data_fused_embed, data_attention_mask)
+        
+        return EncoderOutput(
+            rep=data_repr,
+            fused_rep=data_fused_repr,
+            meta_repr=meta_repr,
+        )
         
 
 # %% ../../nbs/15_models.radga.ipynb 123
@@ -1565,12 +1603,7 @@ class RAD008(RAD006):
         self.encoder = Encoder008(config, num_metadata=num_metadata, use_noise=use_noise, shuffle_noise_pct=shuffle_noise_pct, 
                                   dropout_noise_pct=dropout_noise_pct, resize_length=resize_length)
         self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head()
-
-    def init_fusion_layer_norm(self):
-        if self.encoder is None: raise ValueError('`self.encoder` is not initialized.')
-        self.encoder.fusion_layer_norm.weight.data = self.encoder.distilbert.transformer.layer[5].output_layer_norm.weight.data
-        self.encoder.fusion_layer_norm.bias.data = self.encoder.distilbert.transformer.layer[5].output_layer_norm.bias.data
-
+        
     def remap_post_init(self):
         self.distilbert = self.encoder.distilbert
         
