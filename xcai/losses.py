@@ -143,7 +143,7 @@ def forward(cls:Calibration,
 
     if cls.n_negatives is not None:
         loss, idx = torch.topk(loss, min(cls.n_negatives, loss.shape[1]), dim=1, largest=True)
-        esc,sc = esc.gather(1, idx), sc.gather(1, idx)
+        esc,sc,mul = esc.gather(1, idx), sc.gather(1, idx), mul.gather(1, idx)
     
     if cls.apply_softmax:
         m = loss != 0
