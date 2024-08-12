@@ -95,7 +95,7 @@ from .data import *
 pkl_dir = '/home/scai/phd/aiz218323/scratch/datasets'
 pkl_file = f'{pkl_dir}/processed/wikiseealso_data-metas_distilbert-base-uncased_rm_radga-final.pkl'
 
-# %% ../nbs/06_learner.ipynb 27
+# %% ../nbs/06_learner.ipynb 26
 def scatter(inputs, target_gpus, chunk_sizes=None, dim=0):
     def scatter_map(obj):
         if isinstance(obj, torch.Tensor):
@@ -131,7 +131,7 @@ def scatter_kwargs(
     return scattered_inputs, scattered_kwargs
     
 
-# %% ../nbs/06_learner.ipynb 28
+# %% ../nbs/06_learner.ipynb 27
 class XCDataParallel(DataParallel):
 
     @delegates(DataParallel.__init__)
@@ -171,7 +171,7 @@ class XCDataParallel(DataParallel):
         return tuple(scattered_inputs), tuple(scattered_kwargs)
         
 
-# %% ../nbs/06_learner.ipynb 41
+# %% ../nbs/06_learner.ipynb 40
 class XCEvalLoopOutput(NamedTuple):
     pred_idx: Union[np.ndarray, Tuple[np.ndarray]]
     pred_ptr: Union[np.ndarray, Tuple[np.ndarray]]
@@ -193,7 +193,7 @@ class XCPredictionOutput(NamedTuple):
     num_samples: Optional[int]
     
 
-# %% ../nbs/06_learner.ipynb 42
+# %% ../nbs/06_learner.ipynb 41
 class XCLearningArguments(Seq2SeqTrainingArguments):
 
     @delegates(Seq2SeqTrainingArguments.__init__)
@@ -247,6 +247,11 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
                  augment_metadata:Optional[bool]=False,
                  num_metadata_augment_epochs:Optional[int]=1,
                  num_metadata_augment_warmup_epochs:Optional[int]=10,
+
+                 centroid_data_batch_size:Optional[int]=2048,
+                 centroid_data_attribute_representation:Optional[str]='data_repr',
+                 use_centroid_data_metadata:Optional[bool]=False,
+                 use_centroid_label_representation:Optional[bool]=False,
                  
                  use_distributional_representation:Optional[bool]=False,
                  use_label_metadata:Optional[bool]=True,
@@ -278,6 +283,7 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
         store_attr('use_distributional_representation')
         
         store_attr('use_label_metadata,data_meta_batch_size,augment_metadata,num_metadata_augment_epochs,num_metadata_augment_warmup_epochs')
+        store_attr('use_centroid_data_metadata,use_centroid_label_representation,centroid_data_attribute_representation,centroid_data_batch_size')
         
         store_attr('prune_metadata,num_metadata_prune_epochs,num_metadata_prune_warmup_epochs,metadata_prune_batch_size,prune_metadata_names')
         store_attr('use_data_metadata_for_pruning')
@@ -288,7 +294,7 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
         self.minimum_cluster_size = max(1, minimum_cluster_size)
         
 
-# %% ../nbs/06_learner.ipynb 44
+# %% ../nbs/06_learner.ipynb 43
 class XCLearner(Seq2SeqTrainer):
 
     @delegates(Seq2SeqTrainer.__init__)
@@ -378,7 +384,7 @@ class XCLearner(Seq2SeqTrainer):
             
             
 
-# %% ../nbs/06_learner.ipynb 45
+# %% ../nbs/06_learner.ipynb 44
 @patch
 def _get_dataset(self:XCLearner, dataset:Dataset, dset_type:str='lbl', use_metadata:Optional[bool]=False):
     dset = get_attr(dataset, f'{dset_type}_dset')
@@ -407,7 +413,7 @@ def _get_dataset(self:XCLearner, dataset:Dataset, dset_type:str='lbl', use_metad
     return dset
 
 
-# %% ../nbs/06_learner.ipynb 46
+# %% ../nbs/06_learner.ipynb 45
 @patch
 def _build_aug_index(self:XCLearner, dataset:Optional[Dataset]=None):
     dataset = dataset if self.eval_dataset is None else self.eval_dataset
@@ -434,14 +440,38 @@ def _build_lbl_index(self:XCLearner, dataset:Optional[Dataset]=None):
     dataset = dataset if self.eval_dataset is None else self.eval_dataset
     dataset = dataset if self.train_dataset is None else self.train_dataset
     
+    if dataset is not None: 
+        self._get_lbl_representation(dataset)
+    else: 
+        raise ValueError('Failed to build `self.idxs`')
+        
+
+# %% ../nbs/06_learner.ipynb 46
+@patch
+def _get_lbl_representation(self:XCLearner, dataset:Optional[Dataset]=None):
+    
     if dataset is not None:
-        dset = self._get_dataset(dataset, dset_type='lbl', use_metadata=self.args.use_label_metadata)
-        dataloader = self.get_test_dataloader(dset)
-        rep = self.get_representation(dataloader, representation_attribute=self.args.label_representation_attribute, 
-                                      to_cpu=isinstance(self.idxs, IndexSearch))
+        if self.args.use_centroid_label_representation:
+            dset = self._get_dataset(dataset, dset_type='data', use_metadata=self.args.use_centroid_data_metadata)
+            dataloader = self.get_test_dataloader(dset)
+            data_rep = self.get_representation(dataloader, representation_attribute=self.args.centroid_data_attribute_representation)
+            
+            lbl_data = self.train_dataset.data.data_lbl.T
+            
+            rep = None
+            for i in tqdm(range(0, lbl_data.shape[0], self.args.centroid_data_batch_size)):
+                r = lbl_data[i:i+self.args.centroid_data_batch_size]@data_rep
+                r = torch.tensor(r) if isinstance(self.idxs, IndexSearch) else torch.tensor(r, device=self.model.device)
+                rep = r if rep is None else torch.cat([rep,r], dim=0)
+        else:
+            dset = self._get_dataset(dataset, dset_type='lbl', use_metadata=self.args.use_label_metadata)
+            dataloader = self.get_test_dataloader(dset)
+            rep = self.get_representation(dataloader, representation_attribute=self.args.label_representation_attribute, 
+                                          to_cpu=isinstance(self.idxs, IndexSearch))
         self.idxs.build(rep)
         
-    else: raise ValueError('Failed to build `self.idxs`')
+    else: 
+        raise ValueError('Failed to build `self.idxs`')
         
 
 # %% ../nbs/06_learner.ipynb 48
