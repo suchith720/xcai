@@ -463,7 +463,11 @@ def _get_lbl_representation(self:XCLearner, dataset:Optional[Dataset]=None):
                 data = lbl_data[i:i+self.args.centroid_data_batch_size]
                 rep = data@data_rep
                 rep = rep/data.getnnz(axis=1).reshape(-1, 1)
-                rep = torch.tensor(rep) if isinstance(self.idxs, IndexSearch) else torch.tensor(rep, device=self.model.device)
+                rep = (
+                    torch.tensor(rep, dtype=data_rep.dtype) 
+                    if isinstance(self.idxs, IndexSearch) else 
+                    torch.tensor(rep, device=self.model.device, dtype=data_rep.dtype)
+                )
                 lbl_rep = rep if lbl_rep is None else torch.cat([lbl_rep,rep], dim=0)
         else:
             dset = self._get_dataset(dataset, dset_type='lbl', use_metadata=self.args.use_label_metadata)
