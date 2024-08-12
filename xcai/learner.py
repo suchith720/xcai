@@ -457,7 +457,7 @@ def _get_lbl_representation(self:XCLearner, dataset:Optional[Dataset]=None):
         if self.args.use_centroid_label_representation:
             if self.args.use_teacher_data_representation:
                 if not hasattr(self.model, 'm_teacher'): raise ValueError('Model does not contain `m_teacher`.')
-                data_repr = self.model.m_teacher.get_data_embeddings().data.cpu()
+                data_rep = self.model.m_teacher.get_data_embeddings().data.cpu()
             else:
                 dset = self._get_dataset(dataset, dset_type='data', use_metadata=self.args.use_centroid_data_metadata)
                 dataloader = self.get_test_dataloader(dset)
