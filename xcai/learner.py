@@ -474,7 +474,7 @@ def _get_lbl_representation(self:XCLearner, dataset:Optional[Dataset]=None):
                 lbl_rep = rep if lbl_rep is None else torch.cat([lbl_rep,rep], dim=0)
         elif self.args.use_teacher_lbl_representation:
             if not hasattr(self.model, 'm_teacher'): raise ValueError('Model does not contain `m_teacher`.')
-            lbl_rep = self.model.m_teacher.lbl_repr.weight
+            lbl_rep = self.model.m_teacher.get_lbl_embeddings()
         else:
             dset = self._get_dataset(dataset, dset_type='lbl', use_metadata=self.args.use_label_metadata)
             dataloader = self.get_test_dataloader(dset)
