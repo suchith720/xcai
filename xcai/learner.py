@@ -458,17 +458,19 @@ def _get_lbl_representation(self:XCLearner, dataset:Optional[Dataset]=None):
             
             lbl_data = self.train_dataset.data.data_lbl.T
             
-            rep = None
+            lbl_rep = None
             for i in tqdm(range(0, lbl_data.shape[0], self.args.centroid_data_batch_size)):
-                r = lbl_data[i:i+self.args.centroid_data_batch_size]@data_rep
-                r = torch.tensor(r) if isinstance(self.idxs, IndexSearch) else torch.tensor(r, device=self.model.device)
-                rep = r if rep is None else torch.cat([rep,r], dim=0)
+                data = lbl_data[i:i+self.args.centroid_data_batch_size]
+                rep = data@data_rep
+                rep = rep/data.getnnz(axis=1).reshape(-1, 1)
+                rep = torch.tensor(rep) if isinstance(self.idxs, IndexSearch) else torch.tensor(rep, device=self.model.device)
+                lbl_rep = rep if lbl_rep is None else torch.cat([lbl_rep,rep], dim=0)
         else:
             dset = self._get_dataset(dataset, dset_type='lbl', use_metadata=self.args.use_label_metadata)
             dataloader = self.get_test_dataloader(dset)
-            rep = self.get_representation(dataloader, representation_attribute=self.args.label_representation_attribute, 
-                                          to_cpu=isinstance(self.idxs, IndexSearch))
-        self.idxs.build(rep)
+            lbl_rep = self.get_representation(dataloader, representation_attribute=self.args.label_representation_attribute, 
+                                              to_cpu=isinstance(self.idxs, IndexSearch))
+        self.idxs.build(lbl_rep)
         
     else: 
         raise ValueError('Failed to build `self.idxs`')

@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['RADOutput', 'EncoderOutput', 'Pooling', 'CrossAttention', 'RepresentationHead', 'GenerationHead', 'Parameters',
-           'Encoder', 'RAD001']
+           'Encoder', 'RAD001', 'Encoder002', 'RAD002']
 
 # %% ../../nbs/23_models.radga_lora.ipynb 2
 import torch, re, inspect, pickle, os, torch.nn as nn, math
@@ -600,4 +600,71 @@ class RAD001(DistilBertPreTrainedModel):
             lbl2data_repr=lbl2data_o.rep,
             lbl2data_fused_repr=lbl2data_o.fused_rep,
         )
+        
+
+# %% ../../nbs/23_models.radga_lora.ipynb 56
+class Encoder002(Encoder):
+    
+    def __init__(
+        self, 
+        config:PretrainedConfig,
+        **kwargs
+    ):
+        super().__init__(config, **kwargs)
+
+    def forward(
+        self, 
+        data_input_ids: torch.Tensor, 
+        data_attention_mask: torch.Tensor,
+        data_aug_meta_prefix: Optional[str]=None,
+        data_type:Optional[str]=None,
+        data_unnormalized:Optional[bool]=False,
+        **kwargs
+    ):
+        data_o = self.encode(data_input_ids, data_attention_mask)
+        
+        if data_type is not None and data_type == "meta":
+            data_repr = self.meta_unnormalized(data_o[0], data_attention_mask) if data_unnormalized else self.meta(data_o[0], data_attention_mask)
+        else: 
+            data_repr = self.dr(data_o[0], data_attention_mask)
+            
+        data_fused_repr = meta_repr = None
+        if data_aug_meta_prefix is not None:
+            meta_kwargs = Parameters.from_meta_aug_prefix(data_aug_meta_prefix, **kwargs)
+            if len(meta_kwargs):
+                data_fused_embed, meta_repr = self.fuse_meta_into_embeddings(data_o[0], 
+                                                                             data_attention_mask, 
+                                                                             meta_kwargs)
+                data_fused_repr = self.dr_fused(data_fused_embed, data_attention_mask)
+
+                self.distilbert.set_adapter('lbl2data')
+        
+        return EncoderOutput(
+            rep=data_repr,
+            fused_rep=data_fused_repr,
+            meta_repr=meta_repr,
+        )
+        
+
+# %% ../../nbs/23_models.radga_lora.ipynb 57
+class RAD002(RAD001):
+    
+    def __init__(
+        self, config,
+
+        base_model:nn.Module, 
+        resize_length:Optional[int]=None,
+        lora_r:Optional[int]=8,
+        lora_alpha:Optional[int]=32,
+
+        data_aug_meta_prefix:Optional[str]=None, 
+        lbl2data_aug_meta_prefix:Optional[str]=None, 
+        
+        **kwargs
+    ):
+        super().__init__(config, base_model=base_model, resize_length=resize_length, lora_r=lora_r, lora_alpha=lora_alpha, 
+                         data_aug_meta_prefix=data_aug_meta_prefix, lbl2data_aug_meta_prefix=lbl2data_aug_meta_prefix, **kwargs)
+        
+        self.encoder = Encoder002(config, base_model=base_model, resize_length=resize_length, lora_r=lora_r, lora_alpha=lora_alpha, 
+                                  data_aug_meta_prefix=data_aug_meta_prefix, lbl2data_aug_meta_prefix=lbl2data_aug_meta_prefix)
         
