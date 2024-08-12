@@ -36,6 +36,9 @@ class TCH001(DistilBertPreTrainedModel):
     def get_lbl_embeddings(self):
         return self.lbl_repr.weight
 
+    def get_data_embeddings(self):
+        return self.data_repr.weight
+
     def init_embeddings(self, data_repr:torch.Tensor, lbl_repr:torch.Tensor):
         self.data_repr.weight.data = data_repr
         self.lbl_repr.weight.data = lbl_repr
@@ -75,6 +78,9 @@ class TCH002(DistilBertPreTrainedModel):
 
     def get_lbl_embeddings(self):
         return self.lbl_repr.weight + self.lbl_embeddings.weight
+
+    def get_data_embeddings(self):
+        return self.data_repr.weight
 
     def init_representations(self, data_repr:torch.Tensor, lbl_repr:torch.Tensor):
         self.data_repr.weight.data = data_repr
