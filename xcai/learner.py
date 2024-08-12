@@ -252,6 +252,8 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
                  centroid_data_attribute_representation:Optional[str]='data_repr',
                  use_centroid_data_metadata:Optional[bool]=False,
                  use_centroid_label_representation:Optional[bool]=False,
+
+                 use_teacher_lbl_representation:Optional[bool]=False,
                  
                  use_distributional_representation:Optional[bool]=False,
                  use_label_metadata:Optional[bool]=True,
@@ -284,6 +286,7 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
         
         store_attr('use_label_metadata,data_meta_batch_size,augment_metadata,num_metadata_augment_epochs,num_metadata_augment_warmup_epochs')
         store_attr('use_centroid_data_metadata,use_centroid_label_representation,centroid_data_attribute_representation,centroid_data_batch_size')
+        store_attr('use_teacher_lbl_representation')
         
         store_attr('prune_metadata,num_metadata_prune_epochs,num_metadata_prune_warmup_epochs,metadata_prune_batch_size,prune_metadata_names')
         store_attr('use_data_metadata_for_pruning')
@@ -469,6 +472,9 @@ def _get_lbl_representation(self:XCLearner, dataset:Optional[Dataset]=None):
                     torch.tensor(rep, device=self.model.device, dtype=data_rep.dtype)
                 )
                 lbl_rep = rep if lbl_rep is None else torch.cat([lbl_rep,rep], dim=0)
+        elif self.args.use_teacher_lbl_representation:
+            if not hasattr(self.model, 'm_teacher'): raise ValueError('Model does not contain `m_teacher`.')
+            lbl_rep = self.model.m_teacher.lbl_repr.weight
         else:
             dset = self._get_dataset(dataset, dset_type='lbl', use_metadata=self.args.use_label_metadata)
             dataloader = self.get_test_dataloader(dset)
