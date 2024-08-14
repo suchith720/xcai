@@ -168,10 +168,10 @@ def get_output(fname:str, n_lbl:int, pred_type:Optional[str]='repr_output'):
     return preds, targ
     
 
-# %% ../nbs/16_analysis.ipynb 29
+# %% ../nbs/16_analysis.ipynb 30
 def html(text:str, c='green'): return f'<text style=color:{c}>{text}</text>'
 
-# %% ../nbs/16_analysis.ipynb 30
+# %% ../nbs/16_analysis.ipynb 31
 class TextColumns(Dataset):
     
     def __init__(self, x, pat='.*_text$'):
@@ -182,7 +182,7 @@ class TextColumns(Dataset):
         return {k:v for k,v in o.items() if re.match(self.pat, k)}
     
 
-# %% ../nbs/16_analysis.ipynb 31
+# %% ../nbs/16_analysis.ipynb 32
 def display_text(pred_dset:Dataset, data_dset:Dataset, idxs:List):
     color = [('red','green'), ('black','blue')]
     text = []

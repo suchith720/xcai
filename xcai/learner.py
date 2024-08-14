@@ -409,7 +409,7 @@ def _get_dataset(self:XCLearner, dataset:Dataset, dset_type:str='lbl', use_metad
             meta_kwargs = {meta_name: MetaXCDataset(prefix, meta, sparse.csr_matrix((dataset.n_lbl, meta_dset.n_meta)), meta_info, 
                                                     n_data_meta_samples=self.args.augmentation_num_beams)}
         elif dset_type == 'lbl':
-            meta_kwargs = {meta_name: MetaXCDataset(prefix, sparse.csr_matrix((dataset.n_data, meta_dset.n_meta)), meta, meta_info, 
+            meta_kwargs = {meta_name: MetaXCDataset(prefix, meta, sparse.csr_matrix((dataset.n_data, meta_dset.n_meta)), meta_info, 
                                                     n_data_meta_samples=self.args.augmentation_num_beams)}
         else: raise ValueError(f'Invalid `dset_type`, should be one of ["data", "lbl"].')
             
