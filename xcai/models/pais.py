@@ -500,7 +500,7 @@ class PAI001(PAI000, DistilBertPreTrainedModel):
                          data_aug_meta_prefix=self.data_aug_meta_prefix, **data_meta_kwargs)
         
         
-        loss = None
+        loss = None; lbl2data_rep = None
         if lbl2data_input_ids is not None:
             
             lbl2data_rep = self.label_embeddings(lbl2data_idx)
