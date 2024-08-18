@@ -150,7 +150,7 @@ class PadFeatTfm:
             feat = {k: [o.pop(k) if drop else o[k] for o in x] for k in name}
             if lev > 0:
                 for k in name: 
-                    feat[k], ptr = self.colps_proc(feat[k], lev)
+                    feat[k], ptr = self.coll_proc(feat[k], lev)
                     for p,q in ptr.items(): 
                         if p != 0: feat[f'{k}_ptr-{p}'] = q
         elif isinstance(x, dict):

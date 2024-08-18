@@ -13,6 +13,7 @@ from fastcore.meta import *
 
 from .data import *
 from .transform import *
+from .data_sampler import *
 
 # %% ../nbs/03_block.ipynb 6
 PARAM = {
@@ -552,8 +553,8 @@ def wikititles(data_dir):
                     },
                     'lnk_meta': {
                         'prefix': 'lnk',
-                        'data_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/hyper_link_renee_mean_trn_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/hyper_link_renee_mean_lbl_X_Y.txt',
+                        'data_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/hyper_link_renee_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/hyper_link_renee_lbl_X_Y.txt',
                         'meta_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/hyper_link.raw.txt'
                     },
                 },
@@ -569,8 +570,35 @@ def wikititles(data_dir):
                     },
                     'lnk_meta': {
                         'prefix': 'lnk',
-                        'data_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/hyper_link_renee_mean_tst_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/hyper_link_renee_mean_lbl_X_Y.txt',
+                        'data_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/hyper_link_renee_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/hyper_link_renee_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/hyper_link.raw.txt',
+                    },
+                },
+            },
+            'parameters': PARAM,
+        },
+        'data_linker' : {
+            'path': {
+                'train': {
+                    'data_lbl': f'{data_dir}/(mapped)LF-WikiTitles-500K/trn_X_Y.txt',
+                    'data_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/train.raw.txt',
+                    'lbl_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/label.raw.txt',
+                    'lnk_meta': {
+                        'prefix': 'lnk',
+                        'data_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/hyper_link_renee_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/hyper_link_renee_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/hyper_link.raw.txt'
+                    },
+                },
+                'test': {
+                    'data_lbl': f'{data_dir}/(mapped)LF-WikiTitles-500K/tst_X_Y.txt',
+                    'data_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/test.raw.txt',
+                    'lbl_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/label.raw.txt',
+                    'lnk_meta': {
+                        'prefix': 'lnk',
+                        'data_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/hyper_link_renee_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/(mapped)LF-WikiTitles-500K/hyper_link_renee_lbl_X_Y.txt',
                         'meta_info': f'{data_dir}/(mapped)LF-WikiTitles-500K/raw_data/hyper_link.raw.txt',
                     },
                 },
@@ -703,8 +731,8 @@ def wikipedia(data_dir):
                     },
                     'lnk_meta': {
                         'prefix': 'lnk',
-                        'data_meta': f'{data_dir}/LF-Wikipedia-500K/hyper_link_renee_mean_trn_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/LF-Wikipedia-500K/hyper_link_renee_mean_lbl_X_Y.txt',
+                        'data_meta': f'{data_dir}/LF-Wikipedia-500K/hyper_link_renee_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/LF-Wikipedia-500K/hyper_link_renee_lbl_X_Y.txt',
                         'meta_info': f'{data_dir}/LF-Wikipedia-500K/raw_data/hyper_link.raw.txt'
                     },
                 },
@@ -720,8 +748,35 @@ def wikipedia(data_dir):
                     },
                     'lnk_meta': {
                         'prefix': 'lnk',
-                        'data_meta': f'{data_dir}/LF-Wikipedia-500K/hyper_link_renee_mean_tst_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/LF-Wikipedia-500K/hyper_link_renee_mean_lbl_X_Y.txt',
+                        'data_meta': f'{data_dir}/LF-Wikipedia-500K/hyper_link_renee_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/LF-Wikipedia-500K/hyper_link_renee_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/LF-Wikipedia-500K/raw_data/hyper_link.raw.txt',
+                    },
+                },
+            },
+            'parameters': PARAM,
+        },
+        'data_linker' : {
+            'path': {
+                'train': {
+                    'data_lbl': f'{data_dir}/LF-Wikipedia-500K/trn_X_Y.txt',
+                    'data_info': f'{data_dir}/LF-Wikipedia-500K/raw_data/train.raw.txt',
+                    'lbl_info': f'{data_dir}/LF-Wikipedia-500K/raw_data/label.raw.txt',
+                    'lnk_meta': {
+                        'prefix': 'lnk',
+                        'data_meta': f'{data_dir}/LF-Wikipedia-500K/hyper_link_renee_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/LF-Wikipedia-500K/hyper_link_renee_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/LF-Wikipedia-500K/raw_data/hyper_link.raw.txt'
+                    },
+                },
+                'test': {
+                    'data_lbl': f'{data_dir}/LF-Wikipedia-500K/tst_X_Y.txt',
+                    'data_info': f'{data_dir}/LF-Wikipedia-500K/raw_data/test.raw.txt',
+                    'lbl_info': f'{data_dir}/LF-Wikipedia-500K/raw_data/label.raw.txt',
+                    'lnk_meta': {
+                        'prefix': 'lnk',
+                        'data_meta': f'{data_dir}/LF-Wikipedia-500K/hyper_link_renee_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/LF-Wikipedia-500K/hyper_link_renee_lbl_X_Y.txt',
                         'meta_info': f'{data_dir}/LF-Wikipedia-500K/raw_data/hyper_link.raw.txt',
                     },
                 },
@@ -858,6 +913,7 @@ TFMS = {
     'ng': [NGPadFeatTfm], 
     'xcnlg': [XCSamplePadFeatTfm], 
     'rm':[RamenPadFeatTfm],
+    'xcs': [XCSamplerFeatTfm],
 }
 
 # %% ../nbs/03_block.ipynb 15
