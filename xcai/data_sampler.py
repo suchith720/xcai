@@ -66,7 +66,7 @@ def collate_feature_idx(self:XCSamplerFeatTfm, x, name, sampling_name=None):
     level = name.count('2')
     o = self.pad_proc(x, prefix=f'{name}_idx', lev=level)
     
-    if sampling_name is not None:
+    if sampling_name is not None and f'{sampling_name}_idx' not in o:
         o[f'{sampling_name}_idx'] = o[f'{name}_idx']
         del o[f'{name}_idx']
         
