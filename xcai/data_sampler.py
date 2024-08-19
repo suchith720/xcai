@@ -14,19 +14,18 @@ from fastcore.utils import *
 from .transform import PadFeatTfm,CollapseTfm
 from .core import store_attr
 
-# %% ../nbs/19_data_sampler.ipynb 10
+# %% ../nbs/19_data_sampler.ipynb 12
 class XCSamplerFeatTfm:
 
     def __init__(
         self,
         pad_token:Optional[int]=0,
-        pad_in_place:Optional[bool]=True,
-        pad_drop=True,
-
+        oversample:Optional[bool]=False,
         sampling_features:Optional[List]=None,
+        **kwargs
     ):
-        store_attr('sampling_features')
-        self.pad_proc = PadFeatTfm(pad_tok=pad_token, in_place=pad_in_place, drop=pad_drop)
+        store_attr('sampling_features,oversample')
+        self.pad_proc = PadFeatTfm(pad_tok=pad_token, in_place=False, drop=False)
         self.col_proc = CollapseTfm()
 
     def sample_feature(self, batch, names, n_samples, oversample):
@@ -49,7 +48,7 @@ class XCSamplerFeatTfm:
         return self.sample_dep_features(sampled_batch, sbatch, dep_names, dep_n_samples, oversample)
 
 
-# %% ../nbs/19_data_sampler.ipynb 11
+# %% ../nbs/19_data_sampler.ipynb 13
 @patch
 def rename_idx_ptr(self:XCSamplerFeatTfm, x, prefix, sampling_prefix=None):
     prefixes = prefix.split('2')
@@ -61,7 +60,7 @@ def rename_idx_ptr(self:XCSamplerFeatTfm, x, prefix, sampling_prefix=None):
     return x
     
 
-# %% ../nbs/19_data_sampler.ipynb 12
+# %% ../nbs/19_data_sampler.ipynb 14
 @patch
 def collate_feature_idx(self:XCSamplerFeatTfm, x, name, sampling_name=None):
     level = name.count('2')
@@ -75,21 +74,21 @@ def collate_feature_idx(self:XCSamplerFeatTfm, x, name, sampling_name=None):
     return {f'p{k}':v for k,v in o.items()}
     
 
-# %% ../nbs/19_data_sampler.ipynb 13
+# %% ../nbs/19_data_sampler.ipynb 15
 @patch
 def get_rnd_idx_from_ptr(self:XCSamplerFeatTfm, x, n_samples, oversample=True):
     if oversample: return [torch.randint(i, size=(n_samples,)) if i>0 else torch.tensor([-1]) for i in x]
     else: return [torch.randperm(i)[:n_samples] if i>0 else torch.tensor([-1]) for i in x]
 
 
-# %% ../nbs/19_data_sampler.ipynb 14
+# %% ../nbs/19_data_sampler.ipynb 16
 @patch
 def get_features(self:XCSamplerFeatTfm, x, prefix:str):
     pat = f'^({prefix.replace(",","|")})_.*'
     return [o for o in x if re.match(pat, o)]
     
 
-# %% ../nbs/19_data_sampler.ipynb 15
+# %% ../nbs/19_data_sampler.ipynb 17
 @patch
 def sample_batch(self:XCSamplerFeatTfm, batch, features, idxs, level):
     sbatch = []
@@ -102,7 +101,7 @@ def sample_batch(self:XCSamplerFeatTfm, batch, features, idxs, level):
     return sbatch
     
 
-# %% ../nbs/19_data_sampler.ipynb 16
+# %% ../nbs/19_data_sampler.ipynb 18
 @patch
 def remove_unwanted_ptr(self:XCSamplerFeatTfm, x):
     return {k:v for k,v in x.items() if not re.match('.*_ptr-[0-9]+$', k)}
@@ -128,7 +127,7 @@ def collate_features(self:XCSamplerFeatTfm, x, name, sampling_name=None):
     return o
     
 
-# %% ../nbs/19_data_sampler.ipynb 17
+# %% ../nbs/19_data_sampler.ipynb 19
 @patch
 def sample_base_feature(self:XCSamplerFeatTfm, batch:List, prefix_names:str, name:str, n_sample:int, oversample:Optional[bool]=True):
     sampled_batch = {}
@@ -150,7 +149,7 @@ def sample_base_feature(self:XCSamplerFeatTfm, batch:List, prefix_names:str, nam
     return sampled_batch, sbatch
     
 
-# %% ../nbs/19_data_sampler.ipynb 18
+# %% ../nbs/19_data_sampler.ipynb 20
 @patch
 def sample_sbatch(self:XCSamplerFeatTfm, batch, features, n_samples, oversample=True):
     sbatch = []
@@ -172,7 +171,7 @@ def sample_sbatch(self:XCSamplerFeatTfm, batch, features, n_samples, oversample=
     return sbatch
     
 
-# %% ../nbs/19_data_sampler.ipynb 19
+# %% ../nbs/19_data_sampler.ipynb 21
 @patch
 def sample_dep_features(
     self:XCSamplerFeatTfm, 
@@ -195,7 +194,7 @@ def sample_dep_features(
     return sampled_batch
     
 
-# %% ../nbs/19_data_sampler.ipynb 20
+# %% ../nbs/19_data_sampler.ipynb 22
 @patch
 def process_features(self:XCSamplerFeatTfm, sampled_batch:BatchEncoding, batch:BatchEncoding, names:List):
     for name in names:
@@ -204,7 +203,7 @@ def process_features(self:XCSamplerFeatTfm, sampled_batch:BatchEncoding, batch:B
     return sampled_batch
     
 
-# %% ../nbs/19_data_sampler.ipynb 21
+# %% ../nbs/19_data_sampler.ipynb 23
 @patch
 def __call__(
     self:XCSamplerFeatTfm, 
@@ -217,7 +216,7 @@ def __call__(
     sampled_features = set()
     out = BatchEncoding({})
     for name, n_sample in self.sampling_features:
-        o = self.sample_feature(batch, name, n_sample, oversample)
+        o = self.sample_feature(batch, name, n_sample, self.oversample)
         out.update(o)
 
         sampled_features.update(name.split(','))

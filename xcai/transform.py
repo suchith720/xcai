@@ -21,7 +21,7 @@ from .core import *
 from .generation.trie import *
 from .data import XCDataBlock, BaseXCDataBlock
 
-# %% ../nbs/01_transform.ipynb 14
+# %% ../nbs/01_transform.ipynb 13
 class PadTfm:
 
     def __init__(self, 
@@ -68,7 +68,7 @@ class PadTfm:
         except: return x
         
 
-# %% ../nbs/01_transform.ipynb 18
+# %% ../nbs/01_transform.ipynb 22
 class CollapseTfm:
 
     def __init__(self, lev:int=0, use_ptr:int=True, **kwargs):
@@ -98,7 +98,7 @@ class CollapseTfm:
         return x, ptr
 
 
-# %% ../nbs/01_transform.ipynb 22
+# %% ../nbs/01_transform.ipynb 26
 class CollateFeatTfm:
 
     def __init__(self, prefix:Optional[str]=None, drop:Optional[bool]=True, lev:Optional[int]=0, **kwargs):
@@ -125,7 +125,7 @@ class CollateFeatTfm:
         
         
 
-# %% ../nbs/01_transform.ipynb 26
+# %% ../nbs/01_transform.ipynb 30
 class PadFeatTfm:
 
     def __init__(self,
@@ -179,7 +179,7 @@ class PadFeatTfm:
         return self.proc(feat)
         
 
-# %% ../nbs/01_transform.ipynb 34
+# %% ../nbs/01_transform.ipynb 38
 class AlignInputIdsTfm:
 
     def __init__(self,
@@ -251,7 +251,7 @@ class AlignInputIdsTfm:
         return x
         
 
-# %% ../nbs/01_transform.ipynb 47
+# %% ../nbs/01_transform.ipynb 51
 class XCPadFeatTfm:
 
     @delegates(PadFeatTfm.__init__)
@@ -280,7 +280,7 @@ class XCPadFeatTfm:
         return out
         
 
-# %% ../nbs/01_transform.ipynb 53
+# %% ../nbs/01_transform.ipynb 57
 class XCPadOutputTfm:
 
     @delegates(PadFeatTfm.__init__)
@@ -297,7 +297,7 @@ class XCPadOutputTfm:
         return out
         
 
-# %% ../nbs/01_transform.ipynb 57
+# %% ../nbs/01_transform.ipynb 61
 class SampleFeatTfm:
 
     def __init__(self, feat_type:Optional[str]=None, smp_prefix:Optional[str]='', **kwargs):
@@ -329,7 +329,7 @@ class SampleFeatTfm:
         return self.proc(x, lev, n_samples)
         
 
-# %% ../nbs/01_transform.ipynb 64
+# %% ../nbs/01_transform.ipynb 68
 class XCSamplePadFeatTfm:
 
     def __init__(self, smp_features:Optional[List]=None, **kwargs):
@@ -387,7 +387,7 @@ class XCSamplePadFeatTfm:
         return out
         
 
-# %% ../nbs/01_transform.ipynb 75
+# %% ../nbs/01_transform.ipynb 79
 class RamenPadFeatTfm:
 
     def __init__(self, smp_features:Optional[List]=None, **kwargs):
@@ -483,7 +483,7 @@ class RamenPadFeatTfm:
         return out
         
 
-# %% ../nbs/01_transform.ipynb 88
+# %% ../nbs/01_transform.ipynb 92
 class RemoveColumnTfm:
     
     def __init__(self, column:List, **kwargs):
@@ -494,7 +494,7 @@ class RemoveColumnTfm:
             if k in x: x.pop(k)
         return x
 
-# %% ../nbs/01_transform.ipynb 91
+# %% ../nbs/01_transform.ipynb 95
 class NGPadFeatTfm:
 
     def __init__(self, **kwargs):
@@ -511,7 +511,7 @@ class NGPadFeatTfm:
         return out
         
 
-# %% ../nbs/01_transform.ipynb 100
+# %% ../nbs/01_transform.ipynb 104
 class TfmPipeline:
 
     def __init__(self, tfms:List):
@@ -522,7 +522,7 @@ class TfmPipeline:
         return x
         
 
-# %% ../nbs/01_transform.ipynb 128
+# %% ../nbs/01_transform.ipynb 132
 class AugmentMetaInputIdsTfm:
 
     def __init__(self, meta:str, max_len:Optional[int]=None, exclude_sep:Optional[bool]=False):
@@ -563,7 +563,7 @@ class AugmentMetaInputIdsTfm:
         return self(block, meta, side, max_len, exclude_sep)
         
 
-# %% ../nbs/01_transform.ipynb 146
+# %% ../nbs/01_transform.ipynb 150
 class TriePruneInputIdsTfm:
 
     def prune(self, block:XCDataBlock, loc:str, fld:str):
