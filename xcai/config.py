@@ -479,6 +479,18 @@ def WIKISEEALSO(data_dir):
                     'data_info': f'{data_dir}/{DATASETS["wikiseealso"]}/raw_data/train.raw.txt',
                     'lbl_info': f'{data_dir}/{DATASETS["wikiseealso"]}/raw_data/label.raw.txt',
                     'data_lbl_filterer': f'{data_dir}/{DATASETS["wikiseealso"]}/filter_labels_train.txt',
+                    'hlk_meta': {
+                        'prefix': 'hlk',
+                        'data_meta': f'{data_dir}/{DATASETS["wikiseealso"]}/hyper_link_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/{DATASETS["wikiseealso"]}/hyper_link_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/{DATASETS["wikiseealso"]}/raw_data/hyper_link.raw.txt'
+                    },
+                    'cat_meta': {
+                        'prefix': 'cat',
+                        'data_meta': f'{data_dir}/{DATASETS["wikiseealso"]}/category_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/{DATASETS["wikiseealso"]}/category_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/{DATASETS["wikiseealso"]}/raw_data/category.raw.txt'
+                    },
                 },
                 'test': {
                     'data_lbl': f'{data_dir}/{DATASETS["wikiseealso"]}/tst_X_Y.txt',

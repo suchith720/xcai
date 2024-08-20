@@ -65,13 +65,15 @@ def rename_idx_ptr(self:XCSamplerFeatTfm, x, prefix, sampling_prefix=None):
 def collate_feature_idx(self:XCSamplerFeatTfm, x, name, sampling_name=None):
     level = name.count('2')
     o = self.pad_proc(x, prefix=f'{name}_idx', lev=level)
-    
-    if sampling_name is not None and f'{sampling_name}_idx' not in o:
-        o[f'{sampling_name}_idx'] = o[f'{name}_idx']
-        del o[f'{name}_idx']
+
+    if f'{name}_idx' in o:
+        if sampling_name is not None and f'{sampling_name}_idx' not in o:
+            o[f'{sampling_name}_idx'] = o[f'{name}_idx']
+            del o[f'{name}_idx']
+        o = self.rename_idx_ptr(o, name, sampling_name)
+        o = {f'p{k}':v for k,v in o.items()}
         
-    o = self.rename_idx_ptr(o, name, sampling_name)
-    return {f'p{k}':v for k,v in o.items()}
+    return o 
     
 
 # %% ../nbs/19_data_sampler.ipynb 15
@@ -130,21 +132,23 @@ def collate_features(self:XCSamplerFeatTfm, x, name, sampling_name=None):
 # %% ../nbs/19_data_sampler.ipynb 19
 @patch
 def sample_base_feature(self:XCSamplerFeatTfm, batch:List, prefix_names:str, name:str, n_sample:int, oversample:Optional[bool]=True):
-    sampled_batch = {}
+    sampled_batch, sbatch = {}, {}
     
     feat_prefix = name.split('2')
     sampling_name,ptr_name = f'{feat_prefix[0]}2{feat_prefix[-1]}',feat_prefix[-1]
     
     o = self.collate_feature_idx(batch, name=name, sampling_name=sampling_name)
-    sampling_idx = self.get_rnd_idx_from_ptr(o[f'p{sampling_name}_{ptr_name}2ptr'], n_sample, oversample=oversample)
-    
-    sampled_batch.update(o)
-    
-    feats,level = self.get_features(batch[0], prefix_names), name.count('2')-1
-    sbatch = self.sample_batch(batch, feats, sampling_idx, level)
 
-    o = self.collate_features(sbatch, name=name, sampling_name=sampling_name)
-    sampled_batch.update(o)
+    if len(o):
+        sampling_idx = self.get_rnd_idx_from_ptr(o[f'p{sampling_name}_{ptr_name}2ptr'], n_sample, oversample=oversample)
+        
+        sampled_batch.update(o)
+        
+        feats,level = self.get_features(batch[0], prefix_names), name.count('2')-1
+        sbatch = self.sample_batch(batch, feats, sampling_idx, level)
+    
+        o = self.collate_features(sbatch, name=name, sampling_name=sampling_name)
+        sampled_batch.update(o)
     
     return sampled_batch, sbatch
     
@@ -184,12 +188,14 @@ def sample_dep_features(
     for name,n_sample in zip(names,n_samples):
         sampling_name = '2'.join(name.split('2')[:2])
         o = self.collate_feature_idx(sbatch, name=name, sampling_name=sampling_name)
-        sampled_batch.update(o)
-        
-        feats = self.get_features(sbatch[0], name)
-        o = self.sample_sbatch(sbatch, feats, n_sample, oversample=oversample)
-        o = self.collate_features(o, name=name, sampling_name=sampling_name)
-        sampled_batch.update(o)
+
+        if len(o):
+            sampled_batch.update(o)
+            
+            feats = self.get_features(sbatch[0], name)
+            o = self.sample_sbatch(sbatch, feats, n_sample, oversample=oversample)
+            o = self.collate_features(o, name=name, sampling_name=sampling_name)
+            sampled_batch.update(o)
 
     return sampled_batch
     
