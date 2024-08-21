@@ -118,6 +118,7 @@ class RepresentationHead(nn.Module):
         self.transform = nn.Linear(config.dim, config.dim)
         self.layer_norm = nn.LayerNorm(config.dim, eps=1e-12)
         self.projector = nn.Linear(config.dim, config.dim)
+        self.activation = get_activation(config.activation)
         
         self.post_init()
         
@@ -129,6 +130,7 @@ class RepresentationHead(nn.Module):
         
     def forward(self, x:torch.Tensor):
         x = self.transform(x)
+        x = self.activation(x)
         x = self.layer_norm(x)
         x = self.projector(x)
         return x
