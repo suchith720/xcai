@@ -209,10 +209,6 @@ class Encoder(DistilBertPreTrainedModel):
         return Pooling.mean_pooling(embed, attention_mask)
 
     def resize(self, idx:torch.Tensor, num_inputs:torch.Tensor):
-        #debug
-        import pdb; pdb.set_trace()
-        #debug
-        
         if torch.any(num_inputs == 0): raise ValueError("`num_inputs` should be non-zero positive integer.")
         bsz, total_num_inputs = num_inputs.shape[0], idx.shape[0]
         
