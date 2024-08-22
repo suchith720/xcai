@@ -19,7 +19,7 @@ from transformers import DistilBertPreTrainedModel,DistilBertConfig
 
 # %% ../../nbs/27_models.classifiers.ipynb 15
 class CLS001(DistilBertPreTrainedModel):
-    use_generation,use_representation, = False,True
+    use_generation,use_representation = False,True
     
     def __init__(
         self, 
@@ -64,7 +64,7 @@ class CLS001(DistilBertPreTrainedModel):
         self.data_repr.requires_grad_(True)
         self.lbl_repr.requires_grad_(True)
 
-    def init_meta_embeddings(self):
+    def init_lbl_embeddings(self):
         self.lbl_embeddings.weight.data = torch.zeros_like(self.lbl_embeddings.weight.data)
 
     def compute_loss(self, inp_repr, targ_repr, targ_ptr, targ_idx, ptarg_ptr, ptarg_idx):
@@ -82,7 +82,7 @@ class CLS001(DistilBertPreTrainedModel):
 
         loss = lbl2data_rep = None
         if lbl2data_idx is not None:
-            lbl2data_rep = F.normalize(self.lbl_repr(lbl2data_idx) + self.lbl_embeddings(lbl2data_idx))
+            lbl2data_rep = F.normalize(self.lbl_repr(lbl2data_idx) + self.lbl_embeddings(lbl2data_idx), dim=1)
 
             loss = self.compute_loss(data_rep, lbl2data_rep,lbl2data_data2ptr,lbl2data_idx,
                                      plbl2data_data2ptr,plbl2data_idx)
