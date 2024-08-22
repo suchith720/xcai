@@ -487,12 +487,35 @@ def _get_lbl_representation(self:XCLearner, dataset:Optional[Dataset]=None, to_c
         else:
             dset = self._get_dataset(dataset, dset_type='lbl', use_metadata=self.args.use_label_metadata)
             dataloader = self.get_test_dataloader(dset)
-            lbl_rep = self.get_representation(dataloader, representation_attribute=self.args.label_representation_attribute, 
-                                              to_cpu=to_cpu)
+            
+            if hasattr(self.model, 'get_label_representation'): lbl_rep = self.get_label_representation(dataloader, to_cpu=to_cpu)
+            else:lbl_rep = self.get_representation(dataloader, representation_attribute=self.args.label_representation_attribute, to_cpu=to_cpu)
+                
         return lbl_rep
     else: 
         raise ValueError('`dataset` is None, could not create label representation.')
         
+
+# %% ../nbs/06_learner.ipynb 46
+@patch
+def get_label_representation(self:XCLearner, dataloader: DataLoader, to_cpu:Optional[bool]=True):
+    data_host, all_data = None, None
+    
+    if hasattr(self.model, 'disable_noise') and callable(getattr(self.model, 'disable_noise')):
+        use_noise = self.model.disable_noise()
+    
+    for step, inputs in tqdm(enumerate(dataloader), total=len(dataloader)):
+        inputs = inputs.to(self.model.device)
+        with torch.no_grad(): data = getattr(self.model.get_label_representation(**inputs), self.args.label_representation_attribute)
+        data_host = self._gather_host_output(data, data_host)
+        if self.args.representation_accumulation_steps is not None and (step + 1) % self.args.representation_accumulation_steps == 0:
+            all_data, data_host = self._gather_all_output(data_host, all_data, to_cpu=to_cpu), None
+            
+    if hasattr(self.model, 'disable_noise') and callable(getattr(self.model, 'disable_noise')):
+        self.model.set_noise(use_noise)
+            
+    return self._gather_all_output(data_host, all_data, to_cpu=to_cpu)
+    
 
 # %% ../nbs/06_learner.ipynb 47
 @patch

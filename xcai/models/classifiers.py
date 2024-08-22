@@ -43,10 +43,10 @@ class CLS001(DistilBertPreTrainedModel):
         self.rep_loss_fn = MultiTriplet(bsz=batch_size, tn_targ=num_batch_labels, margin=margin, n_negatives=num_negatives, 
                                         tau=tau, apply_softmax=apply_softmax, reduce='mean')
 
-    def get_lbl_representation(self):
+    def get_lbl_repr(self):
         return self.lbl_repr.weight
 
-    def get_data_representation(self):
+    def get_data_repr(self):
         return self.data_repr.weight
 
     def init_representation(self, data_repr:torch.Tensor, lbl_repr:torch.Tensor):
@@ -67,6 +67,12 @@ class CLS001(DistilBertPreTrainedModel):
     def init_lbl_embeddings(self):
         self.lbl_embeddings.weight.data = torch.zeros_like(self.lbl_embeddings.weight.data)
 
+    def get_label_representation(self, data_idx:torch.Tensor, **kwargs):
+        data_rep = F.normalize(self.lbl_repr(data_idx) + self.lbl_embeddings(data_idx), dim=1)
+        return XCModelOutput(
+            data_repr=data_rep,
+        )
+        
     def compute_loss(self, inp_repr, targ_repr, targ_ptr, targ_idx, ptarg_ptr, ptarg_idx):
         return self.rep_loss_fn(inp_repr, targ_repr, targ_ptr, targ_idx, ptarg_ptr, ptarg_idx)
 
@@ -77,6 +83,7 @@ class CLS001(DistilBertPreTrainedModel):
         lbl2data_data2ptr:Optional[torch.Tensor]=None,
         plbl2data_idx:Optional[torch.Tensor]=None,
         plbl2data_data2ptr:Optional[torch.Tensor]=None,
+        **kwargs
     ):
         data_rep = self.data_repr(data_idx)
 
