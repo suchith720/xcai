@@ -208,6 +208,8 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
                  output_representation_attribute:Optional[str]='data_repr',
                  label_representation_attribute:Optional[str]='data_repr',
                  representation_attribute:Optional[str]='data_repr',
+
+                 use_data_metadata_for_representation:Optional[bool]=False,
                  
                  representation_num_beams:Optional[int]=5,
                  representation_search_type:Optional[str]='INDEX',
@@ -284,6 +286,7 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
         store_attr('data_aug_meta_name,data_aug_prefix,augmentation_num_beams,predict_with_augmentation')
         store_attr('use_augmentation_index_representation,metadata_representation_attribute,data_augmentation_attribute')
         store_attr('use_distributional_representation')
+        store_attr('use_data_metadata_for_representation')
         
         store_attr('use_label_metadata,data_meta_batch_size,augment_metadata,num_metadata_augment_epochs,num_metadata_augment_warmup_epochs')
         store_attr('use_centroid_data_metadata,use_centroid_label_representation,centroid_data_attribute_representation,centroid_data_batch_size')
@@ -445,14 +448,15 @@ def _build_lbl_index(self:XCLearner, dataset:Optional[Dataset]=None):
     dataset = dataset if self.eval_dataset is None else self.eval_dataset
     dataset = dataset if self.train_dataset is None else self.train_dataset
     
-    if dataset is not None: self._get_lbl_representation(dataset)
+    if dataset is not None: 
+        lbl_rep = self._get_lbl_representation(dataset, to_cpu=isinstance(self.idxs, IndexSearch))
+        self.idxs.build(lbl_rep)
     else: raise ValueError('Failed to build `self.idxs`')
         
 
 # %% ../nbs/06_learner.ipynb 45
 @patch
-def _get_lbl_representation(self:XCLearner, dataset:Optional[Dataset]=None):
-    
+def _get_lbl_representation(self:XCLearner, dataset:Optional[Dataset]=None, to_cpu:Optional[bool]=False):
     if dataset is not None:
         if self.args.use_centroid_label_representation:
             if self.args.use_teacher_data_representation:
@@ -484,11 +488,10 @@ def _get_lbl_representation(self:XCLearner, dataset:Optional[Dataset]=None):
             dset = self._get_dataset(dataset, dset_type='lbl', use_metadata=self.args.use_label_metadata)
             dataloader = self.get_test_dataloader(dset)
             lbl_rep = self.get_representation(dataloader, representation_attribute=self.args.label_representation_attribute, 
-                                              to_cpu=isinstance(self.idxs, IndexSearch))
-        self.idxs.build(lbl_rep)
-        
+                                              to_cpu=to_cpu)
+        return lbl_rep
     else: 
-        raise ValueError('Failed to build `self.idxs`')
+        raise ValueError('`dataset` is None, could not create label representation.')
         
 
 # %% ../nbs/06_learner.ipynb 47
@@ -1041,6 +1044,25 @@ def get_augmentation_metadata(self:XCLearner):
     
 
 # %% ../nbs/06_learner.ipynb 61
+@patch
+def _get_data_representation(self:XCLearner, dataset:Optional[Dataset]=None, to_cpu:Optional[bool]=True):
+    if dataset is not None:
+        dataset = self._get_dataset(dataset, dset_type='data', use_metadata=self.args.use_data_metadata_for_representation)
+        dataloader = self.get_test_dataloader(dataset)
+        data_rep = self.get_representation(dataloader, representation_attribute=self.args.output_representation_attribute, to_cpu=to_cpu)
+        return data_rep
+    else:
+        raise ValueError('`dataset` is None, could not create data representation.')
+        
+
+# %% ../nbs/06_learner.ipynb 62
+@patch
+def get_data_and_lbl_representation(self:XCLearner, dataset:Optional[Dataset], to_cpu:Optional[bool]=True):
+    lbl_rep,data_rep = self._get_lbl_representation(dataset, to_cpu=to_cpu), self._get_data_representation(dataset, to_cpu=to_cpu)
+    return data_rep,lbl_rep
+    
+
+# %% ../nbs/06_learner.ipynb 63
 @patch
 def _validate_group_by_cluster(self:XCLearner):
     if self.args.group_by_cluster and (not hasattr(self.model,'use_representation') or  not getattr(unwrap_model(self.model),'use_representation')):
