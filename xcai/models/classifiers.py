@@ -19,7 +19,8 @@ from transformers import DistilBertPreTrainedModel,DistilBertConfig
 
 # %% ../../nbs/27_models.classifiers.ipynb 15
 class CLS001(DistilBertPreTrainedModel):
-
+    use_generation,use_representation, = False,True
+    
     def __init__(
         self, 
         config, 
