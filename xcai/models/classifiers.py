@@ -17,14 +17,15 @@ from .modeling_utils import XCModelOutput
 from transformers.utils.generic import ModelOutput
 from transformers import DistilBertPreTrainedModel,DistilBertConfig
 
-# %% ../../nbs/27_models.classifiers.ipynb 15
+# %% ../../nbs/27_models.classifiers.ipynb 16
 class CLS001(DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     
     def __init__(
         self, 
         config, 
-        n_data:int, 
+        n_train:int,
+        n_test:int,
         n_lbl:int, 
         num_batch_labels:Optional[int]=None, 
         batch_size:Optional[int]=None,
@@ -35,33 +36,29 @@ class CLS001(DistilBertPreTrainedModel):
         **kwargs
     ):
         super().__init__(config, **kwargs)
-        store_attr('n_data,n_lbl')
-        self.data_repr = nn.Embedding(self.n_data, config.dim)
+        store_attr('n_train,n_test,n_lbl')
+        self.train_repr = nn.Embedding(self.n_train, config.dim)
+        self.test_repr = nn.Embedding(self.n_test, config.dim)
+        
         self.lbl_repr = nn.Embedding(self.n_lbl, config.dim)
         self.lbl_embeddings = nn.Embedding(self.n_lbl, config.dim)
 
         self.rep_loss_fn = MultiTriplet(bsz=batch_size, tn_targ=num_batch_labels, margin=margin, n_negatives=num_negatives, 
                                         tau=tau, apply_softmax=apply_softmax, reduce='mean')
 
-    def get_lbl_repr(self):
-        return self.lbl_repr.weight
-
-    def get_data_repr(self):
-        return self.data_repr.weight
-
-    def init_representation(self, data_repr:torch.Tensor, lbl_repr:torch.Tensor):
-        self.data_repr.weight.data = data_repr
+    def init_representation(self, train_repr:torch.Tensor, test_repr:torch.Tensor, lbl_repr:torch.Tensor):
+        self.train_repr.weight.data = train_repr
+        self.test_repr.weight.data = test_repr
         self.lbl_repr.weight.data = lbl_repr
 
     def freeze_representation(self):
-        self.data_repr.requires_grad_(False)
+        self.train_repr.requires_grad_(False)
+        self.test_repr.requires_grad_(False)
         self.lbl_repr.requires_grad_(False)
 
-    def freeze_data_representation(self):
-        self.data_repr.requires_grad_(False)
-
     def unfreeze_representation(self):
-        self.data_repr.requires_grad_(True)
+        self.train_repr.requires_grad_(True)
+        self.test_repr.requires_grad_(True)
         self.lbl_repr.requires_grad_(True)
 
     def init_lbl_embeddings(self):
@@ -85,7 +82,8 @@ class CLS001(DistilBertPreTrainedModel):
         plbl2data_data2ptr:Optional[torch.Tensor]=None,
         **kwargs
     ):
-        data_rep = self.data_repr(data_idx)
+        if self.training: data_rep = self.train_repr(data_idx)
+        else: data_rep = self.test_repr(data_idx)
 
         loss = lbl2data_rep = None
         if lbl2data_idx is not None:
