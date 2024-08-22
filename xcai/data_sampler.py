@@ -215,7 +215,7 @@ def __call__(
     self:XCSamplerFeatTfm, 
     batch:List, 
     sampling_features:Optional[List]=None,
-    oversample:Optional[bool]=True
+    oversample:Optional[bool]=None,
 ):  
     store_attr('sampling_features,oversample', is_none=False)
 
