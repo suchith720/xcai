@@ -20,7 +20,7 @@ from transformers.activations import get_activation
 from fastcore.meta import *
 from fastcore.utils import *
 
-# %% ../../nbs/21_models.modeling_utils.ipynb 16
+# %% ../../nbs/21_models.modeling_utils.ipynb 17
 @dataclass
 class XCModelOutput(ModelOutput):
     loss: Optional[torch.FloatTensor] = None
@@ -31,7 +31,7 @@ class XCModelOutput(ModelOutput):
     lbl2data_fused_repr: Optional[torch.FloatTensor] = None
         
 
-# %% ../../nbs/21_models.modeling_utils.ipynb 17
+# %% ../../nbs/21_models.modeling_utils.ipynb 18
 @dataclass
 class EncoderOutput(ModelOutput):
     rep: Optional[torch.FloatTensor] = None
@@ -41,7 +41,7 @@ class EncoderOutput(ModelOutput):
     meta_repr: Optional[torch.FloatTensor] = None
         
 
-# %% ../../nbs/21_models.modeling_utils.ipynb 18
+# %% ../../nbs/21_models.modeling_utils.ipynb 19
 class Pooling:
 
     @staticmethod
@@ -50,7 +50,7 @@ class Pooling:
         return torch.sum(data_embeds * data_attention_mask, 1) / torch.clamp(data_attention_mask.sum(1), min=1e-9)
 
 
-# %% ../../nbs/21_models.modeling_utils.ipynb 20
+# %% ../../nbs/21_models.modeling_utils.ipynb 21
 class CrossAttention(nn.Module):
     
     def __init__(self, config: PretrainedConfig):
@@ -110,7 +110,7 @@ class CrossAttention(nn.Module):
         else: return (o,)
         
 
-# %% ../../nbs/21_models.modeling_utils.ipynb 27
+# %% ../../nbs/21_models.modeling_utils.ipynb 29
 class RepresentationHead(nn.Module):
     
     def __init__(self, config):
@@ -136,7 +136,7 @@ class RepresentationHead(nn.Module):
         return x
     
 
-# %% ../../nbs/21_models.modeling_utils.ipynb 28
+# %% ../../nbs/21_models.modeling_utils.ipynb 30
 class GenerationHead(nn.Module):
     
     def __init__(self, config):
@@ -154,7 +154,7 @@ class GenerationHead(nn.Module):
         return x
     
 
-# %% ../../nbs/21_models.modeling_utils.ipynb 34
+# %% ../../nbs/21_models.modeling_utils.ipynb 36
 class Parameters:
     
     @staticmethod

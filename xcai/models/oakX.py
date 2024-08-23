@@ -25,7 +25,7 @@ from ..core import store_attr
 from ..learner import XCDataParallel
 from .modeling_utils import *
 
-# %% ../../nbs/26_models.oakX.ipynb 16
+# %% ../../nbs/26_models.oakX.ipynb 17
 class Encoder(DistilBertPreTrainedModel):
     
     def __init__(
@@ -166,7 +166,7 @@ class Encoder(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/26_models.oakX.ipynb 18
+# %% ../../nbs/26_models.oakX.ipynb 19
 class OAK000(nn.Module):
     
     def __init__(
@@ -398,7 +398,7 @@ class OAK000(nn.Module):
         )
         
 
-# %% ../../nbs/26_models.oakX.ipynb 20
+# %% ../../nbs/26_models.oakX.ipynb 21
 class OAK001(OAK000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]

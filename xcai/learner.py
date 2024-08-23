@@ -218,6 +218,7 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
                  index_m:Optional[int]=100, 
                  index_efs:Optional[int]=300,
                  index_num_threads:Optional[int]=84,
+                 use_cpu_for_searching:Optional[bool]=True,
                  predict_with_generation:Optional[bool]=False,
                  predict_with_representation:Optional[bool]=False,
                  output_concatenation_weight:Optional[float]=1.0,
@@ -231,6 +232,7 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
                  minimum_cluster_size:Optional[int]=1,
                  maximum_cluster_size:Optional[int]=None,
                  clustering_devices:Optional[List]=None,
+                 use_cpu_for_clustering:Optional[bool]=True,
                  use_data_metadata_for_clustering:Optional[bool]=False,
                  clustering_representation_attribute:Optional[str]='data_repr',
                  
@@ -277,10 +279,10 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
         
         store_attr('generation_num_beams,generation_length_penalty,generation_max_info,generation_eos_token')
         store_attr('representation_accumulation_steps,representation_num_beams,representation_search_type')
-        store_attr('index_space,index_efc,index_m,index_efs,index_num_threads')
+        store_attr('index_space,index_efc,index_m,index_efs,index_num_threads,use_cpu_for_searching')
         store_attr('predict_with_generation,predict_with_representation,output_concatenation_weight')
         store_attr('group_by_cluster,num_cluster_update_epochs,num_cluster_size_update_epochs,num_clustering_warmup_epochs')
-        store_attr('clustering_devices,clustering_type,maximum_cluster_size')
+        store_attr('clustering_devices,clustering_type,maximum_cluster_size,use_cpu_for_clustering')
         store_attr('target_indices_key,target_pointer_key')
         store_attr('use_encoder_parallel')
         store_attr('data_aug_meta_name,data_aug_prefix,augmentation_num_beams,predict_with_augmentation')
@@ -449,7 +451,8 @@ def _build_lbl_index(self:XCLearner, dataset:Optional[Dataset]=None):
     dataset = dataset if self.train_dataset is None else self.train_dataset
     
     if dataset is not None: 
-        lbl_rep = self._get_lbl_representation(dataset, to_cpu=isinstance(self.idxs, IndexSearch))
+        to_cpu = True if isinstance(self.idxs, IndexSearch) else self.args.use_cpu_for_searching
+        lbl_rep = self._get_lbl_representation(dataset, to_cpu=to_cpu)
         self.idxs.build(lbl_rep)
     else: raise ValueError('Failed to build `self.idxs`')
         
@@ -970,7 +973,8 @@ def _get_train_data_cluster(self:XCLearner, epochs_trained:int, num_train_epochs
 
     dataset = self._get_dataset(self.train_dataset, dset_type='data', use_metadata=self.args.use_data_metadata_for_clustering)
     dataloader = self.get_test_dataloader(dataset)
-    data_repr = self.get_representation(dataloader, representation_attribute=self.args.clustering_representation_attribute)
+    data_repr = self.get_representation(dataloader, representation_attribute=self.args.clustering_representation_attribute, 
+                                        to_cpu=self.args.use_cpu_for_clustering)
     if self.args.use_distributional_representation: data_repr = data_repr.exp()
         
     cluster = BalancedClusters.proc(data_repr, self._get_min_cluster_sz(epochs_trained, num_train_epochs), clustering_devices=self.args.clustering_devices)

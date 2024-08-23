@@ -70,6 +70,7 @@ class BruteForceSearch:
         store_attr('n_bm', is_none=False)
         index, info = self.index
         inputs, n_bm = F.normalize(inputs, dim=1), min(index.shape[0], self.n_bm)
+        inputs = inputs.to(index.device)
         
         sc, idx = torch.topk(inputs@F.normalize(index, dim=1).T, n_bm, dim=1, largest=True)
         if info is None: info = idx
