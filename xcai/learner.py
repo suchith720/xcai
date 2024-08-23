@@ -218,7 +218,7 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
                  index_m:Optional[int]=100, 
                  index_efs:Optional[int]=300,
                  index_num_threads:Optional[int]=84,
-                 use_cpu_for_searching:Optional[bool]=True,
+                 use_cpu_for_searching:Optional[bool]=False,
                  predict_with_generation:Optional[bool]=False,
                  predict_with_representation:Optional[bool]=False,
                  output_concatenation_weight:Optional[float]=1.0,
