@@ -967,17 +967,18 @@ def _get_min_cluster_sz(self:XCLearner, epochs_trained:int, num_train_epochs:int
     else: raise ValueError(f'Invalid `clustering_type`({self.args.clustering_type}).')
     
 
-# %% ../nbs/06_learner.ipynb 57
+# %% ../nbs/06_learner.ipynb 58
 @patch
 def _get_train_data_cluster(self:XCLearner, epochs_trained:int, num_train_epochs:int):
-
-    dataset = self._get_dataset(self.train_dataset, dset_type='data', use_metadata=self.args.use_data_metadata_for_clustering)
-    dataloader = self.get_test_dataloader(dataset)
-    data_repr = self.get_representation(dataloader, representation_attribute=self.args.clustering_representation_attribute, 
-                                        to_cpu=self.args.use_cpu_for_clustering)
-    if self.args.use_distributional_representation: data_repr = data_repr.exp()
-        
-    cluster = BalancedClusters.proc(data_repr, self._get_min_cluster_sz(epochs_trained, num_train_epochs), clustering_devices=self.args.clustering_devices)
+    with torch.no_grad():
+        dataset = self._get_dataset(self.train_dataset, dset_type='data', use_metadata=self.args.use_data_metadata_for_clustering)
+        dataloader = self.get_test_dataloader(dataset)
+        data_repr = self.get_representation(dataloader, representation_attribute=self.args.clustering_representation_attribute, 
+                                            to_cpu=self.args.use_cpu_for_clustering)
+        if self.args.use_distributional_representation: data_repr = data_repr.exp()
+            
+        cluster = BalancedClusters.proc(data_repr, self._get_min_cluster_sz(epochs_trained, num_train_epochs), 
+                                        clustering_devices=self.args.clustering_devices)
     return cluster
 
 @patch
@@ -987,33 +988,33 @@ def update_dataloader_sampler(self:XCLearner, dataloader:DataLoader, epochs_trai
         dataloader.sampler.set_cluster(cluster)
     
 
-# %% ../nbs/06_learner.ipynb 58
+# %% ../nbs/06_learner.ipynb 59
 @patch
 def prune_metadata(self:XCLearner):
-    
     if self.train_dataset.meta is None: return
 
-    data_dset = self._get_dataset(self.train_dataset, dset_type='data', use_metadata=self.args.use_data_metadata_for_pruning)
-    dataloader = self.get_test_dataloader(data_dset)
-    data_repr = self.get_representation(dataloader, representation_attribute=self.args.output_representation_attribute)
-
-    lbl_dset = self._get_dataset(self.train_dataset, dset_type='lbl', use_metadata=self.args.use_label_metadata)
-    dataloader = self.get_test_dataloader(lbl_dset)
-    lbl_repr = self.get_representation(dataloader, representation_attribute=self.args.label_representation_attribute)
-
-    prune_metadata_names = list(self.train_dataset.meta.keys()) if self.args.prune_metadata_names is None else self.args.prune_metadata_names
-    for m in self.args.prune_metadata_names:
-        if m not in self.train_dataset.meta: raise ValueError(f'Invalid metadata name: {m}')
+    with torch.no_grad():
+        data_dset = self._get_dataset(self.train_dataset, dset_type='data', use_metadata=self.args.use_data_metadata_for_pruning)
+        dataloader = self.get_test_dataloader(data_dset)
+        data_repr = self.get_representation(dataloader, representation_attribute=self.args.output_representation_attribute)
+    
+        lbl_dset = self._get_dataset(self.train_dataset, dset_type='lbl', use_metadata=self.args.use_label_metadata)
+        dataloader = self.get_test_dataloader(lbl_dset)
+        lbl_repr = self.get_representation(dataloader, representation_attribute=self.args.label_representation_attribute)
+    
+        prune_metadata_names = list(self.train_dataset.meta.keys()) if self.args.prune_metadata_names is None else self.args.prune_metadata_names
+        for m in self.args.prune_metadata_names:
+            if m not in self.train_dataset.meta: raise ValueError(f'Invalid metadata name: {m}')
+                
+            meta_dset = self.train_dataset.meta[m]
+            dataloader = self.get_test_dataloader(MainXCDataset(meta_dset.meta_info))
+            meta_repr = self.get_representation(dataloader, representation_attribute=self.args.metadata_representation_attribute)
+    
+            meta_dset.prune_data_meta(data_repr, meta_repr, batch_size=self.args.metadata_prune_batch_size)
+            meta_dset.prune_lbl_meta(lbl_repr, meta_repr, batch_size=self.args.metadata_prune_batch_size)
             
-        meta_dset = self.train_dataset.meta[m]
-        dataloader = self.get_test_dataloader(MainXCDataset(meta_dset.meta_info))
-        meta_repr = self.get_representation(dataloader, representation_attribute=self.args.metadata_representation_attribute)
 
-        meta_dset.prune_data_meta(data_repr, meta_repr, batch_size=self.args.metadata_prune_batch_size)
-        meta_dset.prune_lbl_meta(lbl_repr, meta_repr, batch_size=self.args.metadata_prune_batch_size)
-        
-
-# %% ../nbs/06_learner.ipynb 59
+# %% ../nbs/06_learner.ipynb 60
 @patch
 def get_aug_data_meta(self:XCLearner, data_repr:torch.Tensor, batch_size:Optional[int]=64):
     data_repr = F.normalize(data_repr, dim=1)
@@ -1031,7 +1032,7 @@ def get_aug_data_meta(self:XCLearner, data_repr:torch.Tensor, batch_size:Optiona
     return data_meta
     
 
-# %% ../nbs/06_learner.ipynb 60
+# %% ../nbs/06_learner.ipynb 61
 @patch
 def get_augmentation_metadata(self:XCLearner):
     meta_name = f'{self.args.data_aug_meta_name}_meta' if self.args.data_aug_meta_name is not None else None
@@ -1041,21 +1042,22 @@ def get_augmentation_metadata(self:XCLearner):
         meta_name not in self.train_dataset.meta
     ): 
         return
-        
-    dataloader = self.get_test_dataloader(self.train_dataset.data_dset)
-    data_repr = self.get_representation(dataloader, representation_attribute=self.args.data_augmentation_attribute)
-    
-    self.aug_idxs = IndexSearch(space=self.args.index_space, efc=self.args.index_efc, m=self.args.index_m, 
-                                efs=self.args.index_efs, n_bm=self.args.augmentation_num_beams, 
-                                n_threads=self.args.index_num_threads)
-    
-    meta_info = getattr(self.train_dataset.meta[meta_name], 'meta_info')
-    dataloader = self.get_test_dataloader(MainXCDataset(meta_info))
-    meta_repr = self.get_meta_representation(dataloader, to_cpu=isinstance(self.aug_idxs, IndexSearch))
-    self.aug_idxs.build(meta_repr)
 
-    data_meta = self.get_aug_data_meta(data_repr, batch_size=self.args.data_meta_batch_size)
-    data_aug_prefix = self.args.data_aug_meta_name if self.args.data_aug_prefix is None else self.args.data_aug_prefix
+    with torch.no_grad():
+        dataloader = self.get_test_dataloader(self.train_dataset.data_dset)
+        data_repr = self.get_representation(dataloader, representation_attribute=self.args.data_augmentation_attribute)
+        
+        self.aug_idxs = IndexSearch(space=self.args.index_space, efc=self.args.index_efc, m=self.args.index_m, 
+                                    efs=self.args.index_efs, n_bm=self.args.augmentation_num_beams, 
+                                    n_threads=self.args.index_num_threads)
+        
+        meta_info = getattr(self.train_dataset.meta[meta_name], 'meta_info')
+        dataloader = self.get_test_dataloader(MainXCDataset(meta_info))
+        meta_repr = self.get_meta_representation(dataloader, to_cpu=isinstance(self.aug_idxs, IndexSearch))
+        self.aug_idxs.build(meta_repr)
+    
+        data_meta = self.get_aug_data_meta(data_repr, batch_size=self.args.data_meta_batch_size)
+        data_aug_prefix = self.args.data_aug_meta_name if self.args.data_aug_prefix is None else self.args.data_aug_prefix
 
     meta_info = {
         'identifier': meta_info['identifier'],
@@ -1070,7 +1072,7 @@ def get_augmentation_metadata(self:XCLearner):
                                                                        n_data_meta_samples=self.args.augmentation_num_beams)
     
 
-# %% ../nbs/06_learner.ipynb 61
+# %% ../nbs/06_learner.ipynb 62
 @patch
 def _get_data_representation(self:XCLearner, dataset:Optional[Dataset]=None, to_cpu:Optional[bool]=True):
     if dataset is not None:
@@ -1082,14 +1084,15 @@ def _get_data_representation(self:XCLearner, dataset:Optional[Dataset]=None, to_
         raise ValueError('`dataset` is None, could not create data representation.')
         
 
-# %% ../nbs/06_learner.ipynb 62
+# %% ../nbs/06_learner.ipynb 63
 @patch
 def get_data_and_lbl_representation(self:XCLearner, dataset:Optional[Dataset], to_cpu:Optional[bool]=True):
-    lbl_rep,data_rep = self._get_lbl_representation(dataset, to_cpu=to_cpu), self._get_data_representation(dataset, to_cpu=to_cpu)
+    with torch.no_grad():
+        lbl_rep,data_rep = self._get_lbl_representation(dataset, to_cpu=to_cpu), self._get_data_representation(dataset, to_cpu=to_cpu)
     return data_rep,lbl_rep
     
 
-# %% ../nbs/06_learner.ipynb 63
+# %% ../nbs/06_learner.ipynb 64
 @patch
 def _validate_group_by_cluster(self:XCLearner):
     if self.args.group_by_cluster and (not hasattr(self.model,'use_representation') or  not getattr(unwrap_model(self.model),'use_representation')):
@@ -1373,12 +1376,15 @@ def _inner_training_loop(
 
         if self.args.augment_metadata and (epoch % self.args.num_metadata_augment_epochs == 0 or epoch == self.args.num_metadata_augment_warmup_epochs) and epoch >= self.args.num_metadata_augment_warmup_epochs:
             self.get_augmentation_metadata()
+            self.accelerator.free_memory()
             
         if self.args.group_by_cluster and (epoch % self.args.num_cluster_update_epochs == 0 or epoch == self.args.num_clustering_warmup_epochs) and epoch >= self.args.num_clustering_warmup_epochs:
             self.update_dataloader_sampler(train_dataloader, epoch, num_train_epochs)
+            self.accelerator.free_memory()
 
         if self.args.prune_metadata and (epoch % self.args.num_metadata_prune_epochs == 0 or epoch == self.args.num_metadata_prune_warmup_epochs) and epoch >= self.args.num_metadata_prune_warmup_epochs: 
             self.prune_metadata()
+            self.accelerator.free_memory()
 
         epoch_iterator = train_dataloader
         if hasattr(epoch_iterator, "set_epoch"):

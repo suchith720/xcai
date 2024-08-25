@@ -47,7 +47,7 @@ def multi_gpu_mm(a_chunks, bs):
         processes.append(p)
     for p in processes:
         p.join()
-    
+
     keys = sorted(list(return_dict.keys()))
     ret = torch.vstack([return_dict[k] for k in keys])
 
@@ -62,7 +62,7 @@ def split_cluster(labels_features, indices, devices=None, metric='cosine', tol=1
     if devices is not None:
         chunk_size = int(np.ceil(m / len(devices)))
         a_chunks = [labels_features[i * chunk_size: (i + 1) * chunk_size].to(devices[i]) for i in range(len(devices))]
-    
+
     with torch.no_grad():
         n = labels_features.shape[0]
         if labels_features.shape[0] == 1:
@@ -86,7 +86,7 @@ def split_cluster(labels_features, indices, devices=None, metric='cosine', tol=1
                 b = _centeroids.T
                 bs = [b.to(devices[i]) for i in range(len(devices))]
                 _similarity = multi_gpu_mm(a_chunks, bs)
-            
+
             old_sim, new_sim = new_sim, sum([torch.sum(_similarity[indx, i]) for i, indx in enumerate(clustered_lbs)]).item() / n
             # print(new_sim)
         del _similarity
@@ -108,7 +108,7 @@ def balanced_cluster_gpu(return_dict, rank, embs, num_levels, device, verbose):
         if verbose:
             print(COLORS[rank % 8], f"rank={rank} => Total clusters {len(clusters)}\tAvg. Cluster size \
                 {'%.2f'%(np.mean([len(x) for x in clusters]))}\tTime to split nodes on this level {'%.2f'%(end-start)} sec")
-    
+
     del embs
     torch.cuda.empty_cache()
 
@@ -196,11 +196,11 @@ def balanced_cluster(embs, num_levels, devices, num_random_clusters=-1, verbose=
             if verbose:
                 print(f"Total clusters {len(clusters)}\tAvg. Cluster size {'%.2f'%(np.mean([len(x) for x in clusters]))}\tTime \
                     to split nodes on this level {'%.2f'%(end-start)} sec")
-    
+
     remaining_levels = int(num_levels - np.log2(len(clusters)))
     if verbose:
         print(f"remaining levels for GPU split={remaining_levels}")
-    
+
     processes = []
     ctx = mp.get_context('spawn')
     manager = ctx.Manager()
@@ -215,7 +215,7 @@ def balanced_cluster(embs, num_levels, devices, num_random_clusters=-1, verbose=
             processes.append(p)
         for p in processes:
             p.join()
-    
+
     clusters = [cluster.cpu().numpy() for cluster in clusters]
     final_clusters = []
     gpu_cluster_ids = sorted(return_dict.keys())
@@ -225,6 +225,6 @@ def balanced_cluster(embs, num_levels, devices, num_random_clusters=-1, verbose=
             final_clusters.append(clusters[j][gpu_cluster])
 
     assert len(set([x for clus in final_clusters for x in clus])) == embs.shape[0], "issue in clustering, clusters not mutually exclusive or exhaustive"
-    
+
     print(Style.RESET_ALL)
     return final_clusters
