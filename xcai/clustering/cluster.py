@@ -252,7 +252,6 @@ class BalancedClusters:
 
     @staticmethod
     def proc(x:torch.Tensor, min_cluster_sz:int, clustering_devices:Optional[List]=None, verbose:Optional[bool]=True):
-        if min_cluster_sz is None: return None
         return partial_cluster(x, min_cluster_sz, -1, clustering_devices)
         
 

@@ -115,7 +115,10 @@ class MainXCDataset(BaseXCDataset):
                  **kwargs):
         super().__init__()
         store_attr('data_info,data_lbl,lbl_info,data_lbl_filterer,n_lbl_samples,data_info_keys,lbl_info_keys')
+        self.curr_data_lbl = None
+        
         self._verify_inputs()
+        self._store_indices()
         
     @classmethod
     @delegates(MainXCData.from_file)
@@ -124,6 +127,12 @@ class MainXCDataset(BaseXCDataset):
         
 
 # %% ../nbs/02_data.ipynb 17
+@patch
+def _store_indices(cls:MainXCDataset):
+    if cls.data_lbl is not None: cls.curr_data_lbl = [o.indices.tolist() for o in cls.data_lbl]
+
+
+# %% ../nbs/02_data.ipynb 18
 @patch
 def _verify_inputs(cls:MainXCDataset):
     cls.n_data = cls._verify_info(cls.data_info)
@@ -139,21 +148,21 @@ def _verify_inputs(cls:MainXCDataset):
             if cls.lbl_info_keys is None: cls.lbl_info_keys = list(cls.lbl_info.keys())
                 
 
-# %% ../nbs/02_data.ipynb 18
+# %% ../nbs/02_data.ipynb 19
 @patch
 def __getitem__(cls:MainXCDataset, idx:int):
     x = {f'data_{k}': v[idx] for k,v in cls.data_info.items() if k in cls.data_info_keys}
     x['data_idx'] = idx
     if cls.n_lbl is not None:
         prefix = 'lbl2data'
-        x[f'{prefix}_idx'] = cls.data_lbl[idx].indices.tolist()
+        x[f'{prefix}_idx'] = cls.curr_data_lbl[idx]
         if cls.n_lbl_samples: x[f'{prefix}_idx'] = [x[f'{prefix}_idx'][i] for i in np.random.permutation(len(x[f'{prefix}_idx']))[:cls.n_lbl_samples]]
         if cls.lbl_info is not None:
             x.update({f'{prefix}_{k}':[v[i] for i in x[f'{prefix}_idx']] for k,v in cls.lbl_info.items() if k in cls.lbl_info_keys})
     return x
     
 
-# %% ../nbs/02_data.ipynb 20
+# %% ../nbs/02_data.ipynb 21
 @patch
 def _getitems(cls:MainXCDataset, idxs:List):
     return MainXCDataset(
@@ -165,7 +174,7 @@ def _getitems(cls:MainXCDataset, idxs:List):
         lbl_info_keys=cls.lbl_info_keys,
     )
 
-# %% ../nbs/02_data.ipynb 29
+# %% ../nbs/02_data.ipynb 30
 class MetaXCDataset(BaseXCDataset):
 
     def __init__(self,
@@ -178,14 +187,25 @@ class MetaXCDataset(BaseXCDataset):
                  meta_info_keys:Optional[List]=None,
                  **kwargs):
         store_attr('prefix,data_meta,lbl_meta,meta_info,n_data_meta_samples,n_lbl_meta_samples,meta_info_keys')
-        self.curr_data_meta,self.curr_lbl_meta = data_meta,lbl_meta
+        self.curr_data_meta,self.curr_lbl_meta = None,None
         self._verify_inputs()
+        self._store_indices()
 
     def prune_data_meta(self, data_repr:torch.Tensor, meta_repr:torch.Tensor, batch_size:Optional[int]=64):
-        self.curr_data_meta = self.prune_data_lbl(self.data_meta, data_repr, meta_repr, batch_size)
+        data_meta = self.prune_data_lbl(self.data_meta, data_repr, meta_repr, batch_size)
+        self.curr_data_meta = [o.indices.tolist() for o in data_meta]
 
     def prune_lbl_meta(self, lbl_repr:torch.Tensor, meta_repr:torch.Tensor, batch_size:Optional[int]=64):
-        self.curr_lbl_meta = self.prune_data_lbl(self.lbl_meta, lbl_repr, meta_repr, batch_size)
+        lbl_meta = self.prune_data_lbl(self.lbl_meta, lbl_repr, meta_repr, batch_size)
+        self.curr_lbl_meta = [o.indices.tolist() for o in lbl_meta]
+
+    def _store_indices(self):
+        if self.data_meta is not None: self.curr_data_meta = [o.indices.tolist() for o in self.data_meta]
+        if self.lbl_meta is not None: self.curr_lbl_meta = [o.indices.tolist() for o in self.lbl_meta]
+
+    def update_meta_matrix(self, data_meta:sparse.csr_matrix, lbl_meta:sparse.csr_matrix):
+        self.data_meta, self.lbl_meta = data_meta, lbl_meta
+        self._store_indices()
         
     def _getitems(self, idxs:List):
         return MetaXCDataset(self.prefix, self.data_meta[idxs], self.lbl_meta, self.meta_info, 
@@ -200,7 +220,7 @@ class MetaXCDataset(BaseXCDataset):
     @typedispatch
     def get_lbl_meta(self, idx:int):
         prefix = f'{self.prefix}2lbl2data'
-        x = {f'{prefix}_idx': self.curr_lbl_meta[idx].indices.tolist()}
+        x = {f'{prefix}_idx': self.curr_lbl_meta[idx]}
         if self.n_lbl_meta_samples: x[f'{prefix}_idx'] = [x[f'{prefix}_idx'][i] for i in np.random.permutation(len(x[f'{prefix}_idx']))[:self.n_lbl_meta_samples]]
         if self.meta_info is not None:
             x.update({f'{prefix}_{k}':[v[i] for i in x[f'{prefix}_idx']] for k,v in self.meta_info.items() if k in self.meta_info_keys})
@@ -209,7 +229,7 @@ class MetaXCDataset(BaseXCDataset):
     @typedispatch
     def get_lbl_meta(self, idxs:List):
         prefix = f'{self.prefix}2lbl2data'
-        x = {f'{prefix}_idx': [self.curr_lbl_meta[idx].indices.tolist() for idx in idxs]}
+        x = {f'{prefix}_idx': [self.curr_lbl_meta[idx] for idx in idxs]}
         if self.n_lbl_meta_samples: x[f'{prefix}_idx'] = [[o[i] for i in np.random.permutation(len(o))[:self.n_lbl_meta_samples]] for o in x[f'{prefix}_idx']]
         if self.meta_info is not None:
             x.update({f'{prefix}_{k}':[[v[i] for i in o] for o in x[f'{prefix}_idx']] for k,v in self.meta_info.items() if k in self.meta_info_keys})
@@ -217,7 +237,7 @@ class MetaXCDataset(BaseXCDataset):
         
     def get_data_meta(self, idx:int):
         prefix = f'{self.prefix}2data'
-        x = {f'{prefix}_idx': self.curr_data_meta[idx].indices.tolist()}
+        x = {f'{prefix}_idx': self.curr_data_meta[idx]}
         if self.n_data_meta_samples: x[f'{prefix}_idx'] = [x[f'{prefix}_idx'][i] for i in np.random.permutation(len(x[f'{prefix}_idx']))[:self.n_data_meta_samples]]
         if self.meta_info is not None:
             x.update({f'{prefix}_{k}':[v[i] for i in x[f'{prefix}_idx']] for k,v in self.meta_info.items() if k in self.meta_info_keys})
@@ -236,7 +256,7 @@ class MetaXCDataset(BaseXCDataset):
             display(df)
     
 
-# %% ../nbs/02_data.ipynb 31
+# %% ../nbs/02_data.ipynb 32
 @patch
 def _verify_inputs(cls:MetaXCDataset):
     cls.n_data,cls.n_meta = cls.data_meta.shape[0],cls.data_meta.shape[1]
@@ -253,7 +273,7 @@ def _verify_inputs(cls:MetaXCDataset):
         if cls.meta_info_keys is None: cls.meta_info_keys = list(cls.meta_info.keys())
             
 
-# %% ../nbs/02_data.ipynb 42
+# %% ../nbs/02_data.ipynb 43
 class MetaXCDatasets(dict):
 
     def __init__(self, meta:Dict):
@@ -261,7 +281,7 @@ class MetaXCDatasets(dict):
         for o in meta: setattr(self, o, meta[o])
         
 
-# %% ../nbs/02_data.ipynb 43
+# %% ../nbs/02_data.ipynb 44
 class XCDataset(BaseXCDataset):
 
     def __init__(self, data:MainXCDataset, **kwargs):
@@ -320,7 +340,7 @@ class XCDataset(BaseXCDataset):
         return [self[idx] for idx in idxs]
        
 
-# %% ../nbs/02_data.ipynb 54
+# %% ../nbs/02_data.ipynb 55
 class XCCollator:
 
     def __init__(self, tfms):
@@ -330,7 +350,7 @@ class XCCollator:
         return self.tfms(x)
         
 
-# %% ../nbs/02_data.ipynb 71
+# %% ../nbs/02_data.ipynb 72
 class BaseXCDataBlock:
 
     @delegates(DataLoader.__init__)
@@ -383,7 +403,7 @@ class BaseXCDataBlock:
         
         
 
-# %% ../nbs/02_data.ipynb 72
+# %% ../nbs/02_data.ipynb 73
 @patch
 def filterer(cls:BaseXCDataBlock, train:'BaseXCDataBlock', valid:'BaseXCDataBlock', fld:Optional[str]='identifier'):
     train_info, valid_info, lbl_info = train.dset.data.data_info, valid.dset.data.data_info, train.dset.data.lbl_info
@@ -415,7 +435,7 @@ def sample(cls:BaseXCDataBlock, pct:Optional[float]=0.2, n:Optional[int]=None, s
     return cls._getitems(rnd_idx[:cut])
     
 
-# %% ../nbs/02_data.ipynb 82
+# %% ../nbs/02_data.ipynb 83
 class XCDataBlock:
 
     def __init__(self, train:BaseXCDataBlock=None, valid:BaseXCDataBlock=None, test:BaseXCDataBlock=None):
