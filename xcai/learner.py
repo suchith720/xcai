@@ -1375,14 +1375,17 @@ def _inner_training_loop(
     for epoch in range(epochs_trained, num_train_epochs):
 
         if self.args.augment_metadata and (epoch % self.args.num_metadata_augment_epochs == 0 or epoch == self.args.num_metadata_augment_warmup_epochs) and epoch >= self.args.num_metadata_augment_warmup_epochs:
+            self.accelerator.free_memory()
             self.get_augmentation_metadata()
             self.accelerator.free_memory()
             
         if self.args.group_by_cluster and (epoch % self.args.num_cluster_update_epochs == 0 or epoch == self.args.num_clustering_warmup_epochs) and epoch >= self.args.num_clustering_warmup_epochs:
+            self.accelerator.free_memory()
             self.update_dataloader_sampler(train_dataloader, epoch, num_train_epochs)
             self.accelerator.free_memory()
 
         if self.args.prune_metadata and (epoch % self.args.num_metadata_prune_epochs == 0 or epoch == self.args.num_metadata_prune_warmup_epochs) and epoch >= self.args.num_metadata_prune_warmup_epochs: 
+            self.accelerator.free_memory()
             self.prune_metadata()
             self.accelerator.free_memory()
 
