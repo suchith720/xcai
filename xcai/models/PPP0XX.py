@@ -185,7 +185,7 @@ class DBT009Encoder(DistilBertPreTrainedModel):
 # %% ../../nbs/14_models.PPP0XX.ipynb 29
 class DBT009(DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
-    _tied_weights_keys = ["distilbert"]
+    _tied_weights_keys = ["encoder.distilbert"]
     
     def __init__(self,
                  config,
@@ -355,7 +355,7 @@ class DBT010(DBT009):
 # %% ../../nbs/14_models.PPP0XX.ipynb 46
 class DBT011(DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
-    _tied_weights_keys = ["distilbert"]
+    _tied_weights_keys = ["encoder.distilbert"]
     
     def __init__(self,
                  config,
@@ -449,7 +449,7 @@ class DBT012Encoder(DBT009Encoder):
 # %% ../../nbs/14_models.PPP0XX.ipynb 53
 class DBT012(DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
-    _tied_weights_keys = ["distilbert"]
+    _tied_weights_keys = ["encoder.distilbert"]
     
     def __init__(self,
                  config,
