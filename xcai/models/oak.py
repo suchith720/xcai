@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['CrossAttention', 'NormCrossAttention', 'Encoder', 'OAK000', 'OAK001', 'Encoder002', 'OAK002', 'Encoder003', 'OAK003',
-           'Encoder004', 'OAK004', 'Encoder005', 'OAK005']
+           'Encoder004', 'OAK004', 'Encoder005', 'OAK005', 'Encoder006', 'OAK006']
 
 # %% ../../nbs/20_models.oak.ipynb 2
 import torch, re, inspect, pickle, os, torch.nn as nn, math
@@ -853,3 +853,176 @@ class OAK005(OAK003, DistilBertPreTrainedModel):
             lbl2data_fused_repr=lbl2data_o.fused_rep,
         )
     
+
+# %% ../../nbs/20_models.oak.ipynb 90
+class Encoder006(DistilBertPreTrainedModel):
+    
+    def __init__(
+        self, 
+        config:PretrainedConfig, 
+        num_metadata:int,
+        resize_length:Optional[int]=None,
+    ):
+        super().__init__(config)
+        self.distilbert = DistilBertModel(config)
+        
+        self.dr_head = RepresentationHead(config)
+        self.dr_fused_head = RepresentationHead(config)
+        self.meta_head = RepresentationHead(config)
+        self.cross_head = CrossAttention(config)
+        self.meta_embeddings = nn.Embedding(num_metadata, config.dim, sparse=True)
+        self.pretrained_meta_embeddings = nn.Embedding(num_metadata, config.dim)
+
+        self.ones = torch.ones(resize_length, dtype=torch.long, device=self.device) if resize_length is not None else None
+        self.post_init()
+
+    def freeze_meta_embeddings(self):
+        self.meta_embeddings.requires_grad_(False)
+
+    def unfreeze_meta_embeddings(self):
+        self.meta_embeddings.requires_grad_(True)
+
+    def set_meta_embeddings(self, embed:torch.Tensor):
+        self.meta_embeddings.weight.data = embed
+
+    def init_meta_embeddings(self):
+        self.meta_embeddings.weight.data = torch.zeros_like(self.meta_embeddings.weight.data)
+
+    def freeze_pretrained_meta_embeddings(self):
+        self.pretrained_meta_embeddings.requires_grad_(False)
+
+    def unfreeze_pretrained_meta_embeddings(self):
+        self.pretrained_meta_embeddings.requires_grad_(True)
+
+    def set_pretrained_meta_embeddings(self, embed:torch.Tensor):
+        self.pretrained_meta_embeddings.weight.data = embed
+        
+    def get_position_embeddings(self) -> nn.Embedding:
+        return self.distilbert.get_position_embeddings()
+    
+    def resize_position_embeddings(self, new_num_position_embeddings: int):
+        self.distilbert.resize_position_embeddings(new_num_position_embeddings)
+    
+    def encode(self, input_ids:torch.Tensor, attention_mask:torch.Tensor, **kwargs):
+        return self.distilbert(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            **kwargs
+        )
+    
+    def dr(self, embed:torch.Tensor, attention_mask:torch.Tensor):
+        embed = self.dr_head(embed)
+        return F.normalize(Pooling.mean_pooling(embed, attention_mask), dim=1)
+
+    def dr_fused(self, embed:torch.Tensor):
+        embed = self.dr_fused_head(embed)
+        return F.normalize(embed, dim=1)
+
+    def meta(self, embed:torch.Tensor, attention_mask:torch.Tensor):
+        embed = self.meta_head(embed)
+        return F.normalize(Pooling.mean_pooling(embed, attention_mask), dim=1)
+    
+    def meta_unnormalized(self, embed:torch.Tensor, attention_mask:torch.Tensor):
+        embed = self.meta_head(embed)
+        return Pooling.mean_pooling(embed, attention_mask)
+
+    def resize(self, idx:torch.Tensor, num_inputs:torch.Tensor):
+        if torch.any(num_inputs == 0): raise ValueError("`num_inputs` should be non-zero positive integer.")
+        bsz, total_num_inputs = num_inputs.shape[0], idx.shape[0]
+        
+        self.ones = self.ones.to(idx.device)
+        ones = (
+            torch.ones(total_num_inputs, dtype=torch.long, device=idx.device) 
+            if self.ones is None or self.ones.shape[0] < total_num_inputs else self.ones[:total_num_inputs]
+        )
+
+        max_num_inputs = num_inputs.max()
+        if (num_inputs == max_num_inputs).all():
+            return idx,ones
+        
+        xnum_inputs = max_num_inputs-num_inputs+1
+
+        inputs_ptr = num_inputs.cumsum(dim=0)-1
+        repeat_inputs = ones.scatter(0, inputs_ptr, xnum_inputs)
+        
+        resized_idx = idx.repeat_interleave(repeat_inputs, dim=0)
+        ignore_mask = ones.scatter(0, inputs_ptr, 0).repeat_interleave(repeat_inputs, dim=0).view(bsz, -1)
+        ignore_mask[:, -1] = 1; ignore_mask = ignore_mask.flatten()
+        
+        return resized_idx,ignore_mask
+
+    def fuse_meta_into_embeddings(self, data_repr:torch.Tensor, data_mask:torch.Tensor, meta_kwargs:Dict):
+        meta_repr = {}
+        
+        data_fused_repr, data_mask = data_repr.clone().view(-1, 1, self.config.dim), data_mask.view(-1, 1)
+        for m_key, m_args in meta_kwargs.items():
+            idx = torch.where(m_args['data2ptr'] > 0)[0]
+            meta_repr[m_key] = torch.empty(0, self.config.dim).to(data_repr)
+            
+            if len(idx):
+                m_idx,m_repr_mask = self.resize(m_args['idx'], m_args['data2ptr'][idx])
+                m_repr = F.normalize(self.meta_embeddings(m_idx) + self.pretrained_meta_embeddings(m_idx), dim=1)
+                
+                m_repr, m_repr_mask = m_repr.view(len(idx), -1, self.config.dim), m_repr_mask.bool().view(len(idx), -1)
+                meta_repr[m_key] = m_repr[m_repr_mask]
+                
+                fused_repr = self.cross_head(data_fused_repr[idx], data_mask[idx], m_repr, m_repr_mask)[0]
+                data_fused_repr[idx] += fused_repr
+                
+        return data_fused_repr.squeeze(), meta_repr
+
+    def forward(
+        self, 
+        data_input_ids: torch.Tensor, 
+        data_attention_mask: torch.Tensor,
+        data_aug_meta_prefix: Optional[str]=None,
+        data_type:Optional[str]=None,
+        data_unnormalized:Optional[bool]=False,
+        **kwargs
+    ):  
+        data_o = self.encode(data_input_ids, data_attention_mask)
+        
+        if data_type is not None and data_type == "meta":
+            data_repr = self.meta_unnormalized(data_o[0], data_attention_mask) if data_unnormalized else self.meta(data_o[0], data_attention_mask)
+        else: 
+            data_repr = self.dr(data_o[0], data_attention_mask)
+        
+        data_fused_repr = meta_repr = None
+        if data_aug_meta_prefix is not None:
+            meta_kwargs = Parameters.from_meta_aug_prefix(data_aug_meta_prefix, **kwargs)
+            if len(meta_kwargs):
+                data_fused_repr, meta_repr = self.fuse_meta_into_embeddings(data_repr, 
+                                                                            torch.any(data_attention_mask, dim=1), 
+                                                                            meta_kwargs)
+                data_fused_repr = self.dr_fused(data_fused_repr)
+                
+        return EncoderOutput(
+            rep=data_repr,
+            fused_rep=data_fused_repr,
+            meta_repr=meta_repr,
+        )
+        
+
+# %% ../../nbs/20_models.oak.ipynb 91
+class OAK006(OAK000, DistilBertPreTrainedModel):
+    use_generation,use_representation = False,True
+    _tied_weights_keys = ["encoder.distilbert"]
+
+    @delegates(OAK000.__init__)
+    def __init__(
+        self, 
+        config,
+        num_metadata:int,
+        resize_length:Optional[int]=None,
+        **kwargs
+    ):
+        super().__init__(config, **kwargs)
+        self.encoder = Encoder006(config, num_metadata=num_metadata, resize_length=resize_length)
+        self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head()
+
+    def init_meta_embeddings(self):
+        self.encoder.init_meta_embeddings()
+
+    def remap_post_init(self):
+        self.distilbert = self.encoder.distilbert
+        
