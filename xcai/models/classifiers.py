@@ -37,6 +37,7 @@ class CLS001(DistilBertPreTrainedModel):
     ):
         super().__init__(config, **kwargs)
         store_attr('n_train,n_test,n_lbl')
+        self._train_inference = False
         self.train_repr = nn.Embedding(self.n_train, config.dim)
         self.test_repr = nn.Embedding(self.n_test, config.dim)
         
@@ -46,6 +47,14 @@ class CLS001(DistilBertPreTrainedModel):
         self.rep_loss_fn = MultiTriplet(bsz=batch_size, tn_targ=num_batch_labels, margin=margin, n_negatives=num_negatives, 
                                         tau=tau, apply_softmax=apply_softmax, reduce='mean')
 
+    @property
+    def perform_train_inference(self):
+        return self._train_inference
+
+    @perform_train_inference.setter
+    def perform_train_inference(self, value):
+        self._train_inference = value
+        
     def init_representation(self, train_repr:torch.Tensor, test_repr:torch.Tensor, lbl_repr:torch.Tensor):
         self.train_repr.weight.data = train_repr
         self.test_repr.weight.data = test_repr
@@ -82,7 +91,7 @@ class CLS001(DistilBertPreTrainedModel):
         plbl2data_data2ptr:Optional[torch.Tensor]=None,
         **kwargs
     ):
-        if self.training: data_rep = self.train_repr(data_idx)
+        if self.training or self._train_inference: data_rep = self.train_repr(data_idx)
         else: data_rep = self.test_repr(data_idx)
 
         loss = lbl2data_rep = None
