@@ -497,10 +497,10 @@ class DTL006(DistilBertPreTrainedModel):
             tdsl_loss = self.rep_loss_fn(teacher_o.data_repr, student_o.lbl2data_repr, kwargs['lbl2data_data2ptr'], lbl2data_idx, 
                                          kwargs['plbl2data_data2ptr'], kwargs['plbl2data_idx'], **kwargs)
             
-            sdtl_loss = self.rep_loss_fn(student_o.data_fused_repr, teacher_o.lbl2data_repr, kwargs['lbl2data_data2ptr'], lbl2data_idx, 
+            sdtl_loss = self.rep_loss_fn(student_o.data_repr, teacher_o.lbl2data_repr, kwargs['lbl2data_data2ptr'], lbl2data_idx, 
                                          kwargs['plbl2data_data2ptr'], kwargs['plbl2data_idx'], **kwargs)
 
-            dm_loss = self.mse_loss_fn(teacher_o.data_repr, student_o.data_fused_repr)
+            dm_loss = self.mse_loss_fn(teacher_o.data_repr, student_o.data_repr)
             lm_loss = self.mse_loss_fn(teacher_o.lbl2data_repr, student_o.lbl2data_repr)
             
             loss = student_o.loss
@@ -511,11 +511,7 @@ class DTL006(DistilBertPreTrainedModel):
 
         return RADOutput(
             loss=loss,
-            
             data_repr=student_o.data_repr,
-            data_fused_repr=student_o.data_fused_repr,
-            
             lbl2data_repr=student_o.lbl2data_repr,
-            lbl2data_fused_repr=student_o.lbl2data_fused_repr,
         )
         
