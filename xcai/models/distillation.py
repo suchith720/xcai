@@ -481,6 +481,9 @@ class DTL006(DistilBertPreTrainedModel):
         self.mse_loss_fn = nn.MSELoss()
         self.rep_loss_fn = MultiTriplet(bsz=bsz, tn_targ=tn_targ, margin=margin, n_negatives=n_negatives, tau=tau, 
                                         apply_softmax=apply_softmax, reduce='mean')
+
+    def get_label_representation(self, data_idx:torch.Tensor, **kwargs):
+        return self.m_student.get_label_representation(data_idx, **kwargs)
         
     def forward(
         self,
