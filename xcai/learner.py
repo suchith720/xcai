@@ -984,6 +984,7 @@ def _get_train_data_cluster(self:XCLearner, epochs_trained:int, num_train_epochs
 @patch
 def update_dataloader_sampler(self:XCLearner, dataloader:DataLoader, epochs_trained:int, num_train_epochs:int):
     if isinstance(dataloader.sampler, ClusterGroupedSampler):
+        self.model.train()
         cluster = self._get_train_data_cluster(epochs_trained, num_train_epochs)
         dataloader.sampler.set_cluster(cluster)
     
@@ -993,6 +994,7 @@ def update_dataloader_sampler(self:XCLearner, dataloader:DataLoader, epochs_trai
 def prune_metadata(self:XCLearner):
     if self.train_dataset.meta is None: return
 
+    self.model.train()
     with torch.no_grad():
         data_dset = self._get_dataset(self.train_dataset, dset_type='data', use_metadata=self.args.use_data_metadata_for_pruning)
         dataloader = self.get_test_dataloader(data_dset)
@@ -1035,6 +1037,7 @@ def get_aug_data_meta(self:XCLearner, data_repr:torch.Tensor, batch_size:Optiona
 # %% ../nbs/06_learner.ipynb 61
 @patch
 def get_augmentation_metadata(self:XCLearner):
+    self.model.train()
     meta_name = f'{self.args.data_aug_meta_name}_meta' if self.args.data_aug_meta_name is not None else None
     if (
         self.train_dataset.meta is None or 
