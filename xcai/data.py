@@ -12,6 +12,7 @@ from IPython.display import display
 from typing import Dict, Optional, Callable
 from torch.utils.data import Dataset,DataLoader
 from xclib.data import data_utils as du
+from xclib.utils.sparse import retain_topk
 from transformers import PreTrainedTokenizerBase, AutoTokenizer
 
 from fastcore.utils import *
@@ -86,7 +87,8 @@ class BaseXCDataset(Dataset):
         with pd.option_context('display.max_colwidth', None, 'display.max_columns', None):
             display(df)
 
-    def prune_data_lbl(self, data_lbl:sparse.csr_matrix, data_repr:torch.Tensor, lbl_repr:torch.Tensor, batch_size:Optional[int]=64):
+    def prune_data_lbl(self, data_lbl:sparse.csr_matrix, data_repr:torch.Tensor, lbl_repr:torch.Tensor, batch_size:Optional[int]=64, 
+                       thresh:Optional[float]=0.1, topk:Optional[int]=None):
         data_repr,lbl_repr = F.normalize(data_repr, dim=1), F.normalize(lbl_repr, dim=1)
         curr_data_lbl = data_lbl.copy()
         rows, cols = data_lbl.nonzero()
@@ -95,10 +97,12 @@ class BaseXCDataset(Dataset):
         for b in tqdm(dl, total=len(dl)): 
             sc = data_repr[b[0]].unsqueeze(1)@lbl_repr[b[1]].unsqueeze(2)
             sc = sc.squeeze()
-            sc = torch.where(sc < 0, 0, 1)
+            sc = torch.where(sc < thresh, 0, sc)
             score = sc if score is None else torch.hstack([score, sc])
         curr_data_lbl.data[:] = score
         curr_data_lbl.eliminate_zeros()
+        if topk is not None: 
+            curr_data_lbl = retain_topk(curr_data_lbl, k=topk)
         return curr_data_lbl
             
 
@@ -191,12 +195,14 @@ class MetaXCDataset(BaseXCDataset):
         self._verify_inputs()
         self._store_indices()
 
-    def prune_data_meta(self, data_repr:torch.Tensor, meta_repr:torch.Tensor, batch_size:Optional[int]=64):
-        data_meta = self.prune_data_lbl(self.data_meta, data_repr, meta_repr, batch_size)
+    def prune_data_meta(self, data_repr:torch.Tensor, meta_repr:torch.Tensor, batch_size:Optional[int]=64, thresh:Optional[float]=0.0, 
+                        topk:Optional[int]=None):
+        data_meta = self.prune_data_lbl(self.data_meta, data_repr, meta_repr, batch_size, thresh, topk)
         self.curr_data_meta = [o.indices.tolist() for o in data_meta]
 
-    def prune_lbl_meta(self, lbl_repr:torch.Tensor, meta_repr:torch.Tensor, batch_size:Optional[int]=64):
-        lbl_meta = self.prune_data_lbl(self.lbl_meta, lbl_repr, meta_repr, batch_size)
+    def prune_lbl_meta(self, lbl_repr:torch.Tensor, meta_repr:torch.Tensor, batch_size:Optional[int]=64, thresh:Optional[float]=0.0, 
+                       topk:Optional[int]=None):
+        lbl_meta = self.prune_data_lbl(self.lbl_meta, lbl_repr, meta_repr, batch_size, thresh, topk)
         self.curr_lbl_meta = [o.indices.tolist() for o in lbl_meta]
 
     def _store_indices(self):
@@ -338,9 +344,35 @@ class XCDataset(BaseXCDataset):
         if seed is not None: torch.manual_seed(seed)
         idxs = list(torch.randperm(len(self)).numpy())[:bsz]
         return [self[idx] for idx in idxs]
+
+    def _remove_data(self, meta:sparse.csr_matrix, pct:Optional[float]=0.3):
+        n_data = len(meta.data)
+        n = int(n_data * pct)
+        idx = np.random.permutation(n_data)[:n]
+        meta.data[idx] = 0
+        meta.eliminate_zeros()
+
+    def _mix_meta_matrix(self, meta_1:sparse.csr_matrix, meta_2:sparse.csr_matrix, pct:Optional[float]=0.3, k:Optional[int]=3):
+        meta_1 = retain_topk(meta_1, k=k)
+        meta_2 = retain_topk(meta_2, k=k)
+        self._remove_data(meta_1, pct)
+        self._remove_data(meta_2, 1 - pct)
+        return meta_1 + meta_2
+
+    def mix_meta_dataset(self, meta_1:str, meta_2:str, pct:Optional[float]=0.3, k:Optional[int]=3):
+        if pct < 1:
+            meta_info = self.meta[f'{meta_1}_meta'].meta_info
+            data_meta = self._mix_meta_matrix(self.meta[f'{meta_1}_meta'].data_meta, self.meta[f'{meta_2}_meta'].data_meta, pct=pct, k=k)
+            lbl_meta = self._mix_meta_matrix(self.meta[f'{meta_1}_meta'].lbl_meta, self.meta[f'{meta_2}_meta'].lbl_meta, pct=pct, k=k)
+            self.meta['hyb_meta'] = MetaXCDataset('hyb', data_meta, lbl_meta, meta_info, 
+                                                  n_data_meta_samples=self.meta[f'{meta_2}_meta'].n_data_meta_samples,
+                                                  n_lbl_meta_samples=self.meta[f'{meta_2}_meta'].n_lbl_meta_samples, 
+                                                  meta_info_keys=self.meta[f'{meta_2}_meta'].meta_info_keys)
+        else:
+            self.meta['hyb_meta'] = self.meta[f'{meta_2}_meta']
        
 
-# %% ../nbs/02_data.ipynb 55
+# %% ../nbs/02_data.ipynb 56
 class XCCollator:
 
     def __init__(self, tfms):
@@ -350,7 +382,7 @@ class XCCollator:
         return self.tfms(x)
         
 
-# %% ../nbs/02_data.ipynb 72
+# %% ../nbs/02_data.ipynb 73
 class BaseXCDataBlock:
 
     @delegates(DataLoader.__init__)
@@ -403,7 +435,7 @@ class BaseXCDataBlock:
         
         
 
-# %% ../nbs/02_data.ipynb 73
+# %% ../nbs/02_data.ipynb 74
 @patch
 def filterer(cls:BaseXCDataBlock, train:'BaseXCDataBlock', valid:'BaseXCDataBlock', fld:Optional[str]='identifier'):
     train_info, valid_info, lbl_info = train.dset.data.data_info, valid.dset.data.data_info, train.dset.data.lbl_info
@@ -435,7 +467,7 @@ def sample(cls:BaseXCDataBlock, pct:Optional[float]=0.2, n:Optional[int]=None, s
     return cls._getitems(rnd_idx[:cut])
     
 
-# %% ../nbs/02_data.ipynb 83
+# %% ../nbs/02_data.ipynb 84
 class XCDataBlock:
 
     def __init__(self, train:BaseXCDataBlock=None, valid:BaseXCDataBlock=None, test:BaseXCDataBlock=None):

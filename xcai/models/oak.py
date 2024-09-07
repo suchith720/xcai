@@ -1034,11 +1034,11 @@ class OAK007(OAK003, DistilBertPreTrainedModel):
     def __init__(
         self, 
         config,
-        num_labels:int,
+        n_labels:int,
         **kwargs
     ):
         super().__init__(config, **kwargs)
-        self.label_embeddings = nn.Embedding(num_labels, config.dim)
+        self.label_embeddings = nn.Embedding(n_labels, config.dim)
         self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head()
 
     def init_label_embeddings(self):
