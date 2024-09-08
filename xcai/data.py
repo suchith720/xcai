@@ -358,7 +358,7 @@ class XCDataset(BaseXCDataset):
             indices.append(ind); data.append(d)
         data = np.hstack(data)
         indices = np.hstack(indices)
-        o = sparse.csr_matrix((data, indices, indptr), dtype=matrix.dtype)
+        o = sparse.csr_matrix((data, indices, indptr), shape=matrix.shape, dtype=matrix.dtype)
         o.sort_indices()
         return o
 
