@@ -345,18 +345,35 @@ class XCDataset(BaseXCDataset):
         idxs = list(torch.randperm(len(self)).numpy())[:bsz]
         return [self[idx] for idx in idxs]
 
-    def _remove_data(self, meta:sparse.csr_matrix, pct:Optional[float]=0.3):
-        n_data = len(meta.data)
+    def _retain_randk(self, matrix:sparse.csr_matrix, topk:Optional[int]=3):
+        data, indices, indptr = [], [], np.zeros_like(matrix.indptr)
+        for i,row in tqdm(enumerate(matrix), total=matrix.shape[0]):
+            if row.nnz > 0:
+                idx = np.random.randint(row.nnz, size=topk)
+                ind, d = row.indices[idx], row.data[idx]    
+            else:
+                ind, d = np.arange(topk), np.zeros(topk)
+                
+            indptr[i+1] = indptr[i] + topk
+            indices.append(ind); data.append(d)
+        data = np.hstack(data)
+        indices = np.hstack(indices)
+        o = sparse.csr_matrix((data, indices, indptr), dtype=matrix.dtype)
+        o.sort_indices()
+        return o
+
+    def _remove_data(self, meta_1:sparse.csr_matrix, meta_2:sparse.csr_matrix, pct:Optional[float]=0.3):
+        n_data = min(len(meta_1.data),len(meta_2.data))
         n = int(n_data * pct)
-        idx = np.random.permutation(n_data)[:n]
-        meta.data[idx] = 0
-        meta.eliminate_zeros()
+        idx = np.random.permutation(n_data)
+        idx_1,idx_2 = idx[:n], idx[n:]
+        meta_1.data[idx_1] = 0; meta_1.eliminate_zeros()
+        meta_2.data[idx_2] = 0; meta_2.eliminate_zeros()
 
     def _mix_meta_matrix(self, meta_1:sparse.csr_matrix, meta_2:sparse.csr_matrix, pct:Optional[float]=0.3, k:Optional[int]=3):
-        meta_1 = retain_topk(meta_1, k=k)
-        meta_2 = retain_topk(meta_2, k=k)
-        self._remove_data(meta_1, pct)
-        self._remove_data(meta_2, 1 - pct)
+        meta_1 = self._retain_randk(meta_1, topk=k)
+        meta_2 = self._retain_randk(meta_2, topk=k)
+        self._remove_data(meta_1, meta_2, pct)
         return meta_1 + meta_2
 
     def mix_meta_dataset(self, meta_1:str, meta_2:str, pct:Optional[float]=0.3, k:Optional[int]=3):

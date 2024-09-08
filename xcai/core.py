@@ -3,7 +3,7 @@
 # %% auto 0
 __all__ = ['show_data', 'Info', 'Filterer', 'get_tok_sparse', 'compute_inv_doc_freq', 'get_tok_idf', 'store_attr', 'get_attr',
            'sorted_metric', 'display_metric', 'get_tensor_statistics', 'total_recall', 'get_best_model',
-           'get_output_sparse', 'ScoreFusion']
+           'get_output_sparse', 'ScoreFusion', 'retain_randk']
 
 # %% ../nbs/00_core.ipynb 2
 import pandas as pd, numpy as np, logging, sys, re, os, torch, json
@@ -286,4 +286,24 @@ class ScoreFusion():
         res = score_b.copy()
         res[row_idx,col_idx] = self.clf.predict_proba(inp)[:, 1]
         return beta*(res+score_a)+score_b
+    
+
+# %% ../nbs/00_core.ipynb 29
+def retain_randk(matrix:sparse.csr_matrix, topk:Optional[int]=3):
+    data, indices, indptr = [], [], np.zeros_like(matrix.indptr)
+    for i,row in tqdm(enumerate(matrix), total=matrix.shape[0]):
+        if row.nnz > 0:
+            idx = np.random.randint(row.nnz, size=topk)
+            ind, d = row.indices[idx], row.data[idx]
+            indptr[i+1] = indptr[i] + topk
+            indices.append(ind); data.append(d)
+        else:
+            indptr[i+1] = indptr[i]
+    
+    data = np.hstack(data)
+    indices = np.hstack(indices)
+    
+    o = sparse.csr_matrix((data, indices, indptr), dtype=matrix.dtype)
+    o.sort_indices()
+    return o
     
