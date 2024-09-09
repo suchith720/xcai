@@ -386,7 +386,12 @@ class XCDataset(BaseXCDataset):
                                                   n_lbl_meta_samples=self.meta[f'{meta_2}_meta'].n_lbl_meta_samples, 
                                                   meta_info_keys=self.meta[f'{meta_2}_meta'].meta_info_keys)
         else:
-            self.meta['hyb_meta'] = self.meta[f'{meta_2}_meta']
+            self.meta['hyb_meta'] = MetaXCDataset('hyb', self.meta[f'{meta_2}_meta'].data_meta, 
+                                                  self.meta[f'{meta_2}_meta'].lbl_meta, 
+                                                  self.meta[f'{meta_2}_meta'].meta_info, 
+                                                  n_data_meta_samples=self.meta[f'{meta_2}_meta'].n_data_meta_samples,
+                                                  n_lbl_meta_samples=self.meta[f'{meta_2}_meta'].n_lbl_meta_samples, 
+                                                  meta_info_keys=self.meta[f'{meta_2}_meta'].meta_info_keys)
        
 
 # %% ../nbs/02_data.ipynb 56
