@@ -250,9 +250,9 @@ def get_output(data_lbl, pred_lbl):
     output = {
         'targ_idx': torch.tensor(data_lbl.indices),
         'targ_ptr': torch.tensor([q-p for p,q in zip(data_lbl.indptr, data_lbl.indptr[1:])]),
-        'pred_idx': torch.tensor(pred.indices),
-        'pred_ptr': torch.tensor([q-p for p,q in zip(pred.indptr, pred.indptr[1:])]),
-        'pred_score': torch.tensor(pred.data),
+        'pred_idx': torch.tensor(pred_lbl.indices),
+        'pred_ptr': torch.tensor([q-p for p,q in zip(pred_lbl.indptr, pred_lbl.indptr[1:])]),
+        'pred_score': torch.tensor(pred_lbl.data),
     }
     return output
 
