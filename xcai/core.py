@@ -3,7 +3,7 @@
 # %% auto 0
 __all__ = ['show_data', 'Info', 'Filterer', 'get_tok_sparse', 'compute_inv_doc_freq', 'get_tok_idf', 'store_attr', 'get_attr',
            'sorted_metric', 'display_metric', 'get_tensor_statistics', 'total_recall', 'get_best_model',
-           'get_output_sparse', 'ScoreFusion', 'retain_randk']
+           'get_output_sparse', 'get_output', 'ScoreFusion', 'retain_randk']
 
 # %% ../nbs/00_core.ipynb 2
 import pandas as pd, numpy as np, logging, sys, re, os, torch, json
@@ -245,7 +245,18 @@ def get_output_sparse(pred_idx, pred_ptr, pred_score, targ_idx, targ_ptr, n_lbl)
     return pred, targ
 
 
-# %% ../nbs/00_core.ipynb 27
+# %% ../nbs/00_core.ipynb 26
+def get_output(data_lbl, pred_lbl):
+    output = {
+        'targ_idx': torch.tensor(data_lbl.indices),
+        'targ_ptr': torch.tensor([q-p for p,q in zip(data_lbl.indptr, data_lbl.indptr[1:])]),
+        'pred_idx': torch.tensor(pred.indices),
+        'pred_ptr': torch.tensor([q-p for p,q in zip(pred.indptr, pred.indptr[1:])]),
+        'pred_score': torch.tensor(pred.data),
+    }
+    return output
+
+# %% ../nbs/00_core.ipynb 28
 class ScoreFusion():
     
     def __init__(self, prop:Optional[np.array]=None, max_depth:Optional[int]=7):
@@ -288,7 +299,7 @@ class ScoreFusion():
         return beta*(res+score_a)+score_b
     
 
-# %% ../nbs/00_core.ipynb 29
+# %% ../nbs/00_core.ipynb 30
 def retain_randk(matrix:sparse.csr_matrix, topk:Optional[int]=3):
     data, indices, indptr = [], [], np.zeros_like(matrix.indptr)
     for i,row in tqdm(enumerate(matrix), total=matrix.shape[0]):
