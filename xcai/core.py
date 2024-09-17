@@ -42,7 +42,7 @@ class Info():
     @staticmethod
     def _read_info(fname:str, sep:Optional[str]='->', info_column_names:Optional[List]=None, enc:Optional[str]='latin-1'):
         info = Info._read_text(fname, enc=enc)
-        info = list(zip(*[o.split(sep) for o in info]))
+        info = list(zip(*[(o,) if sep is None else o.split(sep) for o in info]))
         info_column_names = list(range(len(info))) if info_column_names is None else info_column_names
         if len(info_column_names) != len(info): raise ValueError(f'`info_column_names` and `info` should have same number of elements.')
         return {p:q for p,q in zip(info_column_names, info)}
@@ -87,7 +87,7 @@ class Info():
         return self.info
         
 
-# %% ../nbs/00_core.ipynb 15
+# %% ../nbs/00_core.ipynb 18
 class Filterer:
 
     @staticmethod
@@ -139,7 +139,7 @@ class Filterer:
 
         
 
-# %% ../nbs/00_core.ipynb 17
+# %% ../nbs/00_core.ipynb 20
 def get_tok_sparse(tokens:List, n_cols:Optional[int]=None):
     n_toks = torch.tensor([len(tok) for tok in tokens])
     tok_ptr = torch.concat([torch.zeros((1,), dtype=torch.long), n_toks.cumsum(dim=0)])
@@ -160,7 +160,7 @@ def get_tok_idf(dset:Dataset, field:Optional[str]='data_input_ids', n_cols:Optio
     return compute_inv_doc_freq(tok_sparse)
     
 
-# %% ../nbs/00_core.ipynb 19
+# %% ../nbs/00_core.ipynb 22
 def store_attr(names=None, self=None, but='', cast=False, store_args=None, is_none=True, **attrs):
     fr = sys._getframe(1)
     args = argnames(fr, True)
@@ -178,7 +178,7 @@ def store_attr(names=None, self=None, but='', cast=False, store_args=None, is_no
     return _store_attr(self, anno, is_none, **attrs)
     
 
-# %% ../nbs/00_core.ipynb 20
+# %% ../nbs/00_core.ipynb 23
 def _store_attr(self, anno, is_none, **attrs):
     stored = getattr(self, '__stored_args__', None)
     for n,v in attrs.items():
@@ -187,12 +187,12 @@ def _store_attr(self, anno, is_none, **attrs):
         if stored is not None: stored[n] = v
        
 
-# %% ../nbs/00_core.ipynb 21
+# %% ../nbs/00_core.ipynb 24
 def get_attr(x, attr:str):
     for a in attr.split('.'): x = getattr(x, a)
     return x
 
-# %% ../nbs/00_core.ipynb 22
+# %% ../nbs/00_core.ipynb 25
 def sorted_metric(keys:List, order:Optional[Dict]=None):
     order = {o.split('@')[0]:i for i,o in enumerate(keys)}
     def _suffix(x): return (int(x.split('_')[0]) , x.split('_')[1]) if '_' in x else (int(x),)
@@ -209,7 +209,7 @@ def display_metric(metrics, remove_prefix:Optional[bool]=True, order:Optional[Li
         metric,other = pd.DataFrame([metrics])[metric_keys]*scale, pd.DataFrame([metrics])[other_keys]
         display(pd.concat([metric, other], axis=1))
 
-# %% ../nbs/00_core.ipynb 23
+# %% ../nbs/00_core.ipynb 26
 def get_tensor_statistics(x:torch.Tensor):
     c = ['mean', 'std', '25', '50', '75']
     s = torch.cat([x.float().mean(dim=0, keepdim=True), 
@@ -224,14 +224,14 @@ def total_recall(inp_idx:torch.Tensor, n_inp:torch.Tensor, targ:sparse.csr_matri
     sc = inp.multiply(targ)/(targ.getnnz(axis=1)[:, None]*targ.shape[0])
     return sc.sum(), sc
 
-# %% ../nbs/00_core.ipynb 24
+# %% ../nbs/00_core.ipynb 27
 def get_best_model(mdir:str, pat:Optional[str]=r'^checkpoint-(\d+)'):
     nm = sorted([int(re.match(pat, o).group(1)) for o in os.listdir(mdir) if re.match(pat, o)])[-1]
     fname = f'{mdir}/checkpoint-{nm}/trainer_state.json'
     with open(fname, 'r') as file: mname = json.load(file)['best_model_checkpoint']
     return f'{mdir}/checkpoint-{nm}' if mname is None else mname
 
-# %% ../nbs/00_core.ipynb 25
+# %% ../nbs/00_core.ipynb 28
 def get_output_sparse(pred_idx, pred_ptr, pred_score, targ_idx, targ_ptr, n_lbl):
     n_data = pred_ptr.shape[0]
     
@@ -245,7 +245,7 @@ def get_output_sparse(pred_idx, pred_ptr, pred_score, targ_idx, targ_ptr, n_lbl)
     return pred, targ
 
 
-# %% ../nbs/00_core.ipynb 26
+# %% ../nbs/00_core.ipynb 29
 def get_output(data_lbl, pred_lbl):
     output = {
         'targ_idx': torch.tensor(data_lbl.indices),
@@ -256,7 +256,7 @@ def get_output(data_lbl, pred_lbl):
     }
     return output
 
-# %% ../nbs/00_core.ipynb 28
+# %% ../nbs/00_core.ipynb 31
 class ScoreFusion():
     
     def __init__(self, prop:Optional[np.array]=None, max_depth:Optional[int]=7):
@@ -299,7 +299,7 @@ class ScoreFusion():
         return beta*(res+score_a)+score_b
     
 
-# %% ../nbs/00_core.ipynb 30
+# %% ../nbs/00_core.ipynb 33
 def retain_randk(matrix:sparse.csr_matrix, topk:Optional[int]=3):
     data, indices, indptr = [], [], np.zeros_like(matrix.indptr)
     for i,row in tqdm(enumerate(matrix), total=matrix.shape[0]):
