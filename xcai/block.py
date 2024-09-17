@@ -14,7 +14,7 @@ from .data import *
 from .transform import *
 from .data_sampler import *
 
-from .config import PARAM, WIKISEEALSOTITLES, WIKITITLES, WIKISEEALSO, WIKIPEDIA
+from .config import PARAM, WIKISEEALSOTITLES, WIKITITLES, WIKISEEALSO, WIKIPEDIA, ORCAS
 
 # %% ../nbs/03_block.ipynb 5
 CFGS = {
