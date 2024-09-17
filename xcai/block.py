@@ -55,7 +55,7 @@ class XCBlock:
 
         """ Setting the parameters """
         for k in cfg['parameters']: 
-            if k in kwargs and kwargs[k] is not None: cfg['parameters'][k]=kwargs.pop(k)
+            if k in kwargs: cfg['parameters'][k]=kwargs.pop(k)
 
         tokz = AutoTokenizer.from_pretrained(cfg['parameters']['tokenizer'])
         cfg['parameters']['sep_tok'] = tokz.sep_token_id 

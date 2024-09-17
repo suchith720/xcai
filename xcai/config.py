@@ -24,6 +24,7 @@ PARAM = {
     'tokenizer': 'bert-base-cased',
     'tokenization_column': 'input_text',
     'max_sequence_length': 32,
+    'sep': '->',
     
     # PadFeatTfm arguements
     #-------------------------
