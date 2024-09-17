@@ -21,7 +21,8 @@ CFGS = {
     'wikiseealsotitles':WIKISEEALSOTITLES, 
     'wikititles':WIKITITLES, 
     'wikiseealso':WIKISEEALSO, 
-    'wikipedia':WIKIPEDIA
+    'wikipedia':WIKIPEDIA,
+    'orcas': ORCAS,
 }
 
 TFMS = {
