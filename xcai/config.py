@@ -802,8 +802,8 @@ def ORCAS(data_dir):
                     'lbl_info': f'{data_dir}/{DATASETS["orcas"]}/raw_data/label.raw.txt',
                     'gpt_meta': {
                         'prefix': 'gpt',
-                        'data_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_trn_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_lbl_X_Y.txt',
+                        'data_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_trn_X_Y.npz',
+                        'lbl_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_lbl_X_Y.npz',
                         'meta_info': f'{data_dir}/{DATASETS["orcas"]}/raw_data/gptquery.raw.txt'
                     },
                 },
@@ -818,8 +818,8 @@ def ORCAS(data_dir):
                     'lbl_info': f'{data_dir}/{DATASETS["orcas"]}/raw_data/label.raw.txt',
                     'gpt_meta': {
                         'prefix': 'gpt',
-                        'data_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_trn_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_lbl_X_Y.txt',
+                        'data_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_trn_X_Y.npz',
+                        'lbl_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_lbl_X_Y.npz',
                         'meta_info': f'{data_dir}/{DATASETS["orcas"]}/raw_data/gptquery.raw.txt'
                     },
                 },
@@ -829,8 +829,8 @@ def ORCAS(data_dir):
                     'lbl_info': f'{data_dir}/{DATASETS["orcas"]}/raw_data/label.raw.txt',
                     'gpt_meta': {
                         'prefix': 'gpt',
-                        'data_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_tst_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_lbl_X_Y.txt',
+                        'data_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_tst_X_Y.npz',
+                        'lbl_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_lbl_X_Y.npz',
                         'meta_info': f'{data_dir}/{DATASETS["orcas"]}/raw_data/gptquery.raw.txt',
                     },
                 },
@@ -845,14 +845,14 @@ def ORCAS(data_dir):
                     'lbl_info': f'{data_dir}/{DATASETS["orcas"]}/raw_data/label.raw.txt',
                     'gpt_meta': {
                         'prefix': 'gpt',
-                        'data_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_trn_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_lbl_X_Y.txt',
+                        'data_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_trn_X_Y.npz',
+                        'lbl_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_lbl_X_Y.npz',
                         'meta_info': f'{data_dir}/{DATASETS["orcas"]}/raw_data/gptquery.raw.txt'
                     },
                     'lnk_meta': {
                         'prefix': 'lnk',
-                        'data_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_ngame_trn_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_ngame_lbl_X_Y.txt',
+                        'data_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_ngame_trn_X_Y.npz',
+                        'lbl_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_ngame_lbl_X_Y.npz',
                         'meta_info': f'{data_dir}/{DATASETS["orcas"]}/raw_data/gptquery.raw.txt'
                     },
                 },
@@ -862,14 +862,14 @@ def ORCAS(data_dir):
                     'lbl_info': f'{data_dir}/{DATASETS["orcas"]}/raw_data/label.raw.txt',
                     'gpt_meta': {
                         'prefix': 'gpt',
-                        'data_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_tst_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_lbl_X_Y.txt',
+                        'data_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_tst_X_Y.npz',
+                        'lbl_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_lbl_X_Y.npz',
                         'meta_info': f'{data_dir}/{DATASETS["orcas"]}/raw_data/gptquery.raw.txt',
                     },
                     'lnk_meta': {
                         'prefix': 'lnk',
-                        'data_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_ngame_tst_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_ngame_lbl_X_Y.txt',
+                        'data_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_ngame_tst_X_Y.npz',
+                        'lbl_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_ngame_lbl_X_Y.npz',
                         'meta_info': f'{data_dir}/{DATASETS["orcas"]}/raw_data/gptquery.raw.txt',
                     },
                 },
@@ -884,8 +884,8 @@ def ORCAS(data_dir):
                     'lbl_info': f'{data_dir}/{DATASETS["orcas"]}/raw_data/label.raw.txt',
                     'gpt_meta': {
                         'prefix': 'gpt',
-                        'data_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_ngame_trn_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_ngame_lbl_X_Y.txt',
+                        'data_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_ngame_trn_X_Y.npz',
+                        'lbl_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_ngame_lbl_X_Y.npz',
                         'meta_info': f'{data_dir}/{DATASETS["orcas"]}/raw_data/gptquery.raw.txt'
                     },
                 },
@@ -895,8 +895,8 @@ def ORCAS(data_dir):
                     'lbl_info': f'{data_dir}/{DATASETS["orcas"]}/raw_data/label.raw.txt',
                     'gpt_meta': {
                         'prefix': 'gpt',
-                        'data_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_ngame_tst_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_ngame_lbl_X_Y.txt',
+                        'data_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_ngame_tst_X_Y.npz',
+                        'lbl_meta': f'{data_dir}/{DATASETS["orcas"]}/gptquery_ngame_lbl_X_Y.npz',
                         'meta_info': f'{data_dir}/{DATASETS["orcas"]}/raw_data/gptquery.raw.txt',
                     },
                 },
