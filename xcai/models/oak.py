@@ -1063,6 +1063,7 @@ class OAK007(OAK003, DistilBertPreTrainedModel):
 
     def forward(
         self,
+        data_idx:Optional[torch.Tensor]=None,
         data_input_ids:Optional[torch.Tensor]=None,
         data_attention_mask:Optional[torch.Tensor]=None,
         lbl2data_data2ptr:Optional[torch.Tensor]=None,
