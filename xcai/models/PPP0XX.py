@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Optional, List, Tuple, Mapping, Any, Union
 from transformers import (
     PretrainedConfig,
+    BertPreTrainedModel,
     BertLMHeadModel, 
     BatchEncoding, 
     BertPreTrainedModel, 
