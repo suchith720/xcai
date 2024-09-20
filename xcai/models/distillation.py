@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['TCHOutput', 'TCH001', 'TCH002', 'TCH003', 'DTL001', 'DTL002', 'DTL003', 'DTL004', 'DTL005', 'DTL006', 'DTL007',
-           'DTL008', 'DTL009']
+           'DTL008', 'DTL009', 'DTL010']
 
 # %% ../../nbs/17_models.distillation.ipynb 2
 import torch, numpy as np
@@ -15,6 +15,8 @@ from ..losses import Cosine, MultiTriplet
 from .PPP0XX import XCModelOutput
 from .oak import OAK001
 from .radga import RADOutput
+from ..bandits import *
+
 from transformers import DistilBertPreTrainedModel,DistilBertConfig
 from transformers.utils.generic import ModelOutput
 
@@ -66,7 +68,7 @@ class TCH001(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/17_models.distillation.ipynb 45
+# %% ../../nbs/17_models.distillation.ipynb 44
 class TCH002(DistilBertPreTrainedModel):
 
     def __init__(self, config, n_data:int, n_lbl:int, **kwargs):
@@ -111,7 +113,7 @@ class TCH002(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/17_models.distillation.ipynb 53
+# %% ../../nbs/17_models.distillation.ipynb 52
 class TCH003(DistilBertPreTrainedModel):
 
     def __init__(self, config, n_data:int, **kwargs):
@@ -141,7 +143,7 @@ class TCH003(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/17_models.distillation.ipynb 60
+# %% ../../nbs/17_models.distillation.ipynb 59
 class DTL001(DistilBertPreTrainedModel):
     use_representation,use_generation = True,False
     _tied_weights_keys = ["m_student.encoder.distilbert,m_teacher.encoder.distilbert"]
@@ -187,7 +189,7 @@ class DTL001(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/17_models.distillation.ipynb 71
+# %% ../../nbs/17_models.distillation.ipynb 70
 class DTL002(DistilBertPreTrainedModel):
     use_representation,use_generation = True,False
     _tied_weights_keys = ["m_student.encoder.distilbert"]
@@ -248,7 +250,7 @@ class DTL002(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/17_models.distillation.ipynb 82
+# %% ../../nbs/17_models.distillation.ipynb 81
 class DTL003(DistilBertPreTrainedModel):
     use_representation,use_generation = True,False
     _tied_weights_keys = ["m_student.encoder.distilbert"]
@@ -321,7 +323,7 @@ class DTL003(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/17_models.distillation.ipynb 92
+# %% ../../nbs/17_models.distillation.ipynb 91
 class DTL004(DistilBertPreTrainedModel):
     use_representation,use_generation = True,False
     _tied_weights_keys = ["m_student.encoder.distilbert"]
@@ -393,7 +395,7 @@ class DTL004(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/17_models.distillation.ipynb 104
+# %% ../../nbs/17_models.distillation.ipynb 103
 class DTL005(DistilBertPreTrainedModel):
     use_representation,use_generation = True,False
     _tied_weights_keys = ["m_student.encoder.distilbert"]
@@ -453,7 +455,7 @@ class DTL005(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/17_models.distillation.ipynb 113
+# %% ../../nbs/17_models.distillation.ipynb 112
 class DTL006(DistilBertPreTrainedModel):
     use_representation,use_generation = True,False
     _tied_weights_keys = ["m_student.encoder.distilbert"]
@@ -520,7 +522,7 @@ class DTL006(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/17_models.distillation.ipynb 115
+# %% ../../nbs/17_models.distillation.ipynb 114
 class DTL007(DistilBertPreTrainedModel):
     use_representation,use_generation = True,False
     _tied_weights_keys = ["m_student.encoder.distilbert"]
@@ -588,7 +590,7 @@ class DTL007(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/17_models.distillation.ipynb 117
+# %% ../../nbs/17_models.distillation.ipynb 116
 class DTL008(DistilBertPreTrainedModel):
     use_representation,use_generation = True,False
     _tied_weights_keys = ["m_student.encoder.distilbert"]
@@ -645,7 +647,7 @@ class DTL008(DistilBertPreTrainedModel):
 
     
 
-# %% ../../nbs/17_models.distillation.ipynb 119
+# %% ../../nbs/17_models.distillation.ipynb 118
 class DTL009(DistilBertPreTrainedModel):
     use_representation,use_generation = True,False
     _tied_weights_keys = ["m_student.encoder.distilbert"]
@@ -705,6 +707,86 @@ class DTL009(DistilBertPreTrainedModel):
             loss += self.teacher_data_student_label_loss_weight * tdsl_loss
             loss += self.student_data_teacher_label_loss_weight * sdtl_loss
             loss += self.data_mse_loss_weight * dm_loss + self.label_mse_loss_weight * lm_loss
+            
+
+        return RADOutput(
+            loss=loss,
+            
+            data_repr=student_o.data_repr,
+            data_fused_repr=student_o.data_fused_repr,
+            
+            lbl2data_repr=student_o.lbl2data_repr,
+            lbl2data_fused_repr=student_o.lbl2data_fused_repr,
+        )
+        
+
+# %% ../../nbs/17_models.distillation.ipynb 120
+class DTL010(DistilBertPreTrainedModel):
+    use_representation,use_generation = True,False
+    _tied_weights_keys = ["m_student.encoder.distilbert"]
+    
+    def __init__(
+        self,
+        config,
+        m_student:nn.Module,
+        m_teacher:nn.Module,
+        bsz:Optional[int]=None,
+        tn_targ:Optional[int]=None,
+        margin:Optional[float]=0.3,
+        tau:Optional[float]=0.1,
+        apply_softmax:Optional[bool]=False,
+        n_negatives:Optional[int]=5,
+        student_loss_weight:Optional[float]=1.0,
+        teacher_data_student_label_loss_weight:Optional[float]=1.0,
+        student_data_teacher_label_loss_weight:Optional[float]=1.0,
+        data_mse_loss_weight:Optional[float]=0.1,
+        label_mse_loss_weight:Optional[float]=0.1,
+        **kwargs
+    ):
+        super().__init__(config, **kwargs)
+        store_attr('m_student,m_teacher')
+        self.loss_weights = RLLossWeightsCumuluative(num_samples=5, reward_func=AccMiniBatch, lr=0.01, collector=20, std=0.1, min=0.1,
+                                                     rest_init=[student_loss_weight,
+                                                                teacher_data_student_label_loss_weight, 
+                                                                student_data_teacher_label_loss_weight, 
+                                                                data_mse_loss_weight, label_mse_loss_weight])
+        
+        self.mse_loss_fn = nn.MSELoss()
+        self.rep_loss_fn = MultiTriplet(bsz=bsz, tn_targ=tn_targ, margin=margin, n_negatives=n_negatives, tau=tau, 
+                                        apply_softmax=apply_softmax, reduce='mean')
+        
+    def forward(
+        self,
+        data_input_ids:Optional[torch.Tensor]=None,
+        data_attention_mask:Optional[torch.Tensor]=None,
+        
+        data_idx:Optional[torch.Tensor]=None,
+        lbl2data_idx:Optional[torch.Tensor]=None,
+        **kwargs
+    ):
+        student_o = self.m_student(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask, 
+                                   lbl2data_idx=lbl2data_idx, **kwargs)
+
+        loss = None
+        if lbl2data_idx is not None and student_o.loss is not None:
+            teacher_o = self.m_teacher(data_idx=data_idx, lbl2data_idx=lbl2data_idx)
+
+            tdsl_loss = self.rep_loss_fn(teacher_o.data_repr, student_o.lbl2data_repr, kwargs['lbl2data_data2ptr'], lbl2data_idx, 
+                                         kwargs['plbl2data_data2ptr'], kwargs['plbl2data_idx'], **kwargs)
+            
+            sdtl_loss = self.rep_loss_fn(student_o.data_fused_repr, teacher_o.lbl2data_repr, kwargs['lbl2data_data2ptr'], lbl2data_idx, 
+                                         kwargs['plbl2data_data2ptr'], kwargs['plbl2data_idx'], **kwargs)
+
+            dm_loss = self.mse_loss_fn(teacher_o.data_repr, student_o.data_fused_repr)
+            lm_loss = self.mse_loss_fn(teacher_o.lbl2data_repr, student_o.lbl2data_repr)
+
+            ws = self.loss_weights.sample(lbl2data_idx.device)
+
+            if self.training:
+                self.loss_weights.step(student_o.data_fused_repr, student_o.lbl2data_repr, kwargs['lbl2data_data2ptr'], lbl2data_idx,
+                                       kwargs['plbl2data_data2ptr'], kwargs['plbl2data_idx'])
+            
+            loss = ws[0] * student_o.loss + ws[1] * tdsl_loss + ws[2] * sdtl_loss + ws[3] * dm_loss + ws[4] * lm_loss
             
 
         return RADOutput(
