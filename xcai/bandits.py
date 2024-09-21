@@ -120,7 +120,7 @@ class RLLossWeightsCumuluative(RLLossWeights):
     
         self.step_counter += 1
         self.collect(pred, gt)
-
+        
         if self.step_counter % self.collector == 0:
             if self.in_warmup:
                 self.in_warmup = False

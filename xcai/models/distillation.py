@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['TCHOutput', 'TCH001', 'TCH002', 'TCH003', 'DTL001', 'DTL002', 'DTL003', 'DTL004', 'DTL005', 'DTL006', 'DTL007',
-           'DTL008', 'DTL009', 'DTL010']
+           'DTL008', 'DTL009', 'DTL010', 'DTL011']
 
 # %% ../../nbs/17_models.distillation.ipynb 2
 import torch, numpy as np
@@ -741,11 +741,16 @@ class DTL010(DistilBertPreTrainedModel):
         student_data_teacher_label_loss_weight:Optional[float]=1.0,
         data_mse_loss_weight:Optional[float]=0.1,
         label_mse_loss_weight:Optional[float]=0.1,
+
+        bandit_learning_rate:Optional[float]=0.01,
+        bandit_minimum_value:Optional[float]=0.1,
+        bandit_collector:Optional[int]=20,
         **kwargs
     ):
         super().__init__(config, **kwargs)
         store_attr('m_student,m_teacher')
-        self.loss_weights = RLLossWeightsCumuluative(num_samples=5, reward_func=AccMiniBatch, lr=0.01, collector=20, std=0.1, min=0.1,
+        self.loss_weights = RLLossWeightsCumuluative(num_samples=5, reward_func=AccMiniBatch, lr=bandit_learning_rate, 
+                                                     collector=bandit_collector, std=0.1, min=bandit_minimum_value,
                                                      rest_init=[student_loss_weight,
                                                                 teacher_data_student_label_loss_weight, 
                                                                 student_data_teacher_label_loss_weight, 
@@ -787,6 +792,83 @@ class DTL010(DistilBertPreTrainedModel):
                                        kwargs['plbl2data_data2ptr'], kwargs['plbl2data_idx'])
             
             loss = ws[0] * student_o.loss + ws[1] * tdsl_loss + ws[2] * sdtl_loss + ws[3] * dm_loss + ws[4] * lm_loss
+            
+
+        return RADOutput(
+            loss=loss,
+            
+            data_repr=student_o.data_repr,
+            data_fused_repr=student_o.data_fused_repr,
+            
+            lbl2data_repr=student_o.lbl2data_repr,
+            lbl2data_fused_repr=student_o.lbl2data_fused_repr,
+        )
+        
+
+# %% ../../nbs/17_models.distillation.ipynb 132
+class DTL011(DistilBertPreTrainedModel):
+    use_representation,use_generation = True,False
+    _tied_weights_keys = ["m_student.encoder.distilbert"]
+    
+    def __init__(
+        self,
+        config,
+        m_student:nn.Module,
+        m_teacher:nn.Module,
+        bsz:Optional[int]=None,
+        tn_targ:Optional[int]=None,
+        margin:Optional[float]=0.3,
+        tau:Optional[float]=0.1,
+        apply_softmax:Optional[bool]=False,
+        n_negatives:Optional[int]=5,
+
+        bandit_learning_rate:Optional[float]=0.01,
+        bandit_minimum_value:Optional[float]=0.1,
+        bandit_collector:Optional[int]=20,
+        **kwargs
+    ):
+        super().__init__(config, **kwargs)
+        store_attr('m_student,m_teacher')
+        self.loss_weights = RLLossWeightsCumuluative(num_samples=4, reward_func=AccMiniBatch, lr=bandit_learning_rate, 
+                                                     collector=bandit_collector, std=0.1, min=bandit_minimum_value, 
+                                                     rest_init=bandit_minimum_value)
+        
+        self.mse_loss_fn = nn.MSELoss()
+        self.rep_loss_fn = MultiTriplet(bsz=bsz, tn_targ=tn_targ, margin=margin, n_negatives=n_negatives, tau=tau, 
+                                        apply_softmax=apply_softmax, reduce='mean')
+        
+    def forward(
+        self,
+        data_input_ids:Optional[torch.Tensor]=None,
+        data_attention_mask:Optional[torch.Tensor]=None,
+        
+        data_idx:Optional[torch.Tensor]=None,
+        lbl2data_idx:Optional[torch.Tensor]=None,
+        **kwargs
+    ):
+        student_o = self.m_student(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask, 
+                                   lbl2data_idx=lbl2data_idx, **kwargs)
+
+        loss = None
+        if lbl2data_idx is not None and student_o.loss is not None:
+            teacher_o = self.m_teacher(data_idx=data_idx, lbl2data_idx=lbl2data_idx)
+
+            tdsl_loss = self.rep_loss_fn(teacher_o.data_repr, student_o.lbl2data_repr, kwargs['lbl2data_data2ptr'], lbl2data_idx, 
+                                         kwargs['plbl2data_data2ptr'], kwargs['plbl2data_idx'], **kwargs)
+            
+            sdtl_loss = self.rep_loss_fn(student_o.data_fused_repr, teacher_o.lbl2data_repr, kwargs['lbl2data_data2ptr'], lbl2data_idx, 
+                                         kwargs['plbl2data_data2ptr'], kwargs['plbl2data_idx'], **kwargs)
+
+            dm_loss = self.mse_loss_fn(teacher_o.data_repr, student_o.data_fused_repr)
+            lm_loss = self.mse_loss_fn(teacher_o.lbl2data_repr, student_o.lbl2data_repr)
+
+            ws = self.loss_weights.sample(lbl2data_idx.device)
+
+            if self.training:
+                self.loss_weights.step(student_o.data_fused_repr, student_o.lbl2data_repr, kwargs['lbl2data_data2ptr'], lbl2data_idx,
+                                       kwargs['plbl2data_data2ptr'], kwargs['plbl2data_idx'])
+            
+            loss = student_o.loss + ws[0] * tdsl_loss + ws[1] * sdtl_loss + ws[2] * dm_loss + ws[3] * lm_loss
             
 
         return RADOutput(
