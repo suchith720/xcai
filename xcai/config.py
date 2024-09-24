@@ -16,6 +16,12 @@ PARAM = {
     'pad_token': 0,
     'oversample': False,
     'sampling_features': [('lbl2data',2), ('hlk2data',1), ('hlk2lbl2data',1)],
+
+    # OAKSamplerFeatTfm arguements
+    #-------------------------
+    'num_labels': 1,
+    'num_metadata': 1,
+    'metadata_name': None,
     
     # Arguements for Info class
     #-------------------------
@@ -24,6 +30,8 @@ PARAM = {
     'tokenizer': 'bert-base-cased',
     'tokenization_column': 'input_text',
     'max_sequence_length': 32,
+    'padding': False,
+    'return_tensors': None,
     'sep': '->',
     
     # PadFeatTfm arguements

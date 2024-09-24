@@ -31,6 +31,7 @@ TFMS = {
     'xcnlg': [XCSamplePadFeatTfm], 
     'rm':[RamenPadFeatTfm],
     'xcs': [XCSamplerFeatTfm],
+    'oak': [OAKSamplerFeatTfm],
 }
 
 # %% ../nbs/03_block.ipynb 7

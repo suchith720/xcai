@@ -51,12 +51,14 @@ class Info():
         self.info = Info._read_info(fname, sep, info_column_names, enc)
         return self.info
     
-    def tokenize(self, tokenization_column:Union[int, str], tokenizer:Union[str, PreTrainedTokenizerBase], max_sequence_length:Optional[int]=None):
+    def tokenize(self, tokenization_column:Union[int, str], tokenizer:Union[str, PreTrainedTokenizerBase], 
+                 max_sequence_length:Optional[int]=None, padding:Optional[bool]=True, return_tensors:Optional[str]=None):
         if self.tokz is None: self.tokz = tokenizer if isinstance(tokenizer, PreTrainedTokenizerBase) else AutoTokenizer.from_pretrained(tokenizer)
         tokenization_column = list(self.info.keys())[0] if tokenization_column is None else tokenization_column
         if tokenization_column is None: logging.info(f'`tokenization_column` not given as input, so value set to {tokenization_column}.')
         if tokenization_column not in self.info: raise ValueError(f'`{tokenization_column}` is invalid `tokenization_column` value.')
-        self.info.update(self.tokz(self.info[tokenization_column], truncation=True, max_length=max_sequence_length))
+        self.info.update(self.tokz(self.info[tokenization_column], truncation=True, max_length=max_sequence_length, 
+                                   padding=padding, return_tensors=return_tensors))
         return self.info
 
     def show_data(self, n:Optional[int]=10, seed:Optional[int]=None):
@@ -79,11 +81,13 @@ class Info():
                  use_tokenizer:Optional[bool]=False,
                  tokenizer:Optional[Union[str,PreTrainedTokenizerBase]]=None,
                  tokenization_column:Optional[str]=None,
-                 max_sequence_length:Optional[int]=None, 
+                 max_sequence_length:Optional[int]=None,
+                 padding:Optional[bool]=True,
+                 return_tensors:Optional[str]=None,
                  **kwargs):
         self = cls()
         self.info = self.read_info(fname, sep, info_column_names, enc)
-        if use_tokenizer: self.tokenize(tokenization_column, tokenizer, max_sequence_length)
+        if use_tokenizer: self.tokenize(tokenization_column, tokenizer, max_sequence_length, padding=padding, return_tensors=return_tensors)
         return self.info
         
 
