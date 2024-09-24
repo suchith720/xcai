@@ -246,39 +246,42 @@ class OAKSamplerFeatTfm:
 
     @staticmethod
     def collate_data(batch:Dict, features:List):
-        batch['data_idx'] = torch.tensor([o['data_idx'] for o in features], dtype=torch.int64)
+        if 'data_idx' in features[0]:
+            batch['data_idx'] = torch.tensor([o['data_idx'] for o in features], dtype=torch.int64)
         batch['data_input_ids'] = torch.vstack([o['data_input_ids'] for o in features])
         batch['data_attention_mask'] = torch.vstack([o['data_attention_mask'] for o in features])
 
     @staticmethod
     def collate_labels(batch:Dict, features:List, n_labels:Optional[int]=1):
-        batch['plbl2data_data2ptr'] = torch.tensor([len(o['lbl2data_idx']) for o in features], dtype=torch.int64)
-        batch['plbl2data_idx'] = torch.tensor(list(chain(*[o['lbl2data_idx'] for o in features])), dtype=torch.int64)
-    
-        input_ids = torch.vstack(list(chain(*[o['lbl2data_input_ids'] for o in features])))
-        attention_mask = torch.vstack(list(chain(*[o['lbl2data_attention_mask'] for o in features])))
-    
-        indptr = torch.cat([ torch.zeros((1,), dtype=torch.int64), batch['plbl2data_data2ptr'].cumsum(dim=0)])
-        idx = torch.hstack([torch.randperm(n)[:n_labels]+offset for n,offset in zip(batch['plbl2data_data2ptr'], indptr)])
-    
-        batch['lbl2data_data2ptr'] = torch.clamp(batch['plbl2data_data2ptr'], max=n_labels)
-        batch['lbl2data_idx'] = batch['plbl2data_idx'][idx]
-        batch['lbl2data_attention_mask'] = attention_mask[idx]
-        batch['lbl2data_input_ids'] = input_ids[idx]
+        if 'lbl2data_idx' in features[0]:
+            batch['plbl2data_data2ptr'] = torch.tensor([len(o['lbl2data_idx']) for o in features], dtype=torch.int64)
+            batch['plbl2data_idx'] = torch.tensor(list(chain(*[o['lbl2data_idx'] for o in features])), dtype=torch.int64)
+        
+            input_ids = torch.vstack(list(chain(*[o['lbl2data_input_ids'] for o in features])))
+            attention_mask = torch.vstack(list(chain(*[o['lbl2data_attention_mask'] for o in features])))
+        
+            indptr = torch.cat([ torch.zeros((1,), dtype=torch.int64), batch['plbl2data_data2ptr'].cumsum(dim=0)])
+            idx = torch.hstack([torch.randperm(n)[:n_labels]+offset for n,offset in zip(batch['plbl2data_data2ptr'], indptr)])
+        
+            batch['lbl2data_data2ptr'] = torch.clamp(batch['plbl2data_data2ptr'], max=n_labels)
+            batch['lbl2data_idx'] = batch['plbl2data_idx'][idx]
+            batch['lbl2data_attention_mask'] = attention_mask[idx]
+            batch['lbl2data_input_ids'] = input_ids[idx]
 
     @staticmethod
     def collate_metadata(batch:Dict, features:List, meta_name:str, n_meta:Optional[int]=1):
-        batch[f'p{meta_name}2data_data2ptr'] = torch.tensor([len(o[f'{meta_name}2data_idx']) for o in features], dtype=torch.int64)
-        batch[f'p{meta_name}2data_idx'] = torch.tensor(list(chain(*[o[f'{meta_name}2data_idx'] for o in features])), dtype=torch.int64)
+        if f'{meta_name}2data_idx' in features[0]:
+            batch[f'p{meta_name}2data_data2ptr'] = torch.tensor([len(o[f'{meta_name}2data_idx']) for o in features], dtype=torch.int64)
+            batch[f'p{meta_name}2data_idx'] = torch.tensor(list(chain(*[o[f'{meta_name}2data_idx'] for o in features])), dtype=torch.int64)
+            
+            indptr = torch.cat([ torch.zeros((1,), dtype=torch.int64), batch[f'p{meta_name}2data_data2ptr'].cumsum(dim=0)])
+            idx = torch.hstack([torch.randperm(n)[:n_meta]+offset for n,offset in zip(batch[f'p{meta_name}2data_data2ptr'], indptr)])
         
-        indptr = torch.cat([ torch.zeros((1,), dtype=torch.int64), batch[f'p{meta_name}2data_data2ptr'].cumsum(dim=0)])
-        idx = torch.hstack([torch.randperm(n)[:n_meta]+offset for n,offset in zip(batch[f'p{meta_name}2data_data2ptr'], indptr)])
-    
-        batch[f'{meta_name}2data_data2ptr'] = torch.clamp(batch[f'p{meta_name}2data_data2ptr'], max=n_meta)
-        batch[f'{meta_name}2data_idx'] = batch[f'p{meta_name}2data_idx'][idx]
+            batch[f'{meta_name}2data_data2ptr'] = torch.clamp(batch[f'p{meta_name}2data_data2ptr'], max=n_meta)
+            batch[f'{meta_name}2data_idx'] = batch[f'p{meta_name}2data_idx'][idx]
 
     def __call__(self, features:List):
-        batch = {}
+        batch = BatchEncoding({})
         self.collate_data(batch, features)
         self.collate_labels(batch, features, n_labels=self.n_labels)
         if self.meta_name:
