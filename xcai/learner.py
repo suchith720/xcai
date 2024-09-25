@@ -1573,7 +1573,7 @@ def _inner_training_loop(
                     xm.mark_step()
                 break
 
-            if self.use_memory_aggressively:
+            if self.args.use_memory_aggressively:
                 del inputs
                 self.accelerator.free_memory()
                 
