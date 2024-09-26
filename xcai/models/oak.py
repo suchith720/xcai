@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['CrossAttention', 'NormCrossAttention', 'Encoder', 'OAK000', 'OAK001', 'Encoder002', 'OAK002', 'Encoder003', 'OAK003',
-           'Encoder004', 'OAK004', 'Encoder005', 'OAK005', 'Encoder006', 'OAK006', 'OAK007', 'OAK008']
+           'Encoder004', 'OAK004', 'Encoder005', 'OAK005', 'Encoder006', 'OAK006', 'OAK007', 'OAK008', 'OAK009']
 
 # %% ../../nbs/20_models.oak.ipynb 2
 import torch, re, inspect, pickle, os, torch.nn as nn, math
@@ -14,6 +14,7 @@ from transformers import (
     DistilBertForMaskedLM,
     DistilBertModel,
     DistilBertPreTrainedModel,
+    DistilBertConfig,
 )
 from transformers.utils.generic import ModelOutput
 from transformers.activations import get_activation
@@ -1203,6 +1204,100 @@ class OAK008(OAK003, DistilBertPreTrainedModel):
             lbl2data_o = encoder(data_input_ids=lbl2data_input_ids, data_attention_mask=lbl2data_attention_mask, 
                                  data_aug_meta_prefix=self.lbl2data_aug_meta_prefix, **lbl2data_meta_kwargs)
             lbl2data_o.rep = F.normalize(lbl2data_o.rep + self.label_embeddings(self.label_remap[lbl2data_idx]), dim=1)
+            
+            loss = self.compute_loss(data_o.fused_rep, lbl2data_o.rep,lbl2data_data2ptr,lbl2data_idx,
+                                     plbl2data_data2ptr,plbl2data_idx)
+
+            if self.use_query_loss:
+                loss += self.compute_loss(data_o.rep, lbl2data_o.rep,lbl2data_data2ptr,lbl2data_idx,
+                                          plbl2data_data2ptr,plbl2data_idx)
+
+            if self.use_calib_loss:
+                loss += self.calibration_loss(data_o.fused_rep, data_o.rep, lbl2data_o.rep,lbl2data_data2ptr,lbl2data_idx,
+                                              plbl2data_data2ptr,plbl2data_idx)
+            
+            loss += self.compute_meta_loss(data_o.fused_rep, lbl2data_o.rep, **kwargs)
+            
+            if self.use_fusion_loss:
+                loss += self.compute_fusion_loss(data_o.fused_rep, data_o.meta_repr, self.data_aug_meta_prefix, **kwargs)
+                loss += self.compute_fusion_loss(lbl2data_o.rep, lbl2data_o.meta_repr, self.lbl2data_aug_meta_prefix, **kwargs)
+            
+            
+        if not return_dict:
+            o = (data_o.logits,data_o.rep,data_o.fused_rep,lbl2data_o.logits,lbl2data_o.rep,lbl2data_o.fused_rep)
+            return ((loss,) + o) if loss is not None else o
+
+        return XCModelOutput(
+            loss=loss,
+            
+            data_repr=data_o.rep,
+            data_fused_repr=data_o.fused_rep,
+            
+            lbl2data_repr=lbl2data_o.rep,
+            lbl2data_fused_repr=lbl2data_o.fused_rep,
+        )
+        
+
+# %% ../../nbs/20_models.oak.ipynb 118
+class OAK009(OAK008, DistilBertPreTrainedModel):
+    
+    @delegates(OAK008.__init__)
+    def __init__(
+        self, 
+        config,
+        embed_dim:int,
+        **kwargs
+    ):
+        super().__init__(config, **kwargs)
+        self.transform = nn.Linear(config.dim, embed_dim)
+        self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head()
+
+    def init_transform(self):
+        self.transform.weight.data = torch.eye(self.transform.out_features, self.transform.in_features, 
+                                               dtype=self.transform.weight.dtype)
+
+    def forward(
+        self,
+        data_idx:Optional[torch.Tensor]=None,
+        data_input_ids:Optional[torch.Tensor]=None,
+        data_attention_mask:Optional[torch.Tensor]=None,
+        lbl2data_data2ptr:Optional[torch.Tensor]=None,
+        lbl2data_idx:Optional[torch.Tensor]=None,
+        lbl2data_input_ids:Optional[torch.Tensor]=None,
+        lbl2data_attention_mask:Optional[torch.Tensor]=None,
+        plbl2data_data2ptr:Optional[torch.Tensor]=None,
+        plbl2data_idx:Optional[torch.Tensor]=None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+        **kwargs
+    ):  
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        
+        if self.use_encoder_parallel: 
+            encoder = XCDataParallel(module=self.encoder)
+        else: encoder = self.encoder
+        
+        data_meta_kwargs = Parameters.from_feat_meta_aug_prefix('data', self.data_aug_meta_prefix, **kwargs)
+        data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask, 
+                         data_aug_meta_prefix=self.data_aug_meta_prefix, **data_meta_kwargs)
+
+        if data_o.rep is not None: 
+            data_o.rep = self.transform(data_o.rep)
+        if data_o.fused_rep is not None: 
+            data_o.fused_rep = self.transform(data_o.fused_rep)
+
+        loss = None; lbl2data_o = EncoderOutput()
+        if lbl2data_input_ids is not None:
+            lbl2data_meta_kwargs = Parameters.from_feat_meta_aug_prefix('lbl2data', self.lbl2data_aug_meta_prefix, **kwargs)
+            lbl2data_o = encoder(data_input_ids=lbl2data_input_ids, data_attention_mask=lbl2data_attention_mask, 
+                                 data_aug_meta_prefix=self.lbl2data_aug_meta_prefix, **lbl2data_meta_kwargs)
+            lbl2data_o.rep = F.normalize(lbl2data_o.rep + self.label_embeddings(self.label_remap[lbl2data_idx]), dim=1)
+
+            if lbl2data_o.rep is not None: 
+                lbl2data_o.rep = self.transform(lbl2data_o.rep)
+            if lbl2data_o.fused_rep is not None: 
+                lbl2data_o.fused_rep = self.transform(lbl2data_o.fused_rep)
             
             loss = self.compute_loss(data_o.fused_rep, lbl2data_o.rep,lbl2data_data2ptr,lbl2data_idx,
                                      plbl2data_data2ptr,plbl2data_idx)
