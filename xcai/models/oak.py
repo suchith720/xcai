@@ -1269,10 +1269,8 @@ class OAK009(OAK008, DistilBertPreTrainedModel):
         data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask)
         data_o.rep = F.normalize(data_o.rep + self.label_embeddings(self.label_remap[data_idx]), dim=1)
 
-        if data_o.rep is not None: 
-            data_o.rep = self.transform(data_o.rep)
-        if data_o.fused_rep is not None: 
-            data_o.fused_rep = self.transform(data_o.fused_rep)
+        if data_o.rep is not None: data_o.rep = F.normalize(self.transform(data_o.rep), dim=1)
+        if data_o.fused_rep is not None: data_o.fused_rep = F.normalize(self.transform(data_o.fused_rep), dim=1)
         
         return XCModelOutput(
             data_repr=data_o.rep,
@@ -1305,10 +1303,8 @@ class OAK009(OAK008, DistilBertPreTrainedModel):
         data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask, 
                          data_aug_meta_prefix=self.data_aug_meta_prefix, **data_meta_kwargs)
 
-        if data_o.rep is not None: 
-            data_o.rep = self.transform(data_o.rep)
-        if data_o.fused_rep is not None: 
-            data_o.fused_rep = self.transform(data_o.fused_rep)
+        if data_o.rep is not None: data_o.rep = F.normalize(self.transform(data_o.rep), dim=1)
+        if data_o.fused_rep is not None: data_o.fused_rep = F.normalize(self.transform(data_o.fused_rep), dim=1)
 
         loss = None; lbl2data_o = EncoderOutput()
         if lbl2data_input_ids is not None:
@@ -1317,10 +1313,8 @@ class OAK009(OAK008, DistilBertPreTrainedModel):
                                  data_aug_meta_prefix=self.lbl2data_aug_meta_prefix, **lbl2data_meta_kwargs)
             lbl2data_o.rep = F.normalize(lbl2data_o.rep + self.label_embeddings(self.label_remap[lbl2data_idx]), dim=1)
 
-            if lbl2data_o.rep is not None: 
-                lbl2data_o.rep = self.transform(lbl2data_o.rep)
-            if lbl2data_o.fused_rep is not None: 
-                lbl2data_o.fused_rep = self.transform(lbl2data_o.fused_rep)
+            if lbl2data_o.rep is not None: lbl2data_o.rep = F.normalize(self.transform(lbl2data_o.rep), dim=1)
+            if lbl2data_o.fused_rep is not None: lbl2data_o.fused_rep = F.normalize(self.transform(lbl2data_o.fused_rep), dim=1)
             
             loss = self.compute_loss(data_o.fused_rep, lbl2data_o.rep,lbl2data_data2ptr,lbl2data_idx,
                                      plbl2data_data2ptr,plbl2data_idx)
