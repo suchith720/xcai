@@ -1256,6 +1256,29 @@ class OAK009(OAK008, DistilBertPreTrainedModel):
         self.transform.weight.data = torch.eye(self.transform.out_features, self.transform.in_features, 
                                                dtype=self.transform.weight.dtype)
 
+    def get_label_representation(
+        self,
+        data_idx:Optional[torch.Tensor]=None,
+        data_input_ids:Optional[torch.Tensor]=None,
+        data_attention_mask:Optional[torch.Tensor]=None,
+        **kwargs
+    ):
+        if self.use_encoder_parallel: 
+            encoder = XCDataParallel(module=self.encoder)
+        else: encoder = self.encoder
+        data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask)
+        data_o.rep = F.normalize(data_o.rep + self.label_embeddings(self.label_remap[data_idx]), dim=1)
+
+        if data_o.rep is not None: 
+            data_o.rep = self.transform(data_o.rep)
+        if data_o.fused_rep is not None: 
+            data_o.fused_rep = self.transform(data_o.fused_rep)
+        
+        return XCModelOutput(
+            data_repr=data_o.rep,
+            data_fused_repr=data_o.fused_rep,
+        )
+
     def forward(
         self,
         data_idx:Optional[torch.Tensor]=None,
