@@ -2,7 +2,8 @@
 
 # %% auto 0
 __all__ = ['CrossAttention', 'NormCrossAttention', 'Encoder', 'OAK000', 'OAK001', 'Encoder002', 'OAK002', 'Encoder003', 'OAK003',
-           'Encoder004', 'OAK004', 'Encoder005', 'OAK005', 'Encoder006', 'OAK006', 'OAK007', 'OAK008', 'OAK009']
+           'Encoder004', 'OAK004', 'Encoder005', 'OAK005', 'Encoder006', 'OAK006', 'OAK007', 'OAK008', 'OAK009',
+           'Encoder010', 'OAK010']
 
 # %% ../../nbs/20_models.oak.ipynb 2
 import torch, re, inspect, pickle, os, torch.nn as nn, math
@@ -1347,4 +1348,70 @@ class OAK009(OAK008, DistilBertPreTrainedModel):
             lbl2data_repr=lbl2data_o.rep,
             lbl2data_fused_repr=lbl2data_o.fused_rep,
         )
+        
+
+# %% ../../nbs/20_models.oak.ipynb 129
+class Encoder010(Encoder003):
+
+    def __init__(
+        self, 
+        config,
+        n_clusters:int,
+        n_metadata:int,
+        **kwargs
+    ):
+        super().__init__(config, num_metadata=n_clusters, **kwargs)
+        self.pretrained_meta_embeddings = nn.Embedding(n_metadata, config.dim)
+        self.register_buffer("metadata_remap", torch.arange(n_metadata)%n_clusters, persistent=True)
+        self.post_init()
+
+    def set_metadata_remap(self, metadata_remap:torch.Tensor):
+        if metadata_remap.shape[0] != self.metadata_remap.shape[0]:
+            raise ValueError(f'Shape mismatch, `metadata_remap` should have {self.metadata_remap.shape[0]} elements.')
+        self.metadata_remap = metadata_remap
+
+    def fuse_meta_into_embeddings(self, data_repr:torch.Tensor, data_mask:torch.Tensor, meta_kwargs:Dict):
+        meta_repr = {}
+        
+        data_fused_repr, data_mask = data_repr.clone().view(-1, 1, self.config.dim), data_mask.view(-1, 1)
+        for m_key, m_args in meta_kwargs.items():
+            idx = torch.where(m_args['data2ptr'] > 0)[0]
+            meta_repr[m_key] = torch.empty(0, self.config.dim).to(data_repr)
+            
+            if len(idx):
+                m_idx,m_repr_mask = self.resize(m_args['idx'], m_args['data2ptr'][idx])
+                m_repr = F.normalize(self.meta_embeddings(self.metadata_remap[m_idx]) + self.pretrained_meta_embeddings(m_idx), dim=1)
+                
+                m_repr, m_repr_mask = m_repr.view(len(idx), -1, self.config.dim), m_repr_mask.bool().view(len(idx), -1)
+                meta_repr[m_key] = m_repr[m_repr_mask]
+                
+                fused_repr = self.cross_head(data_fused_repr[idx], data_mask[idx], m_repr, m_repr_mask)[0]
+                data_fused_repr[idx] += fused_repr
+                
+        return data_fused_repr.squeeze(), meta_repr
+    
+
+# %% ../../nbs/20_models.oak.ipynb 130
+class OAK010(OAK000, DistilBertPreTrainedModel):
+    use_generation,use_representation = False,True
+    _tied_weights_keys = ["encoder.distilbert"]
+
+    @delegates(OAK000.__init__)
+    def __init__(
+        self, 
+        config,
+        n_clusters:int,
+        n_metadata:int,
+        resize_length:Optional[int]=None,
+        **kwargs
+    ):
+        super().__init__(config, **kwargs)
+        self.encoder = Encoder010(config, n_clusters=n_clusters, n_metadata=n_metadata, resize_length=resize_length)
+        self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head()
+
+    def init_meta_embeddings(self):
+        self.encoder.init_meta_embeddings()
+
+    def remap_post_init(self):
+        self.distilbert = self.encoder.distilbert
         

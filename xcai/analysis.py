@@ -89,11 +89,12 @@ def get_decile_stats(pred_lbl:sparse.csr_matrix, data_lbl:sparse.csr_matrix, dat
 
 
 # %% ../nbs/16_analysis.ipynb 12
-def barplot(scores:Dict, title:Optional[str]='', ylabel:Optional[str]='', figsize:Optional[Tuple]=(15,10)):
+def barplot(scores:Dict, title:Optional[str]='', ylabel:Optional[str]='', figsize:Optional[Tuple]=(15,10), fname:Optional[str]=None):
     n_proc,n_split = len(scores),len(list(scores.values())[0][0])
     idx, width = np.arange(n_split), 0.8/n_proc
     
     fig, ax = plt.subplots(figsize=figsize)
+    ax.grid()
 
     shift = 0
     for proc,(info,values) in scores.items(): 
@@ -113,21 +114,23 @@ def barplot(scores:Dict, title:Optional[str]='', ylabel:Optional[str]='', figsiz
 
     ax.legend(fontsize=14)
     
+    if fname is not None: plt.savefig(fname)
+    
 
 # %% ../nbs/16_analysis.ipynb 13
-def decile_plot(preds:Dict, n_split:Optional[int]=5, topk:Optional[int]=5, metric:Optional[str]='P', 
-                figsize:Optional[Tuple]=(15,10), title:Optional[str]=''):
+def decile_plot(preds:Dict, data_lbl:sparse.csr_matrix, data_lbl_filterer:Optional[np.array]=None, 
+                n_split:Optional[int]=5, topk:Optional[int]=5, metric:Optional[str]='P', figsize:Optional[Tuple]=(15,10), 
+                title:Optional[str]='', fname:Optional[str]=None):
     scores = {}
 
     for method, pred in preds.items():
-        info, values = get_decile_stats(pred, block.test.dset.data.data_lbl, block.test.data_lbl_filterer, 
-                                        n_split=5, topk=5, metric='P')
+        info, values = get_decile_stats(pred, data_lbl, data_lbl_filterer, n_split=5, topk=5, metric='P')
         scores[method] = (info,values)
     
-    barplot(scores, title, f'{metric}@{topk}', figsize)
+    barplot(scores, title, f'{metric}@{topk}', figsize, fname)
     
 
-# %% ../nbs/16_analysis.ipynb 16
+# %% ../nbs/16_analysis.ipynb 22
 @typedispatch
 def get_pred_dset(pred:sparse.csr_matrix, block:XCDataBlock):
     data = MainXCDataset(block.test.dset.data.data_info, pred, block.test.dset.data.lbl_info, 
@@ -145,7 +148,7 @@ def get_pred_dset(pred:sparse.csr_matrix, dset:MainXCDataset):
     return MainXCDataset(dset.data_info, pred, dset.lbl_info, dset.data_lbl_filterer)
     
 
-# %% ../nbs/16_analysis.ipynb 22
+# %% ../nbs/16_analysis.ipynb 28
 @typedispatch
 def get_pred_sparse(out:XCPredictionOutput, n_lbl:int):
     pred_ptr = torch.concat([torch.zeros((1,), dtype=torch.long), out.pred_ptr.cumsum(dim=0)])
@@ -168,10 +171,10 @@ def get_output(fname:str, n_lbl:int, pred_type:Optional[str]='repr_output'):
     return preds, targ
     
 
-# %% ../nbs/16_analysis.ipynb 30
+# %% ../nbs/16_analysis.ipynb 36
 def html(text:str, c='green'): return f'<text style=color:{c}>{text}</text>'
 
-# %% ../nbs/16_analysis.ipynb 31
+# %% ../nbs/16_analysis.ipynb 37
 class TextColumns(Dataset):
     
     def __init__(self, x, pat='.*_text$'):
@@ -182,7 +185,7 @@ class TextColumns(Dataset):
         return {k:v for k,v in o.items() if re.match(self.pat, k)}
     
 
-# %% ../nbs/16_analysis.ipynb 32
+# %% ../nbs/16_analysis.ipynb 38
 def display_text(pred_dset:Dataset, data_dset:Dataset, idxs:List):
     color = [('red','green'), ('black','blue')]
     text = []
