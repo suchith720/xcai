@@ -6,7 +6,7 @@ __all__ = ['CFGS', 'TFMS', 'XCBlock', 'prepare_batch']
 # %% ../nbs/03_block.ipynb 2
 import numpy as np, re, inspect
 from typing import Optional, Dict
-from transformers import AutoTokenizer, BatchEncoding
+from transformers import AutoTokenizer, BatchEncoding, PreTrainedTokenizerBase
 
 from fastcore.meta import *
 
@@ -58,7 +58,8 @@ class XCBlock:
         for k in cfg['parameters']: 
             if k in kwargs: cfg['parameters'][k]=kwargs.pop(k)
 
-        tokz = AutoTokenizer.from_pretrained(cfg['parameters']['tokenizer'])
+        tokenizer = cfg['parameters']['tokenizer']
+        tokz = tokenizer if isinstance(tokenizer, PreTrainedTokenizerBase) else AutoTokenizer.from_pretrained(tokenizer) 
         cfg['parameters']['sep_tok'] = tokz.sep_token_id 
         cfg['parameters']['pad_tok'] = tokz.pad_token_id
         cfg['parameters']['batch_size'] = bsz
