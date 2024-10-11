@@ -33,6 +33,7 @@ PARAM = {
     'padding': False,
     'return_tensors': None,
     'sep': '->',
+    'prompt_func': None,
     
     # PadFeatTfm arguements
     #-------------------------

@@ -15,7 +15,7 @@ from itertools import chain
 from scipy import sparse
 from IPython.display import display
 from transformers import AutoTokenizer, PreTrainedTokenizerBase
-from typing import List, Dict, Union, Optional, Any
+from typing import List, Dict, Union, Optional, Any, Callable
 from torch.utils.data import Dataset
 import torch.nn.functional as F
 
@@ -52,13 +52,17 @@ class Info():
         return self.info
     
     def tokenize(self, tokenization_column:Union[int, str], tokenizer:Union[str, PreTrainedTokenizerBase], 
-                 max_sequence_length:Optional[int]=None, padding:Optional[bool]=True, return_tensors:Optional[str]=None):
+                 max_sequence_length:Optional[int]=None, padding:Optional[bool]=True, return_tensors:Optional[str]=None, 
+                 prompt_func:Optional[Callable]=None):
         if self.tokz is None: self.tokz = tokenizer if isinstance(tokenizer, PreTrainedTokenizerBase) else AutoTokenizer.from_pretrained(tokenizer)
         tokenization_column = list(self.info.keys())[0] if tokenization_column is None else tokenization_column
         if tokenization_column is None: logging.info(f'`tokenization_column` not given as input, so value set to {tokenization_column}.')
         if tokenization_column not in self.info: raise ValueError(f'`{tokenization_column}` is invalid `tokenization_column` value.')
-        self.info.update(self.tokz(self.info[tokenization_column], truncation=True, max_length=max_sequence_length, 
+
+        tokenization_text = self.info[tokenization_column] if prompt_func is None else [prompt_func(t) for t in self.info[tokenization_column]]
+        self.info.update(self.tokz(tokenization_text, truncation=True, max_length=max_sequence_length, 
                                    padding=padding, return_tensors=return_tensors))
+        
         return self.info
 
     def show_data(self, n:Optional[int]=10, seed:Optional[int]=None):
@@ -84,14 +88,17 @@ class Info():
                  max_sequence_length:Optional[int]=None,
                  padding:Optional[bool]=True,
                  return_tensors:Optional[str]=None,
+                 prompt_func:Optional[Callable]=None,
                  **kwargs):
         self = cls()
         self.info = self.read_info(fname, sep, info_column_names, enc)
-        if use_tokenizer: self.tokenize(tokenization_column, tokenizer, max_sequence_length, padding=padding, return_tensors=return_tensors)
+        if use_tokenizer: 
+            self.tokenize(tokenization_column, tokenizer, max_sequence_length, padding=padding, return_tensors=return_tensors, 
+                          prompt_func=prompt_func)
         return self.info
         
 
-# %% ../nbs/00_core.ipynb 18
+# %% ../nbs/00_core.ipynb 22
 class Filterer:
 
     @staticmethod
@@ -143,7 +150,7 @@ class Filterer:
 
         
 
-# %% ../nbs/00_core.ipynb 20
+# %% ../nbs/00_core.ipynb 24
 def get_tok_sparse(tokens:List, n_cols:Optional[int]=None):
     n_toks = torch.tensor([len(tok) for tok in tokens])
     tok_ptr = torch.concat([torch.zeros((1,), dtype=torch.long), n_toks.cumsum(dim=0)])
@@ -164,7 +171,7 @@ def get_tok_idf(dset:Dataset, field:Optional[str]='data_input_ids', n_cols:Optio
     return compute_inv_doc_freq(tok_sparse)
     
 
-# %% ../nbs/00_core.ipynb 22
+# %% ../nbs/00_core.ipynb 26
 def store_attr(names=None, self=None, but='', cast=False, store_args=None, is_none=True, **attrs):
     fr = sys._getframe(1)
     args = argnames(fr, True)
@@ -182,7 +189,7 @@ def store_attr(names=None, self=None, but='', cast=False, store_args=None, is_no
     return _store_attr(self, anno, is_none, **attrs)
     
 
-# %% ../nbs/00_core.ipynb 23
+# %% ../nbs/00_core.ipynb 27
 def _store_attr(self, anno, is_none, **attrs):
     stored = getattr(self, '__stored_args__', None)
     for n,v in attrs.items():
@@ -191,12 +198,12 @@ def _store_attr(self, anno, is_none, **attrs):
         if stored is not None: stored[n] = v
        
 
-# %% ../nbs/00_core.ipynb 24
+# %% ../nbs/00_core.ipynb 28
 def get_attr(x, attr:str):
     for a in attr.split('.'): x = getattr(x, a)
     return x
 
-# %% ../nbs/00_core.ipynb 25
+# %% ../nbs/00_core.ipynb 29
 def sorted_metric(keys:List, order:Optional[Dict]=None):
     order = {o.split('@')[0]:i for i,o in enumerate(keys)}
     def _suffix(x): return (int(x.split('_')[0]) , x.split('_')[1]) if '_' in x else (int(x),)
@@ -213,7 +220,7 @@ def display_metric(metrics, remove_prefix:Optional[bool]=True, order:Optional[Li
         metric,other = pd.DataFrame([metrics])[metric_keys]*scale, pd.DataFrame([metrics])[other_keys]
         display(pd.concat([metric, other], axis=1))
 
-# %% ../nbs/00_core.ipynb 26
+# %% ../nbs/00_core.ipynb 30
 def get_tensor_statistics(x:torch.Tensor):
     c = ['mean', 'std', '25', '50', '75']
     s = torch.cat([x.float().mean(dim=0, keepdim=True), 
@@ -228,14 +235,14 @@ def total_recall(inp_idx:torch.Tensor, n_inp:torch.Tensor, targ:sparse.csr_matri
     sc = inp.multiply(targ)/(targ.getnnz(axis=1)[:, None]*targ.shape[0])
     return sc.sum(), sc
 
-# %% ../nbs/00_core.ipynb 27
+# %% ../nbs/00_core.ipynb 31
 def get_best_model(mdir:str, pat:Optional[str]=r'^checkpoint-(\d+)'):
     nm = sorted([int(re.match(pat, o).group(1)) for o in os.listdir(mdir) if re.match(pat, o)])[-1]
     fname = f'{mdir}/checkpoint-{nm}/trainer_state.json'
     with open(fname, 'r') as file: mname = json.load(file)['best_model_checkpoint']
     return f'{mdir}/checkpoint-{nm}' if mname is None else mname
 
-# %% ../nbs/00_core.ipynb 28
+# %% ../nbs/00_core.ipynb 32
 def get_output_sparse(pred_idx, pred_ptr, pred_score, targ_idx, targ_ptr, n_lbl):
     n_data = pred_ptr.shape[0]
     
@@ -249,7 +256,7 @@ def get_output_sparse(pred_idx, pred_ptr, pred_score, targ_idx, targ_ptr, n_lbl)
     return pred, targ
 
 
-# %% ../nbs/00_core.ipynb 29
+# %% ../nbs/00_core.ipynb 33
 def get_output(data_lbl, pred_lbl):
     output = {
         'targ_idx': torch.tensor(data_lbl.indices),
@@ -260,7 +267,7 @@ def get_output(data_lbl, pred_lbl):
     }
     return output
 
-# %% ../nbs/00_core.ipynb 31
+# %% ../nbs/00_core.ipynb 35
 class ScoreFusion():
     
     def __init__(self, prop:Optional[np.array]=None, max_depth:Optional[int]=7):
@@ -303,7 +310,7 @@ class ScoreFusion():
         return beta*(res+score_a)+score_b
     
 
-# %% ../nbs/00_core.ipynb 33
+# %% ../nbs/00_core.ipynb 37
 def retain_randk(matrix:sparse.csr_matrix, topk:Optional[int]=3):
     data, indices, indptr = [], [], np.zeros_like(matrix.indptr)
     for i,row in tqdm(enumerate(matrix), total=matrix.shape[0]):
