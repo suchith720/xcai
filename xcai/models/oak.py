@@ -1417,11 +1417,24 @@ class OAK010(OAK000, DistilBertPreTrainedModel):
         
 
 # %% ../../nbs/20_models.oak.ipynb 140
-class Encoder011(Encoder010):
+class Encoder011(Encoder003):
     
-    def __init__(self, config, *args, **kwargs):
-        super().__init__(config, *args, **kwargs)
+    def __init__(
+        self, 
+        config, 
+        n_clusters:int,
+        n_metadata:int,
+        **kwargs
+    ):
+        super().__init__(config, num_metadata=n_clusters, **kwargs)
+        self.pretrained_meta_embeddings = nn.Embedding(n_clusters, config.dim)
+        self.register_buffer("metadata_remap", torch.arange(n_metadata)%n_clusters, persistent=True)
         self.post_init()
+
+    def set_metadata_remap(self, metadata_remap:torch.Tensor):
+        if metadata_remap.shape[0] != self.metadata_remap.shape[0]:
+            raise ValueError(f'Shape mismatch, `metadata_remap` should have {self.metadata_remap.shape[0]} elements.')
+        self.metadata_remap = metadata_remap
 
     def fuse_meta_into_embeddings(self, data_repr:torch.Tensor, data_mask:torch.Tensor, meta_kwargs:Dict):
         meta_repr = {}
