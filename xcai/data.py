@@ -225,6 +225,12 @@ class MetaXCDataset(BaseXCDataset):
     def _getitems(self, idxs:List):
         return MetaXCDataset(self.prefix, self.data_meta[idxs], self.lbl_meta, self.meta_info, 
                              self.n_data_meta_samples, self.n_lbl_meta_samples, self.meta_info_keys)
+
+    def _sample_meta_items(self, idxs:List):
+        assert max(idxs) < self.n_meta, f"indices should be less than {self.n_meta}"
+        meta_info = {k: [v[i] for i in idxs] for k,v in self.meta_info.items()}
+        return MetaXCDataset(self.prefix, self.data_meta[:, idxs], self.lbl_meta[:, idxs], meta_info, 
+                             self.n_data_meta_samples, self.n_lbl_meta_samples, self.meta_info_keys)
         
     @classmethod
     @delegates(MetaXCData.from_file)
@@ -288,7 +294,7 @@ def _verify_inputs(cls:MetaXCDataset):
         if cls.meta_info_keys is None: cls.meta_info_keys = list(cls.meta_info.keys())
             
 
-# %% ../nbs/02_data.ipynb 44
+# %% ../nbs/02_data.ipynb 47
 class MetaXCDatasets(dict):
 
     def __init__(self, meta:Dict):
@@ -296,7 +302,7 @@ class MetaXCDatasets(dict):
         for o in meta: setattr(self, o, meta[o])
         
 
-# %% ../nbs/02_data.ipynb 45
+# %% ../nbs/02_data.ipynb 48
 class XCDataset(BaseXCDataset):
 
     def __init__(self, data:MainXCDataset, **kwargs):
@@ -403,7 +409,7 @@ class XCDataset(BaseXCDataset):
                                                   meta_info_keys=self.meta[f'{meta_2}_meta'].meta_info_keys)
        
 
-# %% ../nbs/02_data.ipynb 57
+# %% ../nbs/02_data.ipynb 60
 class XCCollator:
 
     def __init__(self, tfms):
@@ -413,7 +419,7 @@ class XCCollator:
         return self.tfms(x)
         
 
-# %% ../nbs/02_data.ipynb 74
+# %% ../nbs/02_data.ipynb 77
 class BaseXCDataBlock:
 
     @delegates(DataLoader.__init__)
@@ -466,7 +472,7 @@ class BaseXCDataBlock:
         
         
 
-# %% ../nbs/02_data.ipynb 75
+# %% ../nbs/02_data.ipynb 78
 @patch
 def filterer(cls:BaseXCDataBlock, train:'BaseXCDataBlock', valid:'BaseXCDataBlock', fld:Optional[str]='identifier'):
     train_info, valid_info, lbl_info = train.dset.data.data_info, valid.dset.data.data_info, train.dset.data.lbl_info
@@ -498,7 +504,7 @@ def sample(cls:BaseXCDataBlock, pct:Optional[float]=0.2, n:Optional[int]=None, s
     return cls._getitems(rnd_idx[:cut])
     
 
-# %% ../nbs/02_data.ipynb 85
+# %% ../nbs/02_data.ipynb 88
 class XCDataBlock:
 
     def __init__(self, train:BaseXCDataBlock=None, valid:BaseXCDataBlock=None, test:BaseXCDataBlock=None):
