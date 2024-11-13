@@ -67,10 +67,10 @@ class CrossAttention(nn.Module):
         self.o = nn.Linear(in_features=config.dim, out_features=config.dim)
 
     def post_init(self):
-        self.q.weight.data = torch.eye(self.q.out_features, self.q.in_features, dtype=self.q.weight.dtype)
-        self.k.weight.data = torch.eye(self.k.out_features, self.k.in_features, dtype=self.k.weight.dtype)
-        self.v.weight.data = torch.eye(self.v.out_features, self.v.in_features, dtype=self.v.weight.dtype)
-        self.o.weight.data = torch.eye(self.o.out_features, self.o.in_features, dtype=self.o.weight.dtype)
+        torch.nn.init.eye_(self.q.weight)
+        torch.nn.init.eye_(self.k.weight)
+        torch.nn.init.eye_(self.v.weight)
+        torch.nn.init.eye_(self.o.weight)
 
     def forward(
         self, 
@@ -123,10 +123,8 @@ class RepresentationHead(nn.Module):
         self.post_init()
         
     def post_init(self):
-        self.transform.weight.data = torch.eye(self.transform.out_features, self.transform.in_features, 
-                                               dtype=self.transform.weight.dtype)
-        self.projector.weight.data = torch.eye(self.projector.out_features, self.projector.in_features, 
-                                               dtype=self.projector.weight.dtype)
+        torch.nn.init.eye_(self.transform.weight)
+        torch.nn.init.eye_(self.projector.weight)
         
     def forward(self, x:torch.Tensor):
         x = self.transform(x)
