@@ -3,7 +3,7 @@
 # %% auto 0
 __all__ = ['show_data', 'Info', 'Filterer', 'get_tok_sparse', 'compute_inv_doc_freq', 'get_tok_idf', 'store_attr', 'get_attr',
            'sorted_metric', 'display_metric', 'get_tensor_statistics', 'total_recall', 'get_best_model',
-           'get_output_sparse', 'get_output', 'ScoreFusion', 'retain_randk']
+           'get_output_sparse', 'get_output', 'ScoreFusion', 'retain_randk', 'random_topk', 'robustness_analysis']
 
 # %% ../nbs/00_core.ipynb 2
 import pandas as pd, numpy as np, logging, sys, re, os, torch, json
@@ -328,4 +328,41 @@ def retain_randk(matrix:sparse.csr_matrix, topk:Optional[int]=3):
     o = sparse.csr_matrix((data, indices, indptr), dtype=matrix.dtype)
     o.sort_indices()
     return o
+    
+
+# %% ../nbs/00_core.ipynb 39
+def random_topk(data_lbl, topk=5):
+    data,indices,indptr = [],[],[0]
+    for i,j in tqdm(zip(data_lbl.indptr, data_lbl.indptr[1:]), total=data_lbl.shape[0]):
+        idx = np.random.permutation(j-i)[:topk]
+        data.append(data_lbl.data[i:j][idx])
+        indices.append(data_lbl.indices[i:j][idx])
+        indptr.append(indptr[-1]+len(idx))
+    data = np.hstack(data)
+    indices = np.hstack(indices)
+    indptr = np.array(indptr)
+
+    o = sparse.csr_matrix((data,indices,indptr), shape=data_lbl.shape, dtype=np.float32)
+    o.sort_indices()
+    o.eliminate_zeros()
+    return o
+    
+
+# %% ../nbs/00_core.ipynb 40
+def robustness_analysis(block, meta_name:str, analysis_type:str='missing', pct:float=0.5, topk:int=3):
+    data_meta = random_topk(block.test.dset.meta[f'{meta_name}_meta'].data_meta, topk=topk)
+    
+    if analysis_type == 'noise':
+        mask = np.random.rand(len(data_meta.data)) < pct
+        data_meta.indices[mask] = np.random.randint(block.n_lbl, size=mask.sum())
+        data_meta.sort_indices()
+    elif analysis_type == 'missing':
+        data_meta.data[np.random.rand(len(data_meta.data)) < pct] = 0
+        data_meta.eliminate_zeros()
+    else:
+        raise ValueError(f'Invalid `analysis_type`: {analysis_type}.')
+        
+    lbl_meta = block.test.dset.meta.cat_meta.lbl_meta
+    block.test.dset.meta.cat_meta.update_meta_matrix(data_meta, lbl_meta)
+    return block
     
