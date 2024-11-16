@@ -14,7 +14,7 @@ from .data import *
 from .transform import *
 from .data_sampler import *
 
-from .config import PARAM, WIKISEEALSOTITLES, WIKITITLES, WIKISEEALSO, WIKIPEDIA, ORCAS
+from .config import PARAM, WIKISEEALSOTITLES, WIKITITLES, WIKISEEALSO, WIKIPEDIA, ORCAS, AMAZONTITLES131, AMAZON131, AMAZONTITLES
 
 # %% ../nbs/03_block.ipynb 5
 CFGS = {
@@ -23,6 +23,9 @@ CFGS = {
     'wikiseealso':WIKISEEALSO, 
     'wikipedia':WIKIPEDIA,
     'orcas': ORCAS,
+    'amazontitles131': AMAZONTITLES131,
+    'amazon131': AMAZON131,
+    'amazontitles': AMAZONTITLES,
 }
 
 TFMS = {
