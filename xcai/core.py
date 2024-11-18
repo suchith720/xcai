@@ -362,7 +362,7 @@ def robustness_analysis(block, meta_name:str, analysis_type:str='missing', pct:f
     else:
         raise ValueError(f'Invalid `analysis_type`: {analysis_type}.')
         
-    lbl_meta = block.test.dset.meta.cat_meta.lbl_meta
-    block.test.dset.meta.cat_meta.update_meta_matrix(data_meta, lbl_meta)
+    lbl_meta = block.test.dset.meta[f'{meta_name}_meta'].lbl_meta
+    block.test.dset.meta[f'{meta_name}_meta'].update_meta_matrix(data_meta, lbl_meta)
     return block
     
