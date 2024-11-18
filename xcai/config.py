@@ -945,11 +945,11 @@ def AMAZONTITLES131(data_dir):
                     'data_info': f'{data_dir}/{DATASETS["amazontitles131"]}/raw_data/train.raw.txt',
                     'lbl_info': f'{data_dir}/{DATASETS["amazontitles131"]}/raw_data/label.raw.txt',
                     'data_lbl_filterer': f'{data_dir}/{DATASETS["amazontitles131"]}/filter_labels_train.txt',
-                    'hlk_meta': {
-                        'prefix': 'hlk',
-                        'data_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/category_trn_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/category_lbl_X_Y.txt',
-                        'meta_info': f'{data_dir}/{DATASETS["amazontitles131"]}/raw_data/category.raw.txt'
+                    'cat_meta': {
+                        'prefix': 'cat',
+                        'data_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/categories_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/categories_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/{DATASETS["amazontitles131"]}/raw_data/categories.raw.txt'
                     },
                 },
             },
@@ -964,9 +964,9 @@ def AMAZONTITLES131(data_dir):
                     'data_lbl_filterer': f'{data_dir}/{DATASETS["amazontitles131"]}/filter_labels_train.txt',
                     'cat_meta': {
                         'prefix': 'cat',
-                        'data_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/category_trn_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/category_lbl_X_Y.txt',
-                        'meta_info': f'{data_dir}/{DATASETS["amazontitles131"]}/raw_data/category.raw.txt'
+                        'data_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/categories_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/categories_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/{DATASETS["amazontitles131"]}/raw_data/categories.raw.txt'
                     },
                 },
                 'test': {
@@ -976,9 +976,9 @@ def AMAZONTITLES131(data_dir):
                     'data_lbl_filterer': f'{data_dir}/{DATASETS["amazontitles131"]}/filter_labels_test.txt',
                     'cat_meta': {
                         'prefix': 'cat',
-                        'data_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/category_tst_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/category_lbl_X_Y.txt',
-                        'meta_info': f'{data_dir}/{DATASETS["amazontitles131"]}/raw_data/category.raw.txt',
+                        'data_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/categories_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/categories_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/{DATASETS["amazontitles131"]}/raw_data/categories.raw.txt',
                     },
                 },
             },
@@ -993,15 +993,15 @@ def AMAZONTITLES131(data_dir):
                     'data_lbl_filterer': f'{data_dir}/{DATASETS["amazontitles131"]}/filter_labels_train.txt',
                     'cat_meta': {
                         'prefix': 'cat',
-                        'data_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/category_trn_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/category_lbl_X_Y.txt',
-                        'meta_info': f'{data_dir}/{DATASETS["amazontitles131"]}/raw_data/category.raw.txt'
+                        'data_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/categories_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/categories_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/{DATASETS["amazontitles131"]}/raw_data/categories.raw.txt'
                     },
                     'lnk_meta': {
                         'prefix': 'lnk',
-                        'data_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/category_renee_trn_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/category_renee_lbl_X_Y.txt',
-                        'meta_info': f'{data_dir}/{DATASETS["amazontitles131"]}/raw_data/category.raw.txt'
+                        'data_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/categories_ngame_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/categories_ngame_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/{DATASETS["amazontitles131"]}/raw_data/categories.raw.txt'
                     },
                 },
                 'test': {
@@ -1011,15 +1011,15 @@ def AMAZONTITLES131(data_dir):
                     'data_lbl_filterer': f'{data_dir}/{DATASETS["amazontitles131"]}/filter_labels_test.txt',
                     'cat_meta': {
                         'prefix': 'cat',
-                        'data_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/category_tst_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/category_lbl_X_Y.txt',
-                        'meta_info': f'{data_dir}/{DATASETS["amazontitles131"]}/raw_data/category.raw.txt',
+                        'data_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/categories_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/categories_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/{DATASETS["amazontitles131"]}/raw_data/categories.raw.txt',
                     },
                     'lnk_meta': {
                         'prefix': 'lnk',
-                        'data_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/category_renee_tst_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/category_renee_lbl_X_Y.txt',
-                        'meta_info': f'{data_dir}/{DATASETS["amazontitles131"]}/raw_data/category.raw.txt',
+                        'data_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/categories_ngame_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/categories_ngame_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/{DATASETS["amazontitles131"]}/raw_data/categories.raw.txt',
                     },
                 },
             },
@@ -1034,9 +1034,9 @@ def AMAZONTITLES131(data_dir):
                     'data_lbl_filterer': f'{data_dir}/{DATASETS["amazontitles131"]}/filter_labels_train.txt',
                     'lnk_meta': {
                         'prefix': 'lnk',
-                        'data_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/category_renee_trn_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/category_renee_lbl_X_Y.txt',
-                        'meta_info': f'{data_dir}/{DATASETS["amazontitles131"]}/raw_data/category.raw.txt'
+                        'data_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/categories_ngame_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/categories_ngame_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/{DATASETS["amazontitles131"]}/raw_data/categories.raw.txt'
                     },
                 },
                 'test': {
@@ -1046,9 +1046,9 @@ def AMAZONTITLES131(data_dir):
                     'data_lbl_filterer': f'{data_dir}/{DATASETS["amazontitles131"]}/filter_labels_test.txt',
                     'lnk_meta': {
                         'prefix': 'lnk',
-                        'data_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/category_renee_tst_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/category_renee_lbl_X_Y.txt',
-                        'meta_info': f'{data_dir}/{DATASETS["amazontitles131"]}/raw_data/category.raw.txt',
+                        'data_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/categories_ngame_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/categories_ngame_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/{DATASETS["amazontitles131"]}/raw_data/categories.raw.txt',
                     },
                 },
             },
@@ -1083,11 +1083,11 @@ def AMAZON131(data_dir):
                     'data_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/train.raw.txt',
                     'lbl_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/label.raw.txt',
                     'data_lbl_filterer': f'{data_dir}/{DATASETS["amazon131"]}/filter_labels_train.txt',
-                    'hlk_meta': {
-                        'prefix': 'hlk',
-                        'data_meta': f'{data_dir}/{DATASETS["amazon131"]}/category_trn_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["amazon131"]}/category_lbl_X_Y.txt',
-                        'meta_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/category.raw.txt'
+                    'cat_meta': {
+                        'prefix': 'cat',
+                        'data_meta': f'{data_dir}/{DATASETS["amazon131"]}/categories_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/{DATASETS["amazon131"]}/categories_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/categories.raw.txt'
                     },
                 },
             },
@@ -1102,9 +1102,9 @@ def AMAZON131(data_dir):
                     'data_lbl_filterer': f'{data_dir}/{DATASETS["amazon131"]}/filter_labels_train.txt',
                     'cat_meta': {
                         'prefix': 'cat',
-                        'data_meta': f'{data_dir}/{DATASETS["amazon131"]}/category_trn_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["amazon131"]}/category_lbl_X_Y.txt',
-                        'meta_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/category.raw.txt'
+                        'data_meta': f'{data_dir}/{DATASETS["amazon131"]}/categories_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/{DATASETS["amazon131"]}/categories_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/categories.raw.txt'
                     },
                 },
                 'test': {
@@ -1114,9 +1114,9 @@ def AMAZON131(data_dir):
                     'data_lbl_filterer': f'{data_dir}/{DATASETS["amazon131"]}/filter_labels_test.txt',
                     'cat_meta': {
                         'prefix': 'cat',
-                        'data_meta': f'{data_dir}/{DATASETS["amazon131"]}/category_tst_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["amazon131"]}/category_lbl_X_Y.txt',
-                        'meta_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/category.raw.txt',
+                        'data_meta': f'{data_dir}/{DATASETS["amazon131"]}/categories_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/{DATASETS["amazon131"]}/categories_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/categories.raw.txt',
                     },
                 },
             },
@@ -1131,15 +1131,15 @@ def AMAZON131(data_dir):
                     'data_lbl_filterer': f'{data_dir}/{DATASETS["amazon131"]}/filter_labels_train.txt',
                     'cat_meta': {
                         'prefix': 'cat',
-                        'data_meta': f'{data_dir}/{DATASETS["amazon131"]}/category_trn_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["amazon131"]}/category_lbl_X_Y.txt',
-                        'meta_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/category.raw.txt'
+                        'data_meta': f'{data_dir}/{DATASETS["amazon131"]}/categories_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/{DATASETS["amazon131"]}/categories_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/categories.raw.txt'
                     },
                     'lnk_meta': {
                         'prefix': 'lnk',
-                        'data_meta': f'{data_dir}/{DATASETS["amazon131"]}/category_renee_trn_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["amazon131"]}/category_renee_lbl_X_Y.txt',
-                        'meta_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/category.raw.txt'
+                        'data_meta': f'{data_dir}/{DATASETS["amazon131"]}/categories_ngame_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/{DATASETS["amazon131"]}/categories_ngame_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/categories.raw.txt'
                     },
                 },
                 'test': {
@@ -1149,15 +1149,15 @@ def AMAZON131(data_dir):
                     'data_lbl_filterer': f'{data_dir}/{DATASETS["amazon131"]}/filter_labels_test.txt',
                     'cat_meta': {
                         'prefix': 'cat',
-                        'data_meta': f'{data_dir}/{DATASETS["amazon131"]}/category_tst_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["amazon131"]}/category_lbl_X_Y.txt',
-                        'meta_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/category.raw.txt',
+                        'data_meta': f'{data_dir}/{DATASETS["amazon131"]}/categories_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/{DATASETS["amazon131"]}/categories_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/categories.raw.txt',
                     },
                     'lnk_meta': {
                         'prefix': 'lnk',
-                        'data_meta': f'{data_dir}/{DATASETS["amazon131"]}/category_renee_tst_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["amazon131"]}/category_renee_lbl_X_Y.txt',
-                        'meta_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/category.raw.txt',
+                        'data_meta': f'{data_dir}/{DATASETS["amazon131"]}/categories_ngame_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/{DATASETS["amazon131"]}/categories_ngame_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/categories.raw.txt',
                     },
                 },
             },
@@ -1172,9 +1172,9 @@ def AMAZON131(data_dir):
                     'data_lbl_filterer': f'{data_dir}/{DATASETS["amazon131"]}/filter_labels_train.txt',
                     'lnk_meta': {
                         'prefix': 'lnk',
-                        'data_meta': f'{data_dir}/{DATASETS["amazon131"]}/category_renee_trn_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["amazon131"]}/category_renee_lbl_X_Y.txt',
-                        'meta_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/category.raw.txt'
+                        'data_meta': f'{data_dir}/{DATASETS["amazon131"]}/categories_ngame_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/{DATASETS["amazon131"]}/categories_ngame_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/categories.raw.txt'
                     },
                 },
                 'test': {
@@ -1184,9 +1184,9 @@ def AMAZON131(data_dir):
                     'data_lbl_filterer': f'{data_dir}/{DATASETS["amazon131"]}/filter_labels_test.txt',
                     'lnk_meta': {
                         'prefix': 'lnk',
-                        'data_meta': f'{data_dir}/{DATASETS["amazon131"]}/category_renee_tst_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["amazon131"]}/category_renee_lbl_X_Y.txt',
-                        'meta_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/category.raw.txt',
+                        'data_meta': f'{data_dir}/{DATASETS["amazon131"]}/categories_ngame_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/{DATASETS["amazon131"]}/categories_ngame_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/categories.raw.txt',
                     },
                 },
             },
@@ -1221,8 +1221,8 @@ def AMAZONTITLES(data_dir):
                     'data_info': f'{data_dir}/{DATASETS["amazontitles"]}/raw_data/train.raw.txt',
                     'lbl_info': f'{data_dir}/{DATASETS["amazontitles"]}/raw_data/label.raw.txt',
                     'data_lbl_filterer': f'{data_dir}/{DATASETS["amazontitles"]}/filter_labels_train.txt',
-                    'hlk_meta': {
-                        'prefix': 'hlk',
+                    'cat_meta': {
+                        'prefix': 'cat',
                         'data_meta': f'{data_dir}/{DATASETS["amazontitles"]}/category_trn_X_Y.txt',
                         'lbl_meta': f'{data_dir}/{DATASETS["amazontitles"]}/category_lbl_X_Y.txt',
                         'meta_info': f'{data_dir}/{DATASETS["amazontitles"]}/raw_data/category.raw.txt'
@@ -1275,8 +1275,8 @@ def AMAZONTITLES(data_dir):
                     },
                     'lnk_meta': {
                         'prefix': 'lnk',
-                        'data_meta': f'{data_dir}/{DATASETS["amazontitles"]}/category_renee_trn_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles"]}/category_renee_lbl_X_Y.txt',
+                        'data_meta': f'{data_dir}/{DATASETS["amazontitles"]}/category_ngame_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles"]}/category_ngame_lbl_X_Y.txt',
                         'meta_info': f'{data_dir}/{DATASETS["amazontitles"]}/raw_data/category.raw.txt'
                     },
                 },
@@ -1293,8 +1293,8 @@ def AMAZONTITLES(data_dir):
                     },
                     'lnk_meta': {
                         'prefix': 'lnk',
-                        'data_meta': f'{data_dir}/{DATASETS["amazontitles"]}/category_renee_tst_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles"]}/category_renee_lbl_X_Y.txt',
+                        'data_meta': f'{data_dir}/{DATASETS["amazontitles"]}/category_ngame_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles"]}/category_ngame_lbl_X_Y.txt',
                         'meta_info': f'{data_dir}/{DATASETS["amazontitles"]}/raw_data/category.raw.txt',
                     },
                 },
@@ -1310,8 +1310,8 @@ def AMAZONTITLES(data_dir):
                     'data_lbl_filterer': f'{data_dir}/{DATASETS["amazontitles"]}/filter_labels_train.txt',
                     'lnk_meta': {
                         'prefix': 'lnk',
-                        'data_meta': f'{data_dir}/{DATASETS["amazontitles"]}/category_renee_trn_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles"]}/category_renee_lbl_X_Y.txt',
+                        'data_meta': f'{data_dir}/{DATASETS["amazontitles"]}/category_ngame_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles"]}/category_ngame_lbl_X_Y.txt',
                         'meta_info': f'{data_dir}/{DATASETS["amazontitles"]}/raw_data/category.raw.txt'
                     },
                 },
@@ -1322,8 +1322,8 @@ def AMAZONTITLES(data_dir):
                     'data_lbl_filterer': f'{data_dir}/{DATASETS["amazontitles"]}/filter_labels_test.txt',
                     'lnk_meta': {
                         'prefix': 'lnk',
-                        'data_meta': f'{data_dir}/{DATASETS["amazontitles"]}/category_renee_tst_X_Y.txt',
-                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles"]}/category_renee_lbl_X_Y.txt',
+                        'data_meta': f'{data_dir}/{DATASETS["amazontitles"]}/category_ngame_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles"]}/category_ngame_lbl_X_Y.txt',
                         'meta_info': f'{data_dir}/{DATASETS["amazontitles"]}/raw_data/category.raw.txt',
                     },
                 },
