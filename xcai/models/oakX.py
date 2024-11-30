@@ -42,7 +42,7 @@ class Encoder(DistilBertPreTrainedModel):
         self.meta_head = RepresentationHead(config)
         self.cross_head = CrossAttention(config)
 
-        self.pretrained_meta_embeddings = nn.Embedding(num_metadata, config.dim, sparse=True)
+        self.pretrained_meta_embeddings = nn.Embedding(num_metadata, config.dim)
         
         self.ones = torch.ones(resize_length, dtype=torch.long, device=self.device) if resize_length is not None else None
         self.post_init()
@@ -173,6 +173,8 @@ class OAK000(nn.Module):
     def __init__(
         self, config,
         
+        num_metadata:int,
+        
         data_aug_meta_prefix:Optional[str]=None, 
         lbl2data_aug_meta_prefix:Optional[str]=None, 
 
@@ -207,12 +209,13 @@ class OAK000(nn.Module):
         store_attr('data_pred_meta_prefix,lbl2data_pred_meta_prefix')
         store_attr('data_aug_meta_prefix,lbl2data_aug_meta_prefix')
         store_attr('use_fusion_loss,use_query_loss,use_calib_loss,use_encoder_parallel')
-        
+
+        self.meta_embeddings = nn.Embedding(num_metadata, config.dim, sparse=True)
         self.rep_loss_fn = MultiTriplet(bsz=batch_size, tn_targ=num_batch_labels, margin=margin, n_negatives=num_negatives, 
                                         tau=tau, apply_softmax=apply_softmax, reduce='mean')
         self.cab_loss_fn = Calibration(margin=calib_margin, tau=calib_tau, n_negatives=calib_num_negatives, 
                                        apply_softmax=calib_apply_softmax, reduce='mean')
-        self.encoder, self.meta_embeddings = None, None
+        self.encoder = None
         
     def init_meta_embeddings(self):
         torch.nn.init.zeros_(self.meta_embeddings.weight)
@@ -318,11 +321,13 @@ class OAK000(nn.Module):
             data_repr=data_o.rep,
             data_fused_repr=data_o.fused_rep,
         )
-
+        
     def _get_encoder_meta_kwargs(self, feat:str, prefix:str, **kwargs):
         meta_kwargs = Parameters.from_feat_meta_aug_prefix(feat, prefix, **kwargs)
+        if f'{prefix}_idx' in meta_kwargs:
+            m_idx = meta_kwargs[f'{prefix}_idx']
+            if len(m_idx): meta_kwargs[f'{prefix}_meta_repr'] = self.meta_embeddings(m_idx)
         return meta_kwargs
-    
         
     def forward(
         self,
@@ -403,17 +408,9 @@ class OAK001(OAK000, DistilBertPreTrainedModel):
         resize_length:Optional[int]=None,
         **kwargs
     ):
-        super().__init__(config, **kwargs)
-        self.meta_embeddings = nn.Embedding(num_metadata, config.dim, sparse=True)
+        super().__init__(config, num_metadata=num_metadata, **kwargs)
         self.encoder = Encoder(config, num_metadata=num_metadata, resize_length=resize_length)
         self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head()
-
-    def _get_encoder_meta_kwargs(self, feat:str, prefix:str, **kwargs):
-        meta_kwargs = Parameters.from_feat_meta_aug_prefix(feat, prefix, **kwargs)
-        if f'{prefix}_idx' in meta_kwargs:
-            m_idx = meta_kwargs[f'{prefix}_idx']
-            if len(m_idx): meta_kwargs[f'{prefix}_meta_repr'] = self.meta_embeddings(m_idx)
-        return meta_kwargs
 
     def remap_post_init(self):
         self.distilbert = self.encoder.distilbert
@@ -763,32 +760,7 @@ class OAK005Encoder(Encoder):
         **kwargs
     ):
         super().__init__(config, **kwargs)
-
-    def resize(self, idx:torch.Tensor, num_inputs:torch.Tensor):
-        if torch.any(num_inputs == 0): raise ValueError("`num_inputs` should be non-zero positive integer.")
-        bsz, total_num_inputs = num_inputs.shape[0], idx.shape[0]
-        
-        self.ones = self.ones.to(idx.device)
-        ones = (
-            torch.ones(total_num_inputs, dtype=torch.long, device=idx.device) 
-            if self.ones is None or self.ones.shape[0] < total_num_inputs else self.ones[:total_num_inputs]
-        )
-        
-        max_num_inputs = num_inputs.max()
-        if (num_inputs == max_num_inputs).all():
-            return idx,ones
-        
-        xnum_inputs = max_num_inputs-num_inputs+1
-        
-        inputs_ptr = num_inputs.cumsum(dim=0)-1
-        repeat_inputs = ones.scatter(0, inputs_ptr, xnum_inputs)
-        
-        resized_idx = idx.repeat_interleave(repeat_inputs, dim=0)
-        
-        ignore_mask = ones.scatter(0, inputs_ptr, 0).repeat_interleave(repeat_inputs, dim=0).view(bsz, -1)
-        ignore_mask[:, -1] = 1; ignore_mask = ignore_mask.flatten()
-        
-        return resized_idx,ignore_mask
+        self.pretrained_meta_embeddings = None
 
     def fuse_meta_into_embeddings(self, data_repr:torch.Tensor, data_mask:torch.Tensor, meta_kwargs:Dict):
         meta_repr = {}
@@ -799,8 +771,8 @@ class OAK005Encoder(Encoder):
             meta_repr[m_key] = torch.empty(0, self.config.dim).to(data_repr)
             
             if len(idx):
-                m_idx,m_repr_mask = self.resize(m_args['idx'], m_args['data2ptr'][idx])
-                m_repr = F.normalize(self.pretrained_meta_embeddings(m_idx), dim=1)
+                m_idx,m_repr,m_repr_mask = self.resize(m_args['idx'], m_args['meta_repr'], m_args['data2ptr'][idx])
+                m_repr = F.normalize(m_repr, dim=1)
                 
                 m_repr, m_repr_mask = m_repr.view(len(idx), -1, self.config.dim), m_repr_mask.bool().view(len(idx), -1)
                 meta_repr[m_key] = m_repr[m_repr_mask]
@@ -824,14 +796,10 @@ class OAK005(OAK000, DistilBertPreTrainedModel):
         resize_length:Optional[int]=None,
         **kwargs
     ):
-        super().__init__(config, **kwargs)
+        super().__init__(config, num_metadata=num_metadata, **kwargs)
         self.encoder = OAK005Encoder(config, num_metadata=num_metadata, resize_length=resize_length)
         self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head()
-
-    def _get_encoder_meta_kwargs(self, feat:str, prefix:str, **kwargs):
-        meta_kwargs = Parameters.from_feat_meta_aug_prefix(feat, prefix, **kwargs)
-        return meta_kwargs
-
+        
     def remap_post_init(self):
         self.distilbert = self.encoder.distilbert
         
