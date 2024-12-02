@@ -105,7 +105,7 @@ class NVM009(NVEmbedModel):
                  *args, **kwargs):
         super().__init__(config, *args, **kwargs)
         store_attr('use_encoder_parallel')
-        self.encoder = NVM0XXEncoder(config)
+        self.encoder = NVM009Encoder(config)
         self.loss_fn = MultiTriplet(bsz=bsz, tn_targ=tn_targ, margin=margin, n_negatives=n_negatives, tau=tau, 
                                     apply_softmax=apply_softmax, reduce='mean')
         self.post_init()
