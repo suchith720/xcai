@@ -62,9 +62,8 @@ class XCBlock:
             if k in kwargs: cfg['parameters'][k]=kwargs.pop(k)
 
         tokenizer = cfg['parameters']['tokenizer']
-        tokz = tokenizer if isinstance(tokenizer, PreTrainedTokenizerBase) else AutoTokenizer.from_pretrained(tokenizer) 
-        cfg['parameters']['sep_tok'] = tokz.sep_token_id 
-        cfg['parameters']['pad_tok'] = tokz.pad_token_id
+        tokz = tokenizer if isinstance(tokenizer, PreTrainedTokenizerBase) else AutoTokenizer.from_pretrained(tokenizer)  
+        cfg['parameters']['pad_token'] = tokz.pad_token_id
         cfg['parameters']['batch_size'] = bsz
         
         collator = XCCollator(TfmPipeline([o(**cfg['parameters']) for o in TFMS[cfg['parameters']['transform_type']]]))
