@@ -537,6 +537,8 @@ class Encoder003(DistilBertPreTrainedModel):
             if len(meta_kwargs):
                 data_fused_repr, meta_repr = self.fuse_meta_into_embeddings(data_repr, meta_kwargs)
                 data_fused_repr = self.dr(data_fused_repr)
+
+        data_repr = F.normalize(data_repr, dim=1)
                 
         return EncoderOutput(
             rep=data_repr,
@@ -624,6 +626,8 @@ class Encoder004(DistilBertPreTrainedModel):
             if len(meta_kwargs):
                 data_fused_repr, meta_repr = self.fuse_meta_into_embeddings(data_repr, meta_kwargs)
                 data_fused_repr = self.dr(data_fused_repr)
+
+        data_repr = F.normalize(data_repr, dim=1)
                 
         return EncoderOutput(
             rep=data_repr,
