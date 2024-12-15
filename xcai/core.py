@@ -42,7 +42,7 @@ class Info():
     @staticmethod
     def _read_info(fname:str, sep:Optional[str]='->', info_column_names:Optional[List]=None, enc:Optional[str]='latin-1'):
         info = Info._read_text(fname, enc=enc)
-        info = list(zip(*[(o,) if sep is None else o.split(sep) for o in info]))
+        info = list(zip(*[(o,) if sep is None else o.split(sep, maxsplit=1) for o in info]))
         info_column_names = list(range(len(info))) if info_column_names is None else info_column_names
         if len(info_column_names) != len(info): raise ValueError(f'`info_column_names` and `info` should have same number of elements.')
         return {p:q for p,q in zip(info_column_names, info)}

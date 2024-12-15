@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['Encoder', 'OAK000', 'OAK001', 'Encoder002', 'OAK002', 'CrossAttention003', 'Encoder003', 'OAK003', 'Encoder004',
-           'OAK004']
+           'OAK004', 'Encoder005', 'OAK005']
 
 # %% ../../nbs/33_models.oakY.ipynb 2
 import torch, re, inspect, pickle, os, torch.nn as nn, math
@@ -733,3 +733,137 @@ class OAK004(OAK000, DistilBertPreTrainedModel):
         )
         
         
+
+# %% ../../nbs/33_models.oakY.ipynb 75
+class Encoder005(Encoder003):
+    
+    def __init__(
+        self, 
+        config:PretrainedConfig, 
+    ):
+        super().__init__(config)
+
+    def fuse_meta_into_embeddings(self, embed:torch.Tensor, meta_kwargs:Dict):
+        meta_repr, bsz = {}, embed.size(0)
+        
+        for m_key, m_args in meta_kwargs.items():
+            n_meta = m_args['data2ptr'].max()
+            assert torch.all(m_args['data2ptr'] == n_meta), f'All datapoints should have same number of metadata.'
+            
+            m_input_ids, m_attention_mask = m_args['input_ids'], m_args['attention_mask']
+            m_embed = self.meta_encode(input_ids=m_input_ids, attention_mask=m_attention_mask)
+            m_embed = m_embed + m_args['meta_repr']
+            
+            meta_repr[m_key] = m_embed
+                    
+            m_embed = m_embed.view(bsz, -1, self.config.dim)  
+            fused_embed = self.cross_head(embed, m_embed)
+            embed = embed + fused_embed
+               
+        return embed, meta_repr
+        
+
+# %% ../../nbs/33_models.oakY.ipynb 76
+class OAK005(OAK000, DistilBertPreTrainedModel):
+    use_generation,use_representation = False,True
+    _tied_weights_keys = ["encoder.dr_distilbert"]
+    _keys_to_ignore_on_load_missing = ["encoder.meta_distilbert"]
+
+    @delegates(OAK000.__init__)
+    def __init__(self, config, num_metadata:int, num_metadata_clusters:int, **kwargs):
+        super().__init__(config, **kwargs)
+        self.encoder = Encoder005(config)
+        
+        self.meta_embeddings = nn.Embedding(num_metadata_clusters, config.dim, sparse=True)
+        self.register_buffer("metadata_cluster_mapping", torch.arange(num_metadata)%num_metadata_clusters, persistent=True)
+        
+        self.post_init(); self.remap_post_init();
+
+    def init_meta_embeddings(self):
+        torch.nn.init.zeros_(self.meta_embeddings.weight)
+
+    def set_meta_embeddings(self, embed:torch.Tensor):
+        with torch.no_grad():
+            self.meta_embeddings.weight.copy_(embed)
+
+    def set_metadata_cluster_mapping(self, metadata_cluster_mapping:torch.Tensor):
+        if metadata_cluster_mapping.shape[0] != self.metadata_cluster_mapping.shape[0]:
+            raise ValueError(f'Shape mismatch, `metadata_cluster_mapping` should have {self.metadata_cluster_mapping.shape[0]} elements.')
+        with torch.no_grad():
+            self.metadata_cluster_mapping.copy_(metadata_cluster_mapping)
+
+    def init_retrieval_head(self):
+        self.encoder.dr_head.post_init()
+
+    def init_meta_encoder(self):
+        self.encoder.init_meta_encoder()
+
+    def remap_post_init(self):
+        self.distilbert = self.encoder.dr_distilbert
+
+    def _get_encoder_meta_kwargs(self, feat:str, prefix:str, **kwargs):
+        meta_kwargs = Parameters.from_feat_meta_aug_prefix(feat, prefix, **kwargs)
+        if f'{prefix}_idx' in meta_kwargs:
+            m_idx = meta_kwargs[f'{prefix}_idx']
+            if len(m_idx): meta_kwargs[f'{prefix}_meta_repr'] = self.meta_embeddings(self.metadata_cluster_mapping[m_idx])
+        return meta_kwargs
+
+    def forward(
+        self,
+        data_input_ids:Optional[torch.Tensor]=None,
+        data_attention_mask:Optional[torch.Tensor]=None,
+        lbl2data_data2ptr:Optional[torch.Tensor]=None,
+        lbl2data_idx:Optional[torch.Tensor]=None,
+        lbl2data_input_ids:Optional[torch.Tensor]=None,
+        lbl2data_attention_mask:Optional[torch.Tensor]=None,
+        plbl2data_data2ptr:Optional[torch.Tensor]=None,
+        plbl2data_idx:Optional[torch.Tensor]=None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+        **kwargs
+    ):  
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        
+        if self.use_encoder_parallel: 
+            encoder = XCDataParallel(module=self.encoder)
+        else: encoder = self.encoder
+        
+        data_meta_kwargs = self._get_encoder_meta_kwargs('data', self.data_aug_meta_prefix, **kwargs)
+        data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask, 
+                         data_aug_meta_prefix=self.data_aug_meta_prefix, **data_meta_kwargs)
+        
+        
+        loss = None; lbl2data_o = EncoderOutput()
+        if lbl2data_input_ids is not None:
+            lbl2data_meta_kwargs = self._get_encoder_meta_kwargs('lbl2data', self.lbl2data_aug_meta_prefix, **kwargs)
+            lbl2data_o = encoder(data_input_ids=lbl2data_input_ids, data_attention_mask=lbl2data_attention_mask, 
+                                 data_aug_meta_prefix=self.lbl2data_aug_meta_prefix, **lbl2data_meta_kwargs)
+            
+            loss = self.compute_loss(data_o.fused_rep, lbl2data_o.rep,lbl2data_data2ptr,lbl2data_idx,
+                                     plbl2data_data2ptr,plbl2data_idx)
+
+            if self.use_query_loss:
+                loss += self.compute_loss(data_o.rep, lbl2data_o.rep,lbl2data_data2ptr,lbl2data_idx,
+                                          plbl2data_data2ptr,plbl2data_idx)
+
+            if self.use_calib_loss:
+                loss += self.calibration_loss(data_o.fused_rep, data_o.rep, lbl2data_o.rep,lbl2data_data2ptr,lbl2data_idx,
+                                              plbl2data_data2ptr,plbl2data_idx)
+                
+        if not return_dict:
+            o = (data_o.logits,data_o.rep,data_o.fused_rep,lbl2data_o.logits,lbl2data_o.rep,lbl2data_o.fused_rep)
+            return ((loss,) + o) if loss is not None else o
+        
+        
+        return XCModelOutput(
+            loss=loss,
+            
+            data_repr=data_o.rep,
+            data_fused_repr=data_o.fused_rep,
+            
+            lbl2data_repr=lbl2data_o.rep,
+            lbl2data_fused_repr=lbl2data_o.fused_rep,
+        )
+
+    
