@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['Encoder', 'OAK000', 'OAK001', 'Encoder002', 'OAK002', 'CrossAttention003', 'Encoder003', 'OAK003', 'Encoder004',
-           'OAK004', 'Encoder005', 'OAK005']
+           'OAK004', 'Encoder005', 'OAK005', 'Encoder006', 'OAK006']
 
 # %% ../../nbs/33_models.oakY.ipynb 2
 import torch, re, inspect, pickle, os, torch.nn as nn, math
@@ -865,5 +865,104 @@ class OAK005(OAK000, DistilBertPreTrainedModel):
             lbl2data_repr=lbl2data_o.rep,
             lbl2data_fused_repr=lbl2data_o.fused_rep,
         )
+        
 
+# %% ../../nbs/33_models.oakY.ipynb 93
+class Encoder006(Encoder003):
     
+    def __init__(
+        self, 
+        config:PretrainedConfig,
+    ):
+        super().__init__(config)
+
+    def dr_encode(self, input_ids:torch.Tensor, attention_mask:torch.Tensor, **kwargs):
+        o = self.dr_distilbert(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            **kwargs
+        )
+        return F.normalize(Pooling.mean_pooling(o[0], attention_mask), dim=1)
+
+    def meta_encode(self, input_ids:torch.Tensor, attention_mask:torch.Tensor, **kwargs):
+        o = self.meta_distilbert(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            **kwargs
+        )
+        return F.normalize(Pooling.mean_pooling(o[0], attention_mask), dim=1)
+
+    def fuse_meta_into_embeddings(self, embed:torch.Tensor, meta_kwargs:Dict):
+        meta_repr, bsz = {}, embed.size(0)
+        
+        for m_key, m_args in meta_kwargs.items():
+            n_meta = m_args['data2ptr'].max()
+            assert torch.all(m_args['data2ptr'] == n_meta), f'All datapoints should have same number of metadata.'
+            
+            m_input_ids, m_attention_mask = m_args['input_ids'], m_args['attention_mask']
+            m_embed = self.meta_encode(input_ids=m_input_ids, attention_mask=m_attention_mask)
+
+            m_alpha = F.sigmoid(m_args['alpha']).unsqueeze(1)
+            m_embed = m_alpha * m_embed + (1 - m_alpha) * F.normalize(m_args['meta_repr'], dim=1)
+            
+            meta_repr[m_key] = m_embed
+                    
+            m_embed = m_embed.view(bsz, -1, self.config.dim)  
+            fused_embed = self.cross_head(embed, m_embed)
+            embed = embed + fused_embed
+               
+        return embed, meta_repr
+
+    def params_from_meta_aug_prefix(self, prefix:str, **kwargs):
+        inputs = {}
+        args = [arg for arg in kwargs if prefix is not None and re.match(f'^{prefix}.*_(input_ids|attention_mask|data2ptr|meta_repr|idx|alpha)$', arg)]
+        for arg in args:
+            meta,param = arg.split('_', maxsplit=1)
+            inputs.setdefault(meta, {})[param] = kwargs[arg]
+        return inputs
+
+    def forward(
+        self, 
+        data_input_ids: torch.Tensor, 
+        data_attention_mask: torch.Tensor,
+        data_aug_meta_prefix: Optional[str]=None,
+        data_type:Optional[str]=None,
+        data_unnormalized:Optional[bool]=False,
+        **kwargs
+    ):  
+        data_repr = self.dr_encode(data_input_ids, data_attention_mask)
+        
+        data_fused_repr = meta_repr = None
+        if data_aug_meta_prefix is not None:
+            meta_kwargs = self.params_from_meta_aug_prefix(data_aug_meta_prefix, **kwargs)
+            if len(meta_kwargs):
+                data_fused_repr, meta_repr = self.fuse_meta_into_embeddings(data_repr, meta_kwargs)
+                data_fused_repr = self.dr(data_fused_repr)
+                
+        return EncoderOutput(
+            rep=data_repr,
+            fused_rep=data_fused_repr,
+            meta_repr=meta_repr,
+        )
+        
+
+# %% ../../nbs/33_models.oakY.ipynb 94
+class OAK006(OAK005, DistilBertPreTrainedModel):
+    
+    @delegates(OAK005.__init__)
+    def __init__(self, config, num_metadata_clusters:int, **kwargs):
+        super().__init__(config, num_metadata_clusters=num_metadata_clusters, **kwargs)
+        self.encoder = Encoder006(config)
+        
+        self.alpha = nn.Parameter(torch.rand(num_metadata_clusters))
+        self.post_init(); self.remap_post_init();
+
+    def _get_encoder_meta_kwargs(self, feat:str, prefix:str, **kwargs):
+        meta_kwargs = Parameters.from_feat_meta_aug_prefix(feat, prefix, **kwargs)
+        if f'{prefix}_idx' in meta_kwargs:
+            m_idx = meta_kwargs[f'{prefix}_idx']
+            if len(m_idx): 
+                meta_kwargs[f'{prefix}_meta_repr'] = self.meta_embeddings(self.metadata_cluster_mapping[m_idx])
+                meta_kwargs[f'{prefix}_alpha'] = self.alpha[self.metadata_cluster_mapping[m_idx]]
+        return meta_kwargs
+
