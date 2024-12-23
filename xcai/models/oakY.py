@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['Encoder', 'OAK000', 'OAK001', 'Encoder002', 'OAK002', 'CrossAttention003', 'Encoder003', 'OAK003', 'Encoder004',
-           'OAK004', 'Encoder005', 'OAK005', 'Encoder006', 'OAK006']
+           'OAK004', 'Encoder005', 'OAK005', 'Encoder006', 'OAK006', 'OAK007']
 
 # %% ../../nbs/33_models.oakY.ipynb 2
 import torch, re, inspect, pickle, os, torch.nn as nn, math
@@ -966,3 +966,108 @@ class OAK006(OAK005, DistilBertPreTrainedModel):
                 meta_kwargs[f'{prefix}_alpha'] = self.alpha[self.metadata_cluster_mapping[m_idx]]
         return meta_kwargs
 
+
+# %% ../../nbs/33_models.oakY.ipynb 111
+class OAK007(OAK003, DistilBertPreTrainedModel):
+    
+    @delegates(OAK003.__init__)
+    def __init__(
+        self, 
+        config,
+        n_labels:int,
+        n_clusters:int,
+        **kwargs
+    ):
+        super().__init__(config, **kwargs)
+        self.label_embeddings = nn.Embedding(n_clusters, config.dim)
+        self.register_buffer("label_cluster_mapping", torch.arange(n_labels)%n_clusters, persistent=True)
+        self.post_init(); self.remap_post_init();
+
+    def init_label_embeddings(self):
+        torch.nn.init.zeros_(self.label_embeddings.weight)
+
+    def set_label_embeddings(self, embed:torch.Tensor):
+        with torch.no_grad():
+            self.label_embeddings.weight.copy_(embed)
+
+    def set_label_cluster_mapping(self, label_cluster_mapping:torch.Tensor):
+        if self.label_cluster_mapping.shape[0] != label_cluster_mapping.shape[0]:
+            raise ValueError(f'Shape mismatch, `label_cluster_mapping` should have {self.label_cluster_mapping.shape[0]} elements.')
+        with torch.no_grad():
+            self.label_cluster_mapping.copy_(label_cluster_mapping)
+
+    def get_label_representation(
+        self,
+        data_idx:Optional[torch.Tensor]=None,
+        data_input_ids:Optional[torch.Tensor]=None,
+        data_attention_mask:Optional[torch.Tensor]=None,
+        **kwargs
+    ):
+        if self.use_encoder_parallel: 
+            encoder = XCDataParallel(module=self.encoder)
+        else: encoder = self.encoder
+        data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask)
+        data_o.rep = F.normalize(data_o.rep + self.label_embeddings(self.label_cluster_mapping[data_idx]), dim=1)
+        return XCModelOutput(
+            data_repr=data_o.rep,
+            data_fused_repr=data_o.fused_rep,
+        )
+
+    def forward(
+        self,
+        data_idx:Optional[torch.Tensor]=None,
+        data_input_ids:Optional[torch.Tensor]=None,
+        data_attention_mask:Optional[torch.Tensor]=None,
+        lbl2data_data2ptr:Optional[torch.Tensor]=None,
+        lbl2data_idx:Optional[torch.Tensor]=None,
+        lbl2data_input_ids:Optional[torch.Tensor]=None,
+        lbl2data_attention_mask:Optional[torch.Tensor]=None,
+        plbl2data_data2ptr:Optional[torch.Tensor]=None,
+        plbl2data_idx:Optional[torch.Tensor]=None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+        **kwargs
+    ):  
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        
+        if self.use_encoder_parallel: 
+            encoder = XCDataParallel(module=self.encoder)
+        else: encoder = self.encoder
+        
+        data_meta_kwargs = Parameters.from_feat_meta_aug_prefix('data', self.data_aug_meta_prefix, **kwargs)
+        data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask, 
+                         data_aug_meta_prefix=self.data_aug_meta_prefix, **data_meta_kwargs)
+
+        loss = None; lbl2data_o = EncoderOutput()
+        if lbl2data_input_ids is not None:
+            lbl2data_meta_kwargs = Parameters.from_feat_meta_aug_prefix('lbl2data', self.lbl2data_aug_meta_prefix, **kwargs)
+            lbl2data_o = encoder(data_input_ids=lbl2data_input_ids, data_attention_mask=lbl2data_attention_mask, 
+                                 data_aug_meta_prefix=self.lbl2data_aug_meta_prefix, **lbl2data_meta_kwargs)
+            lbl2data_o.rep = F.normalize(lbl2data_o.rep + self.label_embeddings(self.label_cluster_mapping[lbl2data_idx]), dim=1)
+            
+            loss = self.compute_loss(data_o.fused_rep, lbl2data_o.rep,lbl2data_data2ptr,lbl2data_idx,
+                                     plbl2data_data2ptr,plbl2data_idx)
+
+            if self.use_query_loss:
+                loss += self.compute_loss(data_o.rep, lbl2data_o.rep,lbl2data_data2ptr,lbl2data_idx,
+                                          plbl2data_data2ptr,plbl2data_idx)
+
+            if self.use_calib_loss:
+                loss += self.calibration_loss(data_o.fused_rep, data_o.rep, lbl2data_o.rep,lbl2data_data2ptr,lbl2data_idx,
+                                              plbl2data_data2ptr,plbl2data_idx)
+                
+        if not return_dict:
+            o = (data_o.logits,data_o.rep,data_o.fused_rep,lbl2data_o.logits,lbl2data_o.rep,lbl2data_o.fused_rep)
+            return ((loss,) + o) if loss is not None else o
+
+        return XCModelOutput(
+            loss=loss,
+            
+            data_repr=data_o.rep,
+            data_fused_repr=data_o.fused_rep,
+            
+            lbl2data_repr=lbl2data_o.rep,
+            lbl2data_fused_repr=lbl2data_o.fused_rep,
+        )
+        

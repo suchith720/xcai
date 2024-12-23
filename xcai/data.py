@@ -8,6 +8,7 @@ __all__ = ['MainXCData', 'MetaXCData', 'BaseXCDataset', 'MainXCDataset', 'MetaXC
 
 # %% ../nbs/02_data.ipynb 3
 from scipy import sparse
+from itertools import chain
 from tqdm.auto import tqdm
 import torch, inspect, numpy as np, pandas as pd, torch.nn.functional as F
 from IPython.display import display
@@ -113,6 +114,41 @@ class BaseXCDataset(Dataset):
         if topk is not None: 
             curr_data_lbl = retain_topk(curr_data_lbl, k=topk)
         return curr_data_lbl
+
+    def get_info(self, prefix, idxs, info, info_keys):
+        x = dict()
+        for k,v in info.items():
+            if k in info_keys:
+                if isinstance(v, np.ndarray) or isinstance(v, torch.Tensor):
+                    o = v[idxs]
+                    if isinstance(o, np.ndarray): o = torch.from_numpy(o)
+                    x[f'{prefix}_{k}'] = o
+                else:
+                    x[f'{prefix}_{k}'] = [v[idx] for idx in idxs]
+        return x
+
+    def extract_items(self, prefix:str, data_lbl:List, idxs:List, n_samples:int, n_s_samples:int, oversample:bool, 
+                      info:Dict, info_keys:List):
+        x, entity = dict(), prefix.split('2')[-1]
+        
+        x[f'p{prefix}_idx'] = [data_lbl[idx] for idx in idxs]
+        if n_samples: 
+            x[f'p{prefix}_idx'] = [[o[i] for i in np.random.permutation(len(o))[:n_samples]] for o in x[f'p{prefix}_idx']]
+        x[f'p{prefix}_{entity}2ptr'] = torch.tensor([len(o) for o in x[f'p{prefix}_idx']], dtype=torch.int64)
+
+        if oversample:
+            x[f'{prefix}_idx'] = [np.random.choice(o, size=n_s_samples) if len(o) else [] for o in x[f'p{prefix}_idx']]
+        else:
+            x[f'{prefix}_idx'] = [[o[i] for i in np.random.permutation(len(o))[:n_s_samples]] for o in x[f'p{prefix}_idx']]
+        x[f'{prefix}_{entity}2ptr'] = torch.tensor([len(o) for o in x[f'{prefix}_idx']], dtype=torch.int64)
+        
+        x[f'{prefix}_idx'] = torch.tensor(list(chain(*x[f'{prefix}_idx'])), dtype=torch.int64)
+        x[f'p{prefix}_idx'] = torch.tensor(list(chain(*x[f'p{prefix}_idx'])), dtype=torch.int64)
+        
+        if info is not None:
+            x.update(self.get_info(prefix, x[f'{prefix}_idx'], info, info_keys))
+            
+        return x
             
 
 # %% ../nbs/02_data.ipynb 17
@@ -135,8 +171,9 @@ class MainXCDataset(BaseXCDataset):
         
     @classmethod
     @delegates(MainXCData.from_file)
-    def from_file(cls, n_lbl_samples:Optional[int]=None, lbl_info_keys:Optional[List]=None, **kwargs):
-        return cls(**MainXCData.from_file(**kwargs), n_lbl_samples=n_lbl_samples, lbl_info_keys=lbl_info_keys)
+    def from_file(cls, n_lbl_samples:Optional[int]=None, data_info_keys:Optional[List]=None, lbl_info_keys:Optional[List]=None, **kwargs):
+        return cls(**MainXCData.from_file(**kwargs), n_lbl_samples=n_lbl_samples, 
+                   data_info_keys=data_info_keys, lbl_info_keys=lbl_info_keys)
         
 
 # %% ../nbs/02_data.ipynb 18
@@ -180,8 +217,9 @@ def __getitem__(cls:MainXCDataset, idx:int):
 def _getitems(cls:MainXCDataset, idxs:List):
     return MainXCDataset(
         {k:[v[idx] for idx in idxs] for k,v in cls.data_info.items()}, 
-        cls.data_lbl[idxs] if cls.data_lbl is not None else None, cls.lbl_info, 
-        Filterer.sample(cls.data_lbl_filterer, sz=cls.data_lbl.shape, idx=idxs) if cls.data_lbl_filterer is not None else None,
+        data_lbl=cls.data_lbl[idxs] if cls.data_lbl is not None else None, 
+        lbl_info=cls.lbl_info, 
+        data_lbl_filterer=Filterer.sample(cls.data_lbl_filterer, sz=cls.data_lbl.shape, idx=idxs) if cls.data_lbl_filterer is not None else None,
         n_lbl_samples=cls.n_lbl_samples,
         data_info_keys=cls.data_info_keys,
         lbl_info_keys=cls.lbl_info_keys,
@@ -300,6 +338,14 @@ class MetaXCDatasets(dict):
     def __init__(self, meta:Dict):
         super().__init__(meta)
         for o in meta: setattr(self, o, meta[o])
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key, value)
+        setattr(self, key, value)
+
+    def __delitem__(self, key):
+        super().__delitem__(key)
+        delattr(self, key)
         
 
 # %% ../nbs/02_data.ipynb 48
@@ -310,12 +356,12 @@ class XCDataset(BaseXCDataset):
         self.data, self.meta = data, MetaXCDatasets({k:kwargs[k] for k in self.get_meta_args(**kwargs) if isinstance(kwargs[k], MetaXCDataset)})
         self._verify_inputs()
 
-    def _getitems(self, idxs:List):
-        return XCDataset(self.data._getitems(idxs), **{k:meta._getitems(idxs) for k,meta in self.meta.items()})
-
     @staticmethod
     def get_meta_args(**kwargs):
         return [k for k in kwargs if re.match(r'.*_meta$', k)]
+        
+    def _getitems(self, idxs:List):
+        return XCDataset(self.data._getitems(idxs), **{k:meta._getitems(idxs) for k,meta in self.meta.items()})
         
     @classmethod
     @delegates(MainXCDataset.from_file)
@@ -328,9 +374,10 @@ class XCDataset(BaseXCDataset):
     def _verify_inputs(self):
         self.n_data, self.n_lbl = self.data.n_data, self.data.n_lbl
         if len(self.meta):
-            self.n_meta = self.meta[list(self.meta.keys())[0]].n_meta
+            self.n_meta = len(self.meta)
             for meta in self.meta.values():
-                if meta.n_data != self.n_data: raise ValueError(f'`meta`({meta.n_data}) and `data`({self.n_data}) should have the same number of datapoints.')
+                if meta.n_data != self.n_data: 
+                    raise ValueError(f'`meta`({meta.n_data}) and `data`({self.n_data}) should have the same number of datapoints.')
                 if self.n_lbl is not None and meta.n_lbl != self.n_lbl: 
                     raise ValueError(f'`meta`({meta.n_lbl}) and `data`({self.n_lbl}) should have the same number of labels.')
 
