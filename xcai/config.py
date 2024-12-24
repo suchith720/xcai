@@ -1061,7 +1061,36 @@ def AMAZONTITLES131(data_dir):
                 },
             },
             'parameters': PARAM,
-        }, 
+        },
+        'data_img' : {
+            'path': {
+                'train': {
+                    'data_lbl': f'{data_dir}/{DATASETS["amazon131"]}/trn_X_Y.txt',
+                    'data_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/train.raw.txt',
+                    'lbl_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/label.raw.txt',
+                    'data_lbl_filterer': f'{data_dir}/{DATASETS["amazon131"]}/filter_labels_train.txt',
+                    'img_meta': {
+                        'prefix': 'img',
+                        'data_meta': f'{data_dir}/{DATASETS["amazon131"]}/images_trn_X_Y.npz',
+                        'lbl_meta': f'{data_dir}/{DATASETS["amazon131"]}/images_lbl_X_Y.npz',
+                        'meta_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/images.raw.txt'
+                    },
+                },
+                'test': {
+                    'data_lbl': f'{data_dir}/{DATASETS["amazon131"]}/tst_X_Y.txt',
+                    'data_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/test.raw.txt',
+                    'lbl_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/label.raw.txt',
+                    'data_lbl_filterer': f'{data_dir}/{DATASETS["amazon131"]}/filter_labels_test.txt',
+                    'img_meta': {
+                        'prefix': 'img',
+                        'data_meta': f'{data_dir}/{DATASETS["amazon131"]}/images_tst_X_Y.npz',
+                        'lbl_meta': f'{data_dir}/{DATASETS["amazon131"]}/images_lbl_X_Y.npz',
+                        'meta_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/images.raw.txt',
+                    },
+                },
+            },
+            'parameters': PARAM,
+        },
     }
 
 # %% ../nbs/25_config.ipynb 23
@@ -1195,35 +1224,6 @@ def AMAZON131(data_dir):
                         'data_meta': f'{data_dir}/{DATASETS["amazon131"]}/categories_ngame_tst_X_Y.txt',
                         'lbl_meta': f'{data_dir}/{DATASETS["amazon131"]}/categories_ngame_lbl_X_Y.txt',
                         'meta_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/categories.raw.txt',
-                    },
-                },
-            },
-            'parameters': PARAM,
-        },
-        'data_img' : {
-            'path': {
-                'train': {
-                    'data_lbl': f'{data_dir}/{DATASETS["amazon131"]}/trn_X_Y.txt',
-                    'data_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/train.raw.txt',
-                    'lbl_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/label.raw.txt',
-                    'data_lbl_filterer': f'{data_dir}/{DATASETS["amazon131"]}/filter_labels_train.txt',
-                    'img_meta': {
-                        'prefix': 'img',
-                        'data_meta': f'{data_dir}/{DATASETS["amazon131"]}/images_trn_X_Y.npz',
-                        'lbl_meta': f'{data_dir}/{DATASETS["amazon131"]}/images_lbl_X_Y.npz',
-                        'meta_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/images.raw.txt'
-                    },
-                },
-                'test': {
-                    'data_lbl': f'{data_dir}/{DATASETS["amazon131"]}/tst_X_Y.txt',
-                    'data_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/test.raw.txt',
-                    'lbl_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/label.raw.txt',
-                    'data_lbl_filterer': f'{data_dir}/{DATASETS["amazon131"]}/filter_labels_test.txt',
-                    'img_meta': {
-                        'prefix': 'img',
-                        'data_meta': f'{data_dir}/{DATASETS["amazon131"]}/images_tst_X_Y.npz',
-                        'lbl_meta': f'{data_dir}/{DATASETS["amazon131"]}/images_lbl_X_Y.npz',
-                        'meta_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/images.raw.txt',
                     },
                 },
             },
