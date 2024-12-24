@@ -1608,19 +1608,19 @@ class OAK013(OAK008, DistilBertPreTrainedModel):
         self.encoder.init_meta_encoder()
         
 
-# %% ../../nbs/20_models.oak.ipynb 174
+# %% ../../nbs/20_models.oak.ipynb 175
 class Encoder014(Encoder013):
 
     def __init__(
-        self, 
+        self,
         config,
-        n_clusters:int,
+        n_meta_clusters:int,
         n_metadata:int,
         **kwargs
     ):
-        super().__init__(config, num_metadata=n_clusters, **kwargs)
-        self.pretrained_meta_embeddings = nn.Embedding(n_clusters, config.dim)
-        self.register_buffer("metadata_remap", torch.arange(n_metadata)%n_clusters, persistent=True)
+        super().__init__(config, num_metadata=n_meta_clusters, **kwargs)
+        self.pretrained_meta_embeddings = nn.Embedding(n_meta_clusters, config.dim)
+        self.register_buffer("metadata_remap", torch.arange(n_metadata)%n_meta_clusters, persistent=True)
         self.post_init()
 
     def set_metadata_remap(self, metadata_remap:torch.Tensor):
@@ -1652,7 +1652,7 @@ class Encoder014(Encoder013):
         return data_fused_repr.squeeze(), meta_repr
         
 
-# %% ../../nbs/20_models.oak.ipynb 175
+# %% ../../nbs/20_models.oak.ipynb 176
 class OAK014(OAK013, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -1663,12 +1663,12 @@ class OAK014(OAK013, DistilBertPreTrainedModel):
         self, 
         config,
         n_metadata:int,
-        n_clusters:int,
+        n_meta_clusters:int,
         resize_length:Optional[int]=None,
         **kwargs
     ):
-        super().__init__(config, n_clusters=n_clusters, num_metadata=n_metadata, resize_length=resize_length, **kwargs)
-        self.encoder = Encoder014(config, n_metadata=n_metadata, n_clusters=n_clusters, resize_length=resize_length)
+        super().__init__(config, num_metadata=n_metadata, resize_length=resize_length, **kwargs)
+        self.encoder = Encoder014(config, n_metadata=n_metadata, n_meta_clusters=n_meta_clusters, resize_length=resize_length)
         self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head()
         
         
