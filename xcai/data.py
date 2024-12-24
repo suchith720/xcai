@@ -174,31 +174,25 @@ class MainXCDataset(BaseXCDataset):
     def from_file(cls, n_lbl_samples:Optional[int]=None, data_info_keys:Optional[List]=None, lbl_info_keys:Optional[List]=None, **kwargs):
         return cls(**MainXCData.from_file(**kwargs), n_lbl_samples=n_lbl_samples, 
                    data_info_keys=data_info_keys, lbl_info_keys=lbl_info_keys)
+
+    def _store_indices(cls):
+        if cls.data_lbl is not None: cls.curr_data_lbl = [o.indices.tolist() for o in cls.data_lbl]
+
+    def _verify_inputs(cls):
+        cls.n_data = cls._verify_info(cls.data_info)
+        if cls.data_info_keys is None: cls.data_info_keys = list(cls.data_info.keys())
+        if cls.data_lbl is not None:
+            if cls.n_data != cls.data_lbl.shape[0]:
+                raise ValueError(f'`data_info`({cls.n_data}) should have same number of datapoints as `data_lbl`({cls.data_lbl.shape[0]})')
+            cls.n_lbl = cls.data_lbl.shape[1]
+            if cls.lbl_info is not None:
+                n_lbl = cls._verify_info(cls.lbl_info)
+                if n_lbl != cls.data_lbl.shape[1]:
+                    raise ValueError(f'`lbl_info`({n_lbl}) should have same number of labels as `data_lbl`({cls.data_lbl.shape[1]})')
+                if cls.lbl_info_keys is None: cls.lbl_info_keys = list(cls.lbl_info.keys())
         
 
 # %% ../nbs/02_data.ipynb 18
-@patch
-def _store_indices(cls:MainXCDataset):
-    if cls.data_lbl is not None: cls.curr_data_lbl = [o.indices.tolist() for o in cls.data_lbl]
-
-
-# %% ../nbs/02_data.ipynb 19
-@patch
-def _verify_inputs(cls:MainXCDataset):
-    cls.n_data = cls._verify_info(cls.data_info)
-    if cls.data_info_keys is None: cls.data_info_keys = list(cls.data_info.keys())
-    if cls.data_lbl is not None:
-        if cls.n_data != cls.data_lbl.shape[0]:
-            raise ValueError(f'`data_info`({cls.n_data}) should have same number of datapoints as `data_lbl`({cls.data_lbl.shape[0]})')
-        cls.n_lbl = cls.data_lbl.shape[1]
-        if cls.lbl_info is not None:
-            n_lbl = cls._verify_info(cls.lbl_info)
-            if n_lbl != cls.data_lbl.shape[1]:
-                raise ValueError(f'`lbl_info`({n_lbl}) should have same number of labels as `data_lbl`({cls.data_lbl.shape[1]})')
-            if cls.lbl_info_keys is None: cls.lbl_info_keys = list(cls.lbl_info.keys())
-                
-
-# %% ../nbs/02_data.ipynb 20
 @patch
 def __getitem__(cls:MainXCDataset, idx:int):
     x = {f'data_{k}': v[idx] for k,v in cls.data_info.items() if k in cls.data_info_keys}
@@ -212,7 +206,7 @@ def __getitem__(cls:MainXCDataset, idx:int):
     return x
     
 
-# %% ../nbs/02_data.ipynb 22
+# %% ../nbs/02_data.ipynb 20
 @patch
 def _getitems(cls:MainXCDataset, idxs:List):
     return MainXCDataset(
@@ -225,7 +219,7 @@ def _getitems(cls:MainXCDataset, idxs:List):
         lbl_info_keys=cls.lbl_info_keys,
     )
 
-# %% ../nbs/02_data.ipynb 31
+# %% ../nbs/02_data.ipynb 29
 class MetaXCDataset(BaseXCDataset):
 
     def __init__(self,
@@ -315,7 +309,7 @@ class MetaXCDataset(BaseXCDataset):
             display(df)
     
 
-# %% ../nbs/02_data.ipynb 33
+# %% ../nbs/02_data.ipynb 31
 @patch
 def _verify_inputs(cls:MetaXCDataset):
     cls.n_data,cls.n_meta = cls.data_meta.shape[0],cls.data_meta.shape[1]
@@ -332,7 +326,7 @@ def _verify_inputs(cls:MetaXCDataset):
         if cls.meta_info_keys is None: cls.meta_info_keys = list(cls.meta_info.keys())
             
 
-# %% ../nbs/02_data.ipynb 47
+# %% ../nbs/02_data.ipynb 45
 class MetaXCDatasets(dict):
 
     def __init__(self, meta:Dict):
@@ -348,7 +342,7 @@ class MetaXCDatasets(dict):
         delattr(self, key)
         
 
-# %% ../nbs/02_data.ipynb 48
+# %% ../nbs/02_data.ipynb 46
 class XCDataset(BaseXCDataset):
 
     def __init__(self, data:MainXCDataset, **kwargs):
@@ -456,7 +450,7 @@ class XCDataset(BaseXCDataset):
                                                   meta_info_keys=self.meta[f'{meta_2}_meta'].meta_info_keys)
        
 
-# %% ../nbs/02_data.ipynb 60
+# %% ../nbs/02_data.ipynb 58
 class XCCollator:
 
     def __init__(self, tfms):
@@ -466,7 +460,7 @@ class XCCollator:
         return self.tfms(x)
         
 
-# %% ../nbs/02_data.ipynb 77
+# %% ../nbs/02_data.ipynb 75
 class BaseXCDataBlock:
 
     @delegates(DataLoader.__init__)
@@ -519,7 +513,7 @@ class BaseXCDataBlock:
         
         
 
-# %% ../nbs/02_data.ipynb 78
+# %% ../nbs/02_data.ipynb 76
 @patch
 def filterer(cls:BaseXCDataBlock, train:'BaseXCDataBlock', valid:'BaseXCDataBlock', fld:Optional[str]='identifier'):
     train_info, valid_info, lbl_info = train.dset.data.data_info, valid.dset.data.data_info, train.dset.data.lbl_info
@@ -551,7 +545,7 @@ def sample(cls:BaseXCDataBlock, pct:Optional[float]=0.2, n:Optional[int]=None, s
     return cls._getitems(rnd_idx[:cut])
     
 
-# %% ../nbs/02_data.ipynb 88
+# %% ../nbs/02_data.ipynb 86
 class XCDataBlock:
 
     def __init__(self, train:BaseXCDataBlock=None, valid:BaseXCDataBlock=None, test:BaseXCDataBlock=None):

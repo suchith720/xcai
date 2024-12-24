@@ -4,27 +4,27 @@
 __all__ = ['PARAM', 'DATASETS', 'WIKISEEALSOTITLES', 'WIKITITLES', 'WIKISEEALSO', 'WIKIPEDIA', 'ORCAS', 'AMAZONTITLES131',
            'AMAZON131', 'AMAZONTITLES']
 
-# %% ../nbs/25_config.ipynb 3
+# %% ../nbs/25_config.ipynb 4
 PARAM = {
     
-    # Collator arguements
+    # Collator
     #-------------------------
     'transform_type': 'xc', 
     'smp_features': [('lbl2data',1,2), ('hlk2data',1,1), ('hlk2lbl2data',2,1)],
 
-    # XCSamplerFeatTfm arguements
+    # XCSamplerFeatTfm
     #-------------------------
     'pad_token': 0,
     'oversample': False,
     'sampling_features': [('lbl2data',2), ('hlk2data',1), ('hlk2lbl2data',1)],
 
-    # OAKSamplerFeatTfm arguements
+    # OAKSamplerFeatTfm
     #-------------------------
     'num_labels': 1,
     'num_metadata': 1,
     'metadata_name': None,
     
-    # Arguements for Info class
+    # Info Tokenization
     #-------------------------
     'info_column_names': ['identifier', 'input_text'], 
     'use_tokenizer': True, 
@@ -36,23 +36,31 @@ PARAM = {
     'sep': '->',
     'prompt_func': None,
     
-    # PadFeatTfm arguements
+    # PadFeatTfm
     #-------------------------
     'pad_side': 'right', 'drop': True, 'ret_t': True, 'in_place': True, 'collapse': True, 'device': 'cpu',
     
-    # AlignInputIdsTfm arguements
+    # AlignInputIdsTfm
     #-------------------------
     'inp': 'data', 'targ': 'lbl2data', 'ptr': 'lbl2data_data2ptr',
     
-    # Data arguements
+    # Dataset
     #-------------------------
+    'n_lbl_samples': None,
+    'data_info_keys': None,
+    'lbl_info_keys': None,
+    'n_slbl_samples': 1,
+    'main_oversample': False,
+    
     'n_data_meta_samples': None,
     'n_lbl_meta_samples': None,
-    'n_lbl_samples': None,
-    
+    'meta_info_keys': None,
+    'n_data_meta_samples': 1,
+    'n_lbl_meta_samples': 1,
+    'meta_oversample': False,
 }
 
-# %% ../nbs/25_config.ipynb 5
+# %% ../nbs/25_config.ipynb 6
 DATASETS = {
     'wikiseealsotitles': '(mapped)LF-WikiSeeAlsoTitles-320K',
     'wikiseealso': 'LF-WikiSeeAlso-320K',
@@ -64,7 +72,7 @@ DATASETS = {
     'amazontitles': 'LF-AmazonTitles-1.3M',
 }
 
-# %% ../nbs/25_config.ipynb 7
+# %% ../nbs/25_config.ipynb 8
 def WIKISEEALSOTITLES(data_dir):
     return {
         'data' : {
@@ -243,7 +251,7 @@ def WIKISEEALSOTITLES(data_dir):
         }, 
     }
 
-# %% ../nbs/25_config.ipynb 10
+# %% ../nbs/25_config.ipynb 11
 def WIKITITLES(data_dir):
     return {
         'train' : {
@@ -421,7 +429,7 @@ def WIKITITLES(data_dir):
         },
     }
 
-# %% ../nbs/25_config.ipynb 13
+# %% ../nbs/25_config.ipynb 14
 def WIKISEEALSO(data_dir):
     return {
         'data' : {
@@ -601,7 +609,7 @@ def WIKISEEALSO(data_dir):
     }
 
 
-# %% ../nbs/25_config.ipynb 16
+# %% ../nbs/25_config.ipynb 17
 def WIKIPEDIA(data_dir):
     return {
         'train' : {
@@ -779,7 +787,7 @@ def WIKIPEDIA(data_dir):
         },
     }
 
-# %% ../nbs/25_config.ipynb 18
+# %% ../nbs/25_config.ipynb 19
 def ORCAS(data_dir):
     return {
         'train' : {
@@ -918,7 +926,7 @@ def ORCAS(data_dir):
         },
     }
 
-# %% ../nbs/25_config.ipynb 20
+# %% ../nbs/25_config.ipynb 21
 def AMAZONTITLES131(data_dir):
     return {
         'data' : {
@@ -1056,7 +1064,7 @@ def AMAZONTITLES131(data_dir):
         }, 
     }
 
-# %% ../nbs/25_config.ipynb 22
+# %% ../nbs/25_config.ipynb 23
 def AMAZON131(data_dir):
     return {
         'data' : {
@@ -1194,7 +1202,7 @@ def AMAZON131(data_dir):
         }, 
     }
 
-# %% ../nbs/25_config.ipynb 24
+# %% ../nbs/25_config.ipynb 25
 def AMAZONTITLES(data_dir):
     return {
         'data' : {
