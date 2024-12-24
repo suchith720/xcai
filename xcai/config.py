@@ -1065,27 +1065,27 @@ def AMAZONTITLES131(data_dir):
         'data_img' : {
             'path': {
                 'train': {
-                    'data_lbl': f'{data_dir}/{DATASETS["amazon131"]}/trn_X_Y.txt',
-                    'data_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/train.raw.txt',
-                    'lbl_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/label.raw.txt',
-                    'data_lbl_filterer': f'{data_dir}/{DATASETS["amazon131"]}/filter_labels_train.txt',
+                    'data_lbl': f'{data_dir}/{DATASETS["amazontitles131"]}/trn_X_Y.txt',
+                    'data_info': f'{data_dir}/{DATASETS["amazontitles131"]}/raw_data/train.raw.txt',
+                    'lbl_info': f'{data_dir}/{DATASETS["amazontitles131"]}/raw_data/label.raw.txt',
+                    'data_lbl_filterer': f'{data_dir}/{DATASETS["amazontitles131"]}/filter_labels_train.txt',
                     'img_meta': {
                         'prefix': 'img',
-                        'data_meta': f'{data_dir}/{DATASETS["amazon131"]}/images_trn_X_Y.npz',
-                        'lbl_meta': f'{data_dir}/{DATASETS["amazon131"]}/images_lbl_X_Y.npz',
-                        'meta_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/images.raw.txt'
+                        'data_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/images_trn_X_Y.npz',
+                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/images_lbl_X_Y.npz',
+                        'meta_info': f'{data_dir}/{DATASETS["amazontitles131"]}/raw_data/images.raw.txt'
                     },
                 },
                 'test': {
-                    'data_lbl': f'{data_dir}/{DATASETS["amazon131"]}/tst_X_Y.txt',
-                    'data_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/test.raw.txt',
-                    'lbl_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/label.raw.txt',
-                    'data_lbl_filterer': f'{data_dir}/{DATASETS["amazon131"]}/filter_labels_test.txt',
+                    'data_lbl': f'{data_dir}/{DATASETS["amazontitles131"]}/tst_X_Y.txt',
+                    'data_info': f'{data_dir}/{DATASETS["amazontitles131"]}/raw_data/test.raw.txt',
+                    'lbl_info': f'{data_dir}/{DATASETS["amazontitles131"]}/raw_data/label.raw.txt',
+                    'data_lbl_filterer': f'{data_dir}/{DATASETS["amazontitles131"]}/filter_labels_test.txt',
                     'img_meta': {
                         'prefix': 'img',
-                        'data_meta': f'{data_dir}/{DATASETS["amazon131"]}/images_tst_X_Y.npz',
-                        'lbl_meta': f'{data_dir}/{DATASETS["amazon131"]}/images_lbl_X_Y.npz',
-                        'meta_info': f'{data_dir}/{DATASETS["amazon131"]}/raw_data/images.raw.txt',
+                        'data_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/images_tst_X_Y.npz',
+                        'lbl_meta': f'{data_dir}/{DATASETS["amazontitles131"]}/images_lbl_X_Y.npz',
+                        'meta_info': f'{data_dir}/{DATASETS["amazontitles131"]}/raw_data/images.raw.txt',
                     },
                 },
             },
