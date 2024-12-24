@@ -17,10 +17,10 @@ from fastcore.utils import *
 from fastcore.meta import *
 from fastcore.dispatch import *
 
-# %% ../nbs/35_sdata.ipynb 9
+# %% ../nbs/35_sdata.ipynb 10
 def identity_collate_fn(batch): return batch
 
-# %% ../nbs/35_sdata.ipynb 12
+# %% ../nbs/35_sdata.ipynb 13
 class SMainXCDataset(MainXCDataset):
 
     def __init__(
@@ -70,7 +70,7 @@ class SMainXCDataset(MainXCDataset):
         )
     
 
-# %% ../nbs/35_sdata.ipynb 24
+# %% ../nbs/35_sdata.ipynb 25
 class SMetaXCDataset(MetaXCDataset):
 
     def __init__(
@@ -142,7 +142,7 @@ class SMetaXCDataset(MetaXCDataset):
             if cls.meta_info_keys is None: cls.meta_info_keys = list(cls.meta_info.keys())
         
 
-# %% ../nbs/35_sdata.ipynb 31
+# %% ../nbs/35_sdata.ipynb 32
 class SXCDataset(BaseXCDataset):
 
     def __init__(self, data:SMainXCDataset, **kwargs):
@@ -205,7 +205,7 @@ class SXCDataset(BaseXCDataset):
         return [self[idx] for idx in idxs]
        
 
-# %% ../nbs/35_sdata.ipynb 39
+# %% ../nbs/35_sdata.ipynb 40
 class SBaseXCDataBlock(BaseXCDataBlock):
 
     @delegates(DataLoader.__init__)
@@ -285,7 +285,7 @@ class SBaseXCDataBlock(BaseXCDataBlock):
         return cls._getitems(rnd_idx[:cut])
         
 
-# %% ../nbs/35_sdata.ipynb 43
+# %% ../nbs/35_sdata.ipynb 44
 class SXCDataBlock:
 
     def __init__(self, train:SBaseXCDataBlock=None, valid:SBaseXCDataBlock=None, test:SBaseXCDataBlock=None):
