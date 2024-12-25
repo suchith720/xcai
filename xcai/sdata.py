@@ -18,7 +18,7 @@ from fastcore.meta import *
 from fastcore.dispatch import *
 
 # %% ../nbs/35_sdata.ipynb 9
-def identity_collate_fn(batch): return batch
+def identity_collate_fn(batch): return BatchEncoding(batch)
 
 # %% ../nbs/35_sdata.ipynb 12
 class SMainXCDataset(MainXCDataset):
@@ -185,7 +185,7 @@ class SXCDataset(BaseXCDataset):
                     z[f'{meta.prefix}2lbl_data2ptr'] = torch.tensor([o.sum() for o in z[f'{meta.prefix}2lbl_lbl2ptr'].split_with_sizes(x[f'lbl2data_data2ptr'].tolist())])
                     z[f'p{meta.prefix}2lbl_data2ptr'] = torch.tensor([o.sum() for o in z[f'p{meta.prefix}2lbl_lbl2ptr'].split_with_sizes(x[f'lbl2data_data2ptr'].tolist())])
                     x.update(z)
-        return BatchEncoding(x)
+        return x
 
     @property
     def lbl_info(self): return self.data.lbl_info
