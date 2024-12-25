@@ -191,13 +191,13 @@ class SXCDataset(BaseXCDataset):
     def lbl_info(self): return self.data.lbl_info
 
     @property
-    def lbl_dset(self): return SMainXCDataset(self.data.lbl_info)
+    def lbl_dset(self): return SMainXCDataset(data_info=self.data.lbl_info)
 
     @property
     def data_info(self): return self.data.data_info
 
     @property
-    def data_dset(self): return SMainXCDataset(self.data.data_info) 
+    def data_dset(self): return SMainXCDataset(data_info=self.data.data_info) 
 
     def one_batch(self, bsz:Optional[int]=10, seed:Optional[int]=None):
         if seed is not None: torch.manual_seed(seed)
@@ -299,7 +299,7 @@ class SXCDataBlock:
     def lbl_info(self): return self.train.dset.data.lbl_info
 
     @property
-    def lbl_dset(self): return SMainXCDataset(self.train.dset.data.lbl_info)
+    def lbl_dset(self): return SMainXCDataset(data_info=self.train.dset.data.lbl_info)
 
     @property
     def n_lbl(self): return self.train.dset.n_lbl
