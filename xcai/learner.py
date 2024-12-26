@@ -24,6 +24,7 @@ from torch.nn.parallel.scatter_gather import _is_namedtuple
 
 from .core import *
 from .data import *
+from .sdata import *
 from .representation.search import *
 from .generation.trie import *
 from .generation.generate import *
