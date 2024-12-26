@@ -62,9 +62,8 @@ class RepresentationHead(torch.nn.Module):
 # %% ../../nbs/34_models.NVM0XX.ipynb 13
 class NVM009Encoder(NVEmbedModel):
     
-    def __init__(self, config, **kwargs):
+    def __init__(self, config):
         super().__init__(config)
-        self.dr_head = RepresentationHead(config)
         
     @delegates(NVEmbedModel.__call__)
     def forward(
@@ -83,9 +82,7 @@ class NVM009Encoder(NVEmbedModel):
             outputs.last_hidden_state,
             pool_mask,
         )
-        rep = self.dr_head(embeds)
-        
-        return outputs, F.normalize(Pooling.mean_pooling(rep, attention_mask), dim=1)
+        return outputs, F.normalize(Pooling.mean_pooling(embeds, attention_mask), dim=1)
     
 
 # %% ../../nbs/34_models.NVM0XX.ipynb 14
@@ -110,9 +107,6 @@ class NVM009(NVEmbedModel):
                                     apply_softmax=apply_softmax, reduce='mean')
         self.post_init()
         self.remap_post_init()
-        
-    def init_dr_head(self):
-        self.encoder.dr_head.post_init()
         
     def remap_post_init(self):
         self.embedding_model = self.encoder.embedding_model
