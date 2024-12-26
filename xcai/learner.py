@@ -437,9 +437,9 @@ def _get_dataset(self:XCLearner, dataset:Dataset, dset_type:str='lbl', use_metad
         prefix,meta,meta_info  = meta_dset.prefix, get_attr(meta_dset, f'{dset_type}_meta'), meta_dset.meta_info
 
         if dset_type == 'data':
-            metadata = type(meta_dset)(prefix, meta, sparse.csr_matrix((dataset.n_lbl, meta_dset.n_meta)), meta_info)            
+            metadata = type(meta_dset)(prefix=prefix, data_meta=meta, lbl_meta=sparse.csr_matrix((dataset.n_lbl, meta_dset.n_meta)), meta_info=meta_info)            
         elif dset_type == 'lbl':
-            metadata = type(meta_dset)(prefix, meta, sparse.csr_matrix((dataset.n_data, meta_dset.n_meta)), meta_info)
+            metadata = type(meta_dset)(prefix=prefix, data_meta=meta, lbl_meta=sparse.csr_matrix((dataset.n_data, meta_dset.n_meta)), meta_info=meta_info)
         else: raise ValueError(f'Invalid `dset_type`, should be one of ["data", "lbl"].')
 
         if isinstance(metadata, MetaXCDataset):
@@ -473,7 +473,7 @@ def _build_aug_index(self:XCLearner, dataset:Optional[Dataset]=None):
                                     efs=self.args.index_efs, n_bm=self.args.augmentation_num_beams, 
                                     n_threads=self.args.index_num_threads)
         
-        dset = type(dataset.data)(getattr(dataset.meta[meta_name], 'meta_info'))
+        dset = type(dataset.data)(data_info=getattr(dataset.meta[meta_name], 'meta_info'))
         dataloader = self.get_test_dataloader(dset)
         rep = self.get_meta_representation(dataloader, to_cpu=isinstance(self.aug_idxs, IndexSearch))
         self.aug_idxs.build(rep)
@@ -1042,7 +1042,7 @@ def prune_metadata(self:XCLearner):
             if m not in self.train_dataset.meta: raise ValueError(f'Invalid metadata name: {m}')
                 
             meta_dset = self.train_dataset.meta[m]
-            dataloader = self.get_test_dataloader(type(self.train_dataset.data)(meta_dset.meta_info))
+            dataloader = self.get_test_dataloader(type(self.train_dataset.data)(data_info=meta_dset.meta_info))
             meta_repr = self.get_representation(dataloader, representation_attribute=self.args.metadata_representation_attribute)
             
             meta_dset.prune_data_meta(data_repr, meta_repr, batch_size=self.args.metadata_prune_batch_size, 
@@ -1090,7 +1090,7 @@ def get_augmentation_metadata(self:XCLearner):
                                     n_threads=self.args.index_num_threads)
         
         meta_info = getattr(self.train_dataset.meta[meta_name], 'meta_info')
-        dataloader = self.get_test_dataloader(type(self.train_dataset.data)(meta_info))
+        dataloader = self.get_test_dataloader(type(self.train_dataset.data)(data_info=meta_info))
         meta_repr = self.get_meta_representation(dataloader, to_cpu=isinstance(self.aug_idxs, IndexSearch))
         self.aug_idxs.build(meta_repr)
     
@@ -1104,8 +1104,8 @@ def get_augmentation_metadata(self:XCLearner):
         'attention_mask': meta_info['attention_mask'],
     }
     
-    metadata = type(self.train_dataset.meta)(data_aug_prefix, data_meta, sparse.csr_matrix((self.train_dataset.n_lbl, meta_repr.shape[0])),
-                                             meta_info)
+    metadata = type(self.train_dataset.meta)(prefix=data_aug_prefix, data_meta=data_meta, lbl_meta=sparse.csr_matrix((self.train_dataset.n_lbl, meta_repr.shape[0])),
+                                             meta_info=meta_info)
     meta_dset = self.train_dataset.meta[meta_name]
     
     if isinstance(metadata, MetaXCDataset):
