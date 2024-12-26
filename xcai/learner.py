@@ -442,12 +442,12 @@ def _get_dataset(self:XCLearner, dataset:Dataset, dset_type:str='lbl', use_metad
             metadata = type(meta_dset)(prefix=prefix, data_meta=meta, lbl_meta=sparse.csr_matrix((dataset.n_data, meta_dset.n_meta)), meta_info=meta_info)
         else: raise ValueError(f'Invalid `dset_type`, should be one of ["data", "lbl"].')
 
-        if isinstance(metadata, MetaXCDataset):
-            metadata.n_data_meta_samples = self.args.augmentation_num_beams
-        elif isinstance(metadata, SMetaXCDataset):
+        if isinstance(metadata, SMetaXCDataset):
             metadata.n_data_meta_samples = meta_dset.n_data_meta_samples
             metadata.n_sdata_meta_samples = meta_dset.n_sdata_meta_samples
             metadata.meta_oversample = meta_dset.meta_oversample
+        elif isinstance(metadata, MetaXCDataset):
+            metadata.n_data_meta_samples = self.args.augmentation_num_beams
         else: raise ValueError('Invalid meta dataset.')
 
         meta_kwargs = {meta_name: metadata}
@@ -1108,12 +1108,12 @@ def get_augmentation_metadata(self:XCLearner):
                                              meta_info=meta_info)
     meta_dset = self.train_dataset.meta[meta_name]
     
-    if isinstance(metadata, MetaXCDataset):
-        metadata.n_data_meta_samples = self.args.augmentation_num_beams
-    elif isinstance(metadata, SMetaXCDataset):
+    if isinstance(metadata, SMetaXCDataset):
         metadata.n_data_meta_samples = meta_dset.n_data_meta_samples
         metadata.n_sdata_meta_samples = meta_dset.n_sdata_meta_samples
         metadata.meta_oversample = meta_dset.meta_oversample
+    elif isinstance(metadata, MetaXCDataset):
+        metadata.n_data_meta_samples = self.args.augmentation_num_beams
     else: raise ValueError('Invalid meta dataset.')
             
     self.train_dataset.meta[f'{data_aug_prefix}_meta'] = metadata
