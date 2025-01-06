@@ -5,7 +5,7 @@ __all__ = ['CFGS', 'TFMS', 'XCBlock', 'SXCBlock']
 
 # %% ../nbs/03_block.ipynb 2
 import numpy as np, re, inspect
-from typing import Optional, Dict, Callable
+from typing import Optional, Dict, Callable, Union
 from transformers import AutoTokenizer, BatchEncoding, PreTrainedTokenizerBase
 
 from fastcore.meta import *
@@ -45,19 +45,20 @@ class XCBlock:
     @classmethod
     def from_cfg(
         cls, 
-        data_dir:str, 
-        cfg:str, 
+        cfg:Union[str,Dict],
+        data_dir:Optional[str]=None, 
         dset:Optional[str]='wikiseealsotitles', 
         bsz:Optional[int]=10, 
         **kwargs
     ):
-        """ Selecting the configuration """
-        if dset not in CFGS: raise ValueError(f'Invalid `dset`({dset})')
-        cfgs = CFGS[dset](data_dir)
-
-        """ Selecting the dataset type """
-        if cfg not in cfgs: raise ValueError(f'Invalid `cfg`({cfg})')
-        cfg = cfgs[cfg] 
+        if isinstance(cfg, str):
+            """ Selecting the configuration """
+            if dset not in CFGS: raise ValueError(f'Invalid `dset`({dset})')
+            cfgs = CFGS[dset](data_dir)
+    
+            """ Selecting the dataset type """
+            if cfg not in cfgs: raise ValueError(f'Invalid `cfg`({cfg})')
+            cfg = cfgs[cfg] 
 
         """ Setting the parameters """
         for k in cfg['parameters']: 
@@ -79,20 +80,21 @@ class SXCBlock:
     @delegates(SXCDataBlock.from_cfg)
     @classmethod
     def from_cfg(
-        cls, 
-        data_dir:str, 
-        cfg:str, 
+        cls,
+        cfg:Union[str,Dict],
+        data_dir:Optional[str]=None, 
         dset:Optional[str]='wikiseealsotitles', 
         collate_fn:Optional[Callable]=identity_collate_fn, 
         **kwargs
     ):
-        """ Selecting the configuration """
-        if dset not in CFGS: raise ValueError(f'Invalid `dset`({dset})')
-        cfgs = CFGS[dset](data_dir)
-
-        """ Selecting the dataset type """
-        if cfg not in cfgs: raise ValueError(f'Invalid `cfg`({cfg})')
-        cfg = cfgs[cfg] 
+        if isinstance(cfg, str):
+            """ Selecting the configuration """
+            if dset not in CFGS: raise ValueError(f'Invalid `dset`({dset})')
+            cfgs = CFGS[dset](data_dir)
+    
+            """ Selecting the dataset type """
+            if cfg not in cfgs: raise ValueError(f'Invalid `cfg`({cfg})')
+            cfg = cfgs[cfg] 
 
         """ Setting the parameters """
         for k in cfg['parameters']: 

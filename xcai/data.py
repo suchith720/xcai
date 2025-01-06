@@ -38,11 +38,12 @@ class MainXCData:
     
     @classmethod
     @delegates(Info.from_txt)
-    def from_file(cls, data_lbl:str, data_info:str, lbl_info:str, data_lbl_filterer:Optional[str]=None, **kwargs):
+    def from_file(cls, data_lbl:str, data_info:str, lbl_info:str, data_lbl_filterer:Optional[str]=None, 
+                  main_max_sequence_length:Optional[int]=None, **kwargs):
         return {
             'data_lbl': _read_sparse_file(data_lbl),
-            'data_info': Info.from_txt(data_info, **kwargs),
-            'lbl_info': Info.from_txt(lbl_info, **kwargs),
+            'data_info': Info.from_txt(data_info, max_sequence_length=main_max_sequence_length, **kwargs),
+            'lbl_info': Info.from_txt(lbl_info, max_sequence_length=main_max_sequence_length, **kwargs),
             'data_lbl_filterer': Filterer.load_filter(data_lbl_filterer),
         }
     
@@ -52,12 +53,12 @@ class MetaXCData:
     
     @classmethod
     @delegates(Info.from_txt)
-    def from_file(cls, data_meta:str, lbl_meta:str, meta_info:str, prefix:str, **kwargs):
+    def from_file(cls, data_meta:str, lbl_meta:str, meta_info:str, prefix:str, meta_max_sequence_length:Optional[int]=None, **kwargs):
         return {
             'prefix': prefix,
             'data_meta': _read_sparse_file(data_meta),
             'lbl_meta': _read_sparse_file(lbl_meta),
-            'meta_info': Info.from_txt(meta_info, **kwargs),
+            'meta_info': Info.from_txt(meta_info, max_sequence_length=meta_max_sequence_length, **kwargs),
         }
     
 
