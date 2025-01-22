@@ -4,8 +4,8 @@
 __all__ = ['identity_collate_fn', 'SMainXCDataset', 'SMetaXCDataset', 'SXCDataset', 'SBaseXCDataBlock', 'SXCDataBlock']
 
 # %% ../nbs/35_sdata.ipynb 3
-import torch, inspect, numpy as np
-from typing import Callable, Optional, Union
+import torch, inspect, numpy as np, scipy.sparse as sp
+from typing import Callable, Optional, Union, Dict
 from torch.utils.data import DataLoader
 from transformers import BatchEncoding
 
@@ -316,17 +316,27 @@ class SXCDataBlock:
         train_dset = SBaseXCDataBlock(SXCDataset(SMainXCDataset(data_info=train_info, data_lbl=train_meta, lbl_info=meta_info)))
         
         if self.test is not None:
-            test_meta = block.test.dset.meta[meta_name].data_meta[:, meta_idx].tocsr()
+            test_meta = self.test.dset.meta[meta_name].data_meta[:, meta_idx].tocsr()
             test_idx = np.where(test_meta.getnnz(axis=1) > 0)[0]
             test_meta = test_meta[test_idx].tocsr()
     
-            test_info = block.test.dset.data.data_info
+            test_info = self.test.dset.data.data_info
             test_info = self.sample_info(test_info, test_idx)
     
             test_dset = SBaseXCDataBlock(SXCDataset(SMainXCDataset(data_info=test_info, data_lbl=test_meta, lbl_info=meta_info)))
             return SXCDataBlock(train=train_dset, test=test_dset)
         
         return SXCDataBlock(train=train_dset)
+
+    def inference_dset(self, data_info:Dict, data_lbl:sp.csr_matrix, lbl_info:Dict, data_lbl_filterer, **kwargs):
+        x_idx = np.where(data_lbl.getnnz(axis=1) == 0)[0].reshape(-1,1)
+        y_idx = np.zeros((len(x_idx),1), dtype=np.int64)
+        data_lbl[x_idx, y_idx] = 1
+        data_lbl_filterer = np.vstack([np.hstack([x_idx, y_idx]), data_lbl_filterer])
+    
+        pred_dset = SXCDataset(SMainXCDataset(data_info=data_info, data_lbl=data_lbl, lbl_info=lbl_info,
+                                              data_lbl_filterer=data_lbl_filterer, **kwargs))
+        return pred_dset
 
     @property
     def lbl_info(self): return self.train.dset.data.lbl_info
