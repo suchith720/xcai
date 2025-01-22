@@ -4,7 +4,7 @@
 __all__ = ['identity_collate_fn', 'SMainXCDataset', 'SMetaXCDataset', 'SXCDataset', 'SBaseXCDataBlock', 'SXCDataBlock']
 
 # %% ../nbs/35_sdata.ipynb 3
-import torch, inspect
+import torch, inspect, numpy as np
 from typing import Callable, Optional, Union
 from torch.utils.data import DataLoader
 from transformers import BatchEncoding
@@ -294,6 +294,39 @@ class SXCDataBlock:
     @staticmethod
     def load_cfg(fname):
         with open(fname, 'r') as f: return json.load(f)
+
+    def sample_info(self, info, idx):
+        return {k: v[idx] if isinstance(v, torch.Tensor) or isinstance(v, np.ndarray) else [v[i] for i in idx] for k,v in info.items()}
+
+    def linker_dset(self, meta_name:str):
+        if meta_name not in self.train.dset.meta:
+            raise ValueError(f'Invalid metadata: {meta_name}')
+
+        train_meta = self.train.dset.meta[meta_name].data_meta
+        train_idx = np.where(train_meta.getnnz(axis=1) > 0)[0]
+        meta_idx = np.where(train_meta.getnnz(axis=0) > 0)[0]
+        train_meta = train_meta[train_idx][:, meta_idx].tocsr()
+        
+        train_info = self.train.dset.data.data_info
+        meta_info = self.train.dset.meta[meta_name].meta_info
+        
+        train_info = self.sample_info(train_info, train_idx)
+        meta_info = self.sample_info(meta_info, meta_idx)
+
+        train_dset = SBaseXCDataBlock(SXCDataset(SMainXCDataset(data_info=train_info, data_lbl=train_meta, lbl_info=meta_info)))
+        
+        if self.test is not None:
+            test_meta = block.test.dset.meta[meta_name].data_meta[:, meta_idx].tocsr()
+            test_idx = np.where(test_meta.getnnz(axis=1) > 0)[0]
+            test_meta = test_meta[test_idx].tocsr()
+    
+            test_info = block.test.dset.data.data_info
+            test_info = self.sample_info(test_info, test_idx)
+    
+            test_dset = SBaseXCDataBlock(SXCDataset(SMainXCDataset(data_info=test_info, data_lbl=test_meta, lbl_info=meta_info)))
+            return SXCDataBlock(train=train_dset, test=test_dset)
+        
+        return SXCDataBlock(train=train_dset)
 
     @property
     def lbl_info(self): return self.train.dset.data.lbl_info
