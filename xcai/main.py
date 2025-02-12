@@ -39,7 +39,9 @@ def get_output(pred_idx:torch.Tensor, pred_ptr:torch.Tensor, pred_score:torch.Te
 
 # %% ../nbs/36_main.ipynb 6
 def main_run(learn, parse_args, n_lbl:int, do_inference:bool):
-    if do_prediction:
+    do_inference = parse_args.do_train_inference or parse_args.do_test_inference or parse_args.save_train_inference \
+            or parse_args.save_test_inference or parse_args.save_repr
+    if do_inference:
         pred_dir = f'{learn.args.output_dir}/predictions'
         os.makedirs(pred_dir, exist_ok=True)
 
