@@ -279,7 +279,7 @@ def get_output(data_lbl, pred_lbl):
 # %% ../nbs/00_core.ipynb 35
 def load_config(fname, key):
     with open(fname, 'r') as file:
-        return json.load(fname)[key]
+        return json.load(file)[key]
         
 
 # %% ../nbs/00_core.ipynb 37
