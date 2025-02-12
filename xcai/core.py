@@ -3,8 +3,8 @@
 # %% auto 0
 __all__ = ['show_data', 'Info', 'Filterer', 'get_tok_sparse', 'compute_inv_doc_freq', 'get_tok_idf', 'prepare_batch',
            'store_attr', 'get_attr', 'sorted_metric', 'display_metric', 'get_tensor_statistics', 'total_recall',
-           'get_best_model', 'get_output_sparse', 'get_output', 'ScoreFusion', 'retain_randk', 'random_topk',
-           'robustness_analysis']
+           'get_best_model', 'get_output_sparse', 'get_output', 'load_config', 'ScoreFusion', 'retain_randk',
+           'random_topk', 'robustness_analysis']
 
 # %% ../nbs/00_core.ipynb 2
 import pandas as pd, numpy as np, logging, sys, re, os, torch, json, inspect
@@ -18,7 +18,6 @@ from IPython.display import display
 from transformers import AutoTokenizer, PreTrainedTokenizerBase, BatchEncoding
 from typing import List, Dict, Union, Optional, Any, Callable
 from torch.utils.data import Dataset
-import torch.nn.functional as F
 
 from fastcore.dispatch import *
 from fastcore.basics import *
@@ -176,6 +175,7 @@ def get_tok_idf(dset:Dataset, field:Optional[str]='data_input_ids', n_cols:Optio
 def prepare_batch(m, b, m_args=None):
     m_kwargs = inspect.signature(m.forward).parameters
     return BatchEncoding({k:v for k,v in b.items() if k in m_kwargs or (m_args is not None and k in m_args)})
+    
 
 # %% ../nbs/00_core.ipynb 27
 def store_attr(names=None, self=None, but='', cast=False, store_args=None, is_none=True, **attrs):
@@ -225,6 +225,7 @@ def display_metric(metrics, remove_prefix:Optional[bool]=True, order:Optional[Li
     with pd.option_context('display.precision',4,'display.max_colwidth',None,'display.max_columns',None):
         metric,other = pd.DataFrame([metrics])[metric_keys]*scale, pd.DataFrame([metrics])[other_keys]
         display(pd.concat([metric, other], axis=1))
+        
 
 # %% ../nbs/00_core.ipynb 31
 def get_tensor_statistics(x:torch.Tensor):
@@ -240,6 +241,7 @@ def total_recall(inp_idx:torch.Tensor, n_inp:torch.Tensor, targ:sparse.csr_matri
     if filterer is not None: inp, targ = Filterer.apply(inp, filterer), Filterer.apply(targ, filterer)
     sc = inp.multiply(targ)/(targ.getnnz(axis=1)[:, None]*targ.shape[0])
     return sc.sum(), sc
+    
 
 # %% ../nbs/00_core.ipynb 32
 def get_best_model(mdir:str, pat:Optional[str]=r'^checkpoint-(\d+)'):
@@ -247,6 +249,7 @@ def get_best_model(mdir:str, pat:Optional[str]=r'^checkpoint-(\d+)'):
     fname = f'{mdir}/checkpoint-{nm}/trainer_state.json'
     with open(fname, 'r') as file: mname = json.load(file)['best_model_checkpoint']
     return f'{mdir}/checkpoint-{nm}' if mname is None else mname
+    
 
 # %% ../nbs/00_core.ipynb 33
 def get_output_sparse(pred_idx, pred_ptr, pred_score, targ_idx, targ_ptr, n_lbl):
@@ -273,7 +276,13 @@ def get_output(data_lbl, pred_lbl):
     }
     return output
 
-# %% ../nbs/00_core.ipynb 36
+# %% ../nbs/00_core.ipynb 35
+def load_config(fname, key):
+    with open(fname, 'r') as file:
+        return json.load(fname)[key]
+        
+
+# %% ../nbs/00_core.ipynb 37
 class ScoreFusion():
     
     def __init__(self, prop:Optional[np.array]=None, max_depth:Optional[int]=7):
@@ -316,7 +325,7 @@ class ScoreFusion():
         return beta*(res+score_a)+score_b
     
 
-# %% ../nbs/00_core.ipynb 38
+# %% ../nbs/00_core.ipynb 39
 def retain_randk(matrix:sparse.csr_matrix, topk:Optional[int]=3):
     data, indices, indptr = [], [], np.zeros_like(matrix.indptr)
     for i,row in tqdm(enumerate(matrix), total=matrix.shape[0]):
@@ -336,7 +345,7 @@ def retain_randk(matrix:sparse.csr_matrix, topk:Optional[int]=3):
     return o
     
 
-# %% ../nbs/00_core.ipynb 40
+# %% ../nbs/00_core.ipynb 41
 def random_topk(data_lbl, topk=5):
     data,indices,indptr = [],[],[0]
     for i,j in tqdm(zip(data_lbl.indptr, data_lbl.indptr[1:]), total=data_lbl.shape[0]):
@@ -354,7 +363,7 @@ def random_topk(data_lbl, topk=5):
     return o
     
 
-# %% ../nbs/00_core.ipynb 41
+# %% ../nbs/00_core.ipynb 42
 def robustness_analysis(block, meta_name:str, analysis_type:str='missing', pct:float=0.5, topk:int=3):
     data_meta = random_topk(block.test.dset.meta[f'{meta_name}_meta'].data_meta, topk=topk)
     
