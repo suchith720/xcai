@@ -7,7 +7,7 @@ __all__ = ['parse_args', 'main_build_block', 'main_load_model', 'get_output', 'm
 import os, torch, scipy.sparse as sp, pickle, argparse
 from .block import SXCBlock, XCBlock
 from .core import get_best_model
-from typing import Optional, Dict, Callable
+from typing import Optional, Dict, Callable, Union
 
 # %% ../nbs/36_main.ipynb 3
 def parse_args():
@@ -35,9 +35,9 @@ def main_build_block(pkl_file, config, use_sxc:Optional[bool], config_key:Option
 def main_load_model(output_dir:str, model_fn:Callable, model_args:Dict, init_fn:Callable,
         init_args:Optional[Dict]=dict(), do_inference:Optional[bool]=False):
     if do_inference:
-        os.environ['WANDB_MODE'] = 'disabled'
+        os.environ["WANDB_MODE"] = "disabled"
         mname = os.path.basename(get_best_model(output_dir))
-        model_args.mname = f'{output_dir}/{mname}'
+        model_args["mname"] = f'{output_dir}/{mname}'
 
     model = model_fn(**model_args)
     if do_inference: init_fn(model, **init_args)
@@ -52,7 +52,7 @@ def get_output(pred_idx:torch.Tensor, pred_ptr:torch.Tensor, pred_score:torch.Te
     return pred
 
 # %% ../nbs/36_main.ipynb 7
-def main_run(learn, parse_args, n_lbl:int):
+def main_run(learn, block:Union[SXCBlock, XCBlock], parse_args, n_lbl:int):
     do_inference = parse_args.do_train_inference or parse_args.do_test_inference or parse_args.save_train_inference \
             or parse_args.save_test_inference or parse_args.save_repr
     if do_inference:
@@ -60,15 +60,15 @@ def main_run(learn, parse_args, n_lbl:int):
         os.makedirs(pred_dir, exist_ok=True)
 
         if parse_args.save_repr:
-            trn_repr, lbl_repr = learn.get_data_and_lbl_representation(block.train.dset)
-            tst_repr = learn._get_data_representation(block.test.dset)
+            trn_repr, lbl_repr = learn.get_data_and_lbl_representation(learn.block.train.dset)
+            tst_repr = learn._get_data_representation(learn.block.test.dset)
 
             torch.save(trn_repr, f'{pred_dir}/train_repr.pth')
             torch.save(tst_repr, f'{pred_dir}/test_repr.pth')
             torch.save(lbl_repr, f'{pred_dir}/label_repr.pth')
 
         if parse_args.do_test_inference:
-            o = learn.predict(block.test.dset)
+            o = learn.predict(learn.block.test.dset)
             print(o.metrics)
 
             if parse_args.save_test_inference:
@@ -79,7 +79,7 @@ def main_run(learn, parse_args, n_lbl:int):
                 sp.save_npz(f'{pred_dir}/test_predictions.npz', pred)
 
         if parse_args.do_train_inference:
-            o = learn.predict(block.train.dset)
+            o = learn.predict(learn.block.train.dset)
             print(o.metrics)
 
             if parse_args.save_train_inference:
