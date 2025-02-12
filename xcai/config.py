@@ -73,9 +73,10 @@ def parse_args():
     parser.add_argument('--do_test_inference', action='store_true')
     parser.add_argument('--save_train_inference', action='store_true')
     parser.add_argument('--save_test_inference', action='store_true')
-    parser.add_argument('--save_train_repr', action='store_true')
-    parser.add_argument('--save_test_repr', action='store_true')
+    parser.add_argument('--save_repr', action='store_true')
     parser.add_argument('--use_sxc', action='store_true')
+
+    parser.add_argument('--pkl_dir', type=str, required=True)
     return parser.parse_args()
     
 
