@@ -315,7 +315,9 @@ class SXCDataBlock:
             train_info = self.sample_info(train_info, train_idx)
             meta_info = self.sample_info(meta_info, meta_idx)
 
-        train_dset = SBaseXCDataBlock(SXCDataset(SMainXCDataset(data_info=train_info, data_lbl=train_meta, lbl_info=meta_info)))
+        collate_fn = self.train.collate_fn
+        train_dset = SBaseXCDataBlock(SXCDataset(SMainXCDataset(data_info=train_info, data_lbl=train_meta, lbl_info=meta_info)), 
+                                      collate_fn=collate_fn)
         
         if self.test is not None:
             test_meta = self.test.dset.meta[meta_name].data_meta
@@ -327,7 +329,8 @@ class SXCDataBlock:
             test_info = self.test.dset.data.data_info
             if remove_empty: test_info = self.sample_info(test_info, test_idx)
     
-            test_dset = SBaseXCDataBlock(SXCDataset(SMainXCDataset(data_info=test_info, data_lbl=test_meta, lbl_info=meta_info)))
+            test_dset = SBaseXCDataBlock(SXCDataset(SMainXCDataset(data_info=test_info, data_lbl=test_meta, lbl_info=meta_info)), 
+                                         collate_fn=collate_fn)
             return SXCDataBlock(train=train_dset, test=test_dset)
         
         return SXCDataBlock(train=train_dset)
