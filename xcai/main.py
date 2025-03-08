@@ -4,7 +4,7 @@
 __all__ = ['parse_args', 'build_block', 'load_model', 'get_output', 'main']
 
 # %% ../nbs/36_main.ipynb 3
-import os, torch, scipy.sparse as sp, joblib, argparse
+import os, torch, scipy.sparse as sp, joblib, argparse, pickle
 from typing import Optional, Dict, Callable, Union
 
 from .block import SXCBlock, XCBlock
