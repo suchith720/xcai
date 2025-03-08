@@ -19,8 +19,8 @@ def parse_args():
     parser.add_argument('--do_train_inference', action='store_true')
     parser.add_argument('--do_test_inference', action='store_true')
     
-    parser.add_argument('--save_train_inference', action='store_true')
-    parser.add_argument('--save_test_inference', action='store_true')
+    parser.add_argument('--save_train_prediction', action='store_true')
+    parser.add_argument('--save_test_prediction', action='store_true')
     
     parser.add_argument('--save_representation', action='store_true')
     
