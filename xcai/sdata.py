@@ -346,16 +346,16 @@ class SXCDataBlock:
         return pred_dset
 
     @property
-    def lbl_info(self): return self.train.dset.data.lbl_info
+    def lbl_info(self): return self.test.dset.data.lbl_info if self.train is None else self.train.dset.data.lbl_info
 
     @property
     def lbl_dset(self): return SMainXCDataset(data_info=self.train.dset.data.lbl_info)
 
     @property
-    def n_lbl(self): return self.train.dset.n_lbl
+    def n_lbl(self): return self.test.dset.n_lbl if self.train is None else self.train.dset.n_lbl
 
     @property
-    def collator(self): return self.train.collate_fn
+    def collator(self): return self.test.collate_fn if self.train is None else self.train.collate_fn
         
     @classmethod
     def from_cfg(cls, 
