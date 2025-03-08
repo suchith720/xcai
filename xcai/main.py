@@ -58,9 +58,9 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
 # %% ../nbs/36_main.ipynb 9
 def load_model(output_dir:str, model_fn:Callable, model_args:Dict, init_fn:Callable, init_args:Optional[Dict]=dict(), 
                do_inference:Optional[bool]=False, use_pretrained:Optional[bool]=False):
-    if do_inference and not use_pretrained:
+    if do_inference:
         os.environ['WANDB_MODE'] = 'disabled'
-        model_args['mname'] = f'{output_dir}/{os.path.basename(get_best_model(output_dir))}'
+        if not use_pretrained: model_args['mname'] = f'{output_dir}/{os.path.basename(get_best_model(output_dir))}'
 
     model = model_fn(**model_args)
     
@@ -80,8 +80,8 @@ def get_output(pred_idx:torch.Tensor, pred_ptr:torch.Tensor, pred_score:torch.Te
 
 # %% ../nbs/36_main.ipynb 12
 def main(learn, args, n_lbl:int):
-    do_infer = args.do_train_inference or args.do_test_inference or args.save_train_inference \
-            or args.save_test_inference or args.save_representation
+    do_infer = args.do_train_inference or args.do_test_inference or args.save_train_prediction \
+            or args.save_test_prediction or args.save_representation
     
     if do_infer:
         pred_dir = f'{learn.args.output_dir}/predictions'
@@ -99,7 +99,7 @@ def main(learn, args, n_lbl:int):
             o = learn.predict(learn.eval_dataset)
             print(o.metrics)
 
-            if args.save_test_inference:
+            if args.save_test_prediction:
                 with open(f'{pred_dir}/test_predictions.pkl', 'wb') as file:
                     pickle.dump(o, file)
 
@@ -110,7 +110,7 @@ def main(learn, args, n_lbl:int):
             o = learn.predict(learn.train_dataset)
             print(o.metrics)
 
-            if parse_args.save_train_inference:
+            if parse_args.save_train_prediction:
                 with open(f'{pred_dir}/train_predictions.pkl', 'wb') as file:
                     pickle.dump(o, file)
 
