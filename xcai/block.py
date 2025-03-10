@@ -46,19 +46,19 @@ class XCBlock:
     def from_cfg(
         cls, 
         cfg:Union[str,Dict],
-        data_dir:Optional[str]=None, 
-        dset:Optional[str]='wikiseealsotitles', 
+        cfg_key:Optional[str]=None,
+        data_dir:Optional[str]=None,  
         bsz:Optional[int]=10, 
         **kwargs
     ):
         if isinstance(cfg, str):
             """ Selecting the configuration """
-            if dset not in CFGS: raise ValueError(f'Invalid `dset`({dset})')
-            cfgs = CFGS[dset](data_dir)
+            if cfg not in CFGS: raise ValueError(f'Invalid configuration ({cfg})')
+            cfgs = CFGS[cfg](data_dir)
     
             """ Selecting the dataset type """
-            if cfg not in cfgs: raise ValueError(f'Invalid `cfg`({cfg})')
-            cfg = cfgs[cfg] 
+            if cfg_key not in cfgs: raise ValueError(f'Invalid configuration key ({cfg_key})')
+            cfg = cfgs[cfg_key] 
 
         """ Setting the parameters """
         for k in cfg['parameters']: 
@@ -82,19 +82,19 @@ class SXCBlock:
     def from_cfg(
         cls,
         cfg:Union[str,Dict],
+        cfg_key:Optional[str]=None,
         data_dir:Optional[str]=None, 
-        dset:Optional[str]='wikiseealsotitles', 
         collate_fn:Optional[Callable]=identity_collate_fn, 
         **kwargs
     ):
         if isinstance(cfg, str):
             """ Selecting the configuration """
-            if dset not in CFGS: raise ValueError(f'Invalid `dset`({dset})')
-            cfgs = CFGS[dset](data_dir)
+            if cfg not in CFGS: raise ValueError(f'Invalid configuration ({dset})')
+            cfgs = CFGS[cfg](data_dir)
     
             """ Selecting the dataset type """
-            if cfg not in cfgs: raise ValueError(f'Invalid `cfg`({cfg})')
-            cfg = cfgs[cfg] 
+            if cfg_key not in cfgs: raise ValueError(f'Invalid configuration key ({cfg_key})')
+            cfg = cfgs[cfg_key] 
 
         """ Setting the parameters """
         for k in cfg['parameters']: 

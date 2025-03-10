@@ -44,9 +44,9 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
             if only_test and 'train' in config['path']: del config['path']['train'] 
     
         if use_sxc: 
-            block = SXCBlock.from_cfg(config, padding=True, return_tensors='pt', **kwargs)
+            block = SXCBlock.from_cfg(config, config_key, padding=True, return_tensors='pt', **kwargs)
         else: 
-            block = XCBlock.from_cfg(config, transform_type='xcs', **kwargs)
+            block = XCBlock.from_cfg(config, config_key, transform_type='xcs', **kwargs)
             
         joblib.dump(block, pkl_file)
     else:
