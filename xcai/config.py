@@ -31,7 +31,7 @@ PARAM = {
     #-------------------------
     'info_column_names': ['identifier', 'input_text'], 
     'use_tokenizer': True, 
-    'tokenizer': 'bert-base-cased',
+    'tokenizer': 'distilbert-base-uncased',
     'tokenization_column': 'input_text',
     'main_max_data_sequence_length': 32,
     'main_max_lbl_sequence_length': 32,
