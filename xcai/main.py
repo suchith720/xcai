@@ -31,6 +31,8 @@ def parse_args():
 
     parser.add_argument('--pickle_dir', type=str, required=True)
     
+    parser.add_argument('--prediction_suffix', type=str, default='')
+    
     return parser.parse_args()
     
 
@@ -92,6 +94,8 @@ def main(learn, args, n_lbl:int):
             or args.save_test_prediction or args.save_representation
     
     if do_infer:
+        prediction_suffix = f'_{args.prediction_suffix}' if len(args.prediction_suffix) else ''
+        
         pred_dir = f'{learn.args.output_dir}/predictions'
         os.makedirs(pred_dir, exist_ok=True)
 
@@ -99,31 +103,31 @@ def main(learn, args, n_lbl:int):
             trn_repr, lbl_repr = learn.get_data_and_lbl_representation(learn.train_dataset)
             tst_repr = learn._get_data_representation(learn.eval_dataset)
 
-            torch.save(trn_repr, f'{pred_dir}/train_repr.pth')
-            torch.save(tst_repr, f'{pred_dir}/test_repr.pth')
-            torch.save(lbl_repr, f'{pred_dir}/label_repr.pth')
+            torch.save(trn_repr, f'{pred_dir}/train_repr{prediction_suffix}.pth')
+            torch.save(tst_repr, f'{pred_dir}/test_repr{prediction_suffix}.pth')
+            torch.save(lbl_repr, f'{pred_dir}/label_repr{prediction_suffix}.pth')
 
         if args.do_test_inference:
             o = learn.predict(learn.eval_dataset)
             print(o.metrics)
 
             if args.save_test_prediction:
-                with open(f'{pred_dir}/test_predictions.pkl', 'wb') as file:
+                with open(f'{pred_dir}/test_predictions{prediction_suffix}.pkl', 'wb') as file:
                     pickle.dump(o, file)
 
                 pred = get_output(o.pred_idx, o.pred_ptr, o.pred_score, n_lbl=n_lbl)
-                sp.save_npz(f'{pred_dir}/test_predictions.npz', pred)
+                sp.save_npz(f'{pred_dir}/test_predictions{prediction_suffix}.npz', pred)
 
         if args.do_train_inference:
             o = learn.predict(learn.train_dataset)
             print(o.metrics)
 
             if parse_args.save_train_prediction:
-                with open(f'{pred_dir}/train_predictions.pkl', 'wb') as file:
+                with open(f'{pred_dir}/train_predictions{prediction_suffix}.pkl', 'wb') as file:
                     pickle.dump(o, file)
 
                 pred = get_output(o.pred_idx, o.pred_ptr, o.pred_score, n_lbl=n_lbl)
-                sp.save_npz(f'{pred_dir}/train_predictions.npz', pred)
+                sp.save_npz(f'{pred_dir}/train_predictions{prediction_suffix}.npz', pred)
     else:
         learn.train()
         
