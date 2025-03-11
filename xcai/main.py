@@ -42,7 +42,7 @@ def get_valid_dset(block):
     return block._getitems(np.where(block.dset.data.data_lbl.getnnz(axis=1) > 0)[0]) if num_empty_idx > 0 else block
     
 def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=True, config_key:Optional[str]=None, 
-                do_build:Optional[bool]=False, only_test:Optional[bool]=False, remove_empty_datapoints:Optional[bool]=True, **kwargs):
+                do_build:Optional[bool]=False, only_test:Optional[bool]=False, remove_empty_datapoints:Optional[bool]=False, **kwargs):
 
     if not os.path.exists(pkl_file): do_build = True
 
