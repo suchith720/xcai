@@ -59,7 +59,7 @@ class SMainXCDataset(MainXCDataset):
 
     def _getitems(cls, idxs:List):
         return SMainXCDataset(
-            data_info={k:[v[idx] for idx in idxs] for k,v in cls.data_info.items()}, 
+            data_info={k:v[idxs] if isinstance(v, torch.Tensor) or isinstance(v, np.ndarray) else [v[idx] for idx in idxs] for k,v in cls.data_info.items()}, 
             data_lbl=cls.data_lbl[idxs] if cls.data_lbl is not None else None, 
             lbl_info=cls.lbl_info, 
             data_lbl_filterer=Filterer.sample(cls.data_lbl_filterer, sz=cls.data_lbl.shape, idx=idxs) if cls.data_lbl_filterer is not None else None,
@@ -71,7 +71,7 @@ class SMainXCDataset(MainXCDataset):
         )
     
 
-# %% ../nbs/35_sdata.ipynb 26
+# %% ../nbs/35_sdata.ipynb 25
 class SMetaXCDataset(MetaXCDataset):
 
     def __init__(
@@ -143,7 +143,7 @@ class SMetaXCDataset(MetaXCDataset):
             if cls.meta_info_keys is None: cls.meta_info_keys = list(cls.meta_info.keys())
         
 
-# %% ../nbs/35_sdata.ipynb 33
+# %% ../nbs/35_sdata.ipynb 32
 class SXCDataset(BaseXCDataset):
 
     def __init__(self, data:SMainXCDataset, **kwargs):
@@ -206,7 +206,7 @@ class SXCDataset(BaseXCDataset):
         return [self[idx] for idx in idxs]
        
 
-# %% ../nbs/35_sdata.ipynb 41
+# %% ../nbs/35_sdata.ipynb 40
 class SBaseXCDataBlock(BaseXCDataBlock):
 
     @delegates(DataLoader.__init__)
@@ -286,7 +286,7 @@ class SBaseXCDataBlock(BaseXCDataBlock):
         return cls._getitems(rnd_idx[:cut])
         
 
-# %% ../nbs/35_sdata.ipynb 45
+# %% ../nbs/35_sdata.ipynb 44
 class SXCDataBlock:
 
     def __init__(self, train:SBaseXCDataBlock=None, valid:SBaseXCDataBlock=None, test:SBaseXCDataBlock=None):
