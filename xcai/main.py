@@ -4,9 +4,11 @@
 __all__ = ['parse_args', 'build_block', 'load_model', 'get_output', 'main']
 
 # %% ../nbs/36_main.ipynb 3
-import os, torch, scipy.sparse as sp, joblib, argparse, pickle
+import os, torch, scipy.sparse as sp, joblib, argparse, pickle, numpy as np
 from typing import Optional, Dict, Callable, Union
 
+from .sdata import SXCDataBlock
+from .data import XCDataBlock
 from .block import SXCBlock, XCBlock
 from .core import get_best_model, load_config
 
@@ -47,6 +49,12 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
             block = SXCBlock.from_cfg(config, config_key, padding=True, return_tensors='pt', **kwargs)
         else: 
             block = XCBlock.from_cfg(config, config_key, transform_type='xcs', **kwargs)
+
+        trn_valid_idx = np.where(block.train.dset.data.data_lbl.getnnz(axis=1) > 0)[0]
+        tst_valid_idx = np.where(block.test.dset.data.data_lbl.getnnz(axis=1) > 0)[0]
+
+        if len(trn_valid_idx) or len(tst_valid_idx):
+            block = type(block)(train=block.train._getitems(trn_valid_idx), test=block.test._getitems(tst_valid_idx))
             
         joblib.dump(block, pkl_file)
     else:

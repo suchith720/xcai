@@ -9,6 +9,7 @@ from typing import Callable, Optional, Union, Dict
 from torch.utils.data import DataLoader
 from transformers import BatchEncoding
 
+from .core import Filterer
 from .data import MainXCData, MetaXCData
 from .data import BaseXCDataset, MainXCDataset, MetaXCDataset, MetaXCDatasets
 from .data import BaseXCDataBlock
@@ -58,7 +59,7 @@ class SMainXCDataset(MainXCDataset):
 
     def _getitems(cls, idxs:List):
         return SMainXCDataset(
-            {k:[v[idx] for idx in idxs] for k,v in cls.data_info.items()}, 
+            data_info={k:[v[idx] for idx in idxs] for k,v in cls.data_info.items()}, 
             data_lbl=cls.data_lbl[idxs] if cls.data_lbl is not None else None, 
             lbl_info=cls.lbl_info, 
             data_lbl_filterer=Filterer.sample(cls.data_lbl_filterer, sz=cls.data_lbl.shape, idx=idxs) if cls.data_lbl_filterer is not None else None,
@@ -70,7 +71,7 @@ class SMainXCDataset(MainXCDataset):
         )
     
 
-# %% ../nbs/35_sdata.ipynb 24
+# %% ../nbs/35_sdata.ipynb 26
 class SMetaXCDataset(MetaXCDataset):
 
     def __init__(
@@ -142,7 +143,7 @@ class SMetaXCDataset(MetaXCDataset):
             if cls.meta_info_keys is None: cls.meta_info_keys = list(cls.meta_info.keys())
         
 
-# %% ../nbs/35_sdata.ipynb 31
+# %% ../nbs/35_sdata.ipynb 33
 class SXCDataset(BaseXCDataset):
 
     def __init__(self, data:SMainXCDataset, **kwargs):
@@ -205,7 +206,7 @@ class SXCDataset(BaseXCDataset):
         return [self[idx] for idx in idxs]
        
 
-# %% ../nbs/35_sdata.ipynb 39
+# %% ../nbs/35_sdata.ipynb 41
 class SBaseXCDataBlock(BaseXCDataBlock):
 
     @delegates(DataLoader.__init__)
@@ -285,7 +286,7 @@ class SBaseXCDataBlock(BaseXCDataBlock):
         return cls._getitems(rnd_idx[:cut])
         
 
-# %% ../nbs/35_sdata.ipynb 43
+# %% ../nbs/35_sdata.ipynb 45
 class SXCDataBlock:
 
     def __init__(self, train:SBaseXCDataBlock=None, valid:SBaseXCDataBlock=None, test:SBaseXCDataBlock=None):

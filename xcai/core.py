@@ -26,6 +26,7 @@ from fastcore.basics import *
 def show_data(x:Dict, n:Optional[int]=10, seed:Optional[int]=None):
     with pd.option_context('display.max_colwidth', None):
         display(pd.DataFrame(x).sample(n, random_state=seed))
+        
 
 # %% ../nbs/00_core.ipynb 6
 class Info():
@@ -34,15 +35,28 @@ class Info():
         self.tokz, self.info = None, None
         
     @staticmethod
-    def _read_text(fname:str, enc:Optional[str]='latin-1'):
+    def _read_txt(fname:str, sep:Optional[str]='->', enc:Optional[str]='latin-1'):
         with open(fname, encoding=enc) as f:
             info = [o[:-1] for o in f]
-        return info
+        return list(zip(*[(o,) if sep is None else o.split(sep, maxsplit=1) for o in info]))
+
+    @staticmethod
+    def _read_csv(fname:str):
+        df = pd.read_csv(fname).fillna('')
+        return [df[c].tolist() for c in df.columns]
+
+    @staticmethod
+    def _read_file(fname:str, sep:Optional[str]='->', enc:Optional[str]='latin-1'):
+        if fname.endswith(".txt"): 
+            return Info._read_txt(fname, sep=sep, enc=enc)
+        elif fname.endswith(".csv"): 
+            return Info._read_csv(fname)
+        else: 
+            raise ValueError(f"Invalid filename: {fname}.")
         
     @staticmethod
     def _read_info(fname:str, sep:Optional[str]='->', info_column_names:Optional[List]=None, enc:Optional[str]='latin-1'):
-        info = Info._read_text(fname, enc=enc)
-        info = list(zip(*[(o,) if sep is None else o.split(sep, maxsplit=1) for o in info]))
+        info = Info._read_file(fname, sep=sep, enc=enc)
         info_column_names = list(range(len(info))) if info_column_names is None else info_column_names
         if len(info_column_names) != len(info): raise ValueError(f'`info_column_names` and `info` should have same number of elements.')
         return {p:q for p,q in zip(info_column_names, info)}
