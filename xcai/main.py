@@ -42,7 +42,7 @@ def get_valid_dset(block):
     return block._getitems(np.where(block.dset.data.data_lbl.getnnz(axis=1) > 0)[0]) if num_empty_idx > 0 else block
     
 def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=True, config_key:Optional[str]=None, 
-                do_build:Optional[bool]=False, only_test:Optional[bool]=False, **kwargs):
+                do_build:Optional[bool]=False, only_test:Optional[bool]=False, remove_empty_datapoints:Optional[bool]=True, **kwargs):
 
     if not os.path.exists(pkl_file): do_build = True
 
@@ -56,11 +56,11 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
         else: 
             block = XCBlock.from_cfg(config, config_key, transform_type='xcs', **kwargs)
             
-        block = type(block)(train=get_valid_dset(block.train), test=get_valid_dset(block.test))
-            
         joblib.dump(block, pkl_file)
     else:
         block = joblib.load(pkl_file)
+
+    if remove_empty_datapoints: block = type(block)(train=get_valid_dset(block.train), test=get_valid_dset(block.test))
 
     return block
         
