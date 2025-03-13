@@ -122,7 +122,7 @@ def main(learn, args, n_lbl:int):
             o = learn.predict(learn.train_dataset)
             print(o.metrics)
 
-            if parse_args.save_train_prediction:
+            if args.save_train_prediction:
                 with open(f'{pred_dir}/train_predictions{prediction_suffix}.pkl', 'wb') as file:
                     pickle.dump(o, file)
 

@@ -15,7 +15,7 @@ from colorama import Fore, Style
 import colorama
 import os
 
-colorama.init()
+colorama.init(strip=False)
 COLORS = {0: Fore.BLUE,
           1: Fore.CYAN,
           2: Fore.GREEN,
@@ -30,7 +30,6 @@ COLORS = {0: Fore.BLUE,
           11: Fore.LIGHTGREEN_EX,
           12: Fore.LIGHTYELLOW_EX,
           13: Fore.LIGHTWHITE_EX}
-
 
 def _multi_gpu_mm(return_dict, rank, a, b):
     return_dict[rank] = torch.mm(a, b).cpu()

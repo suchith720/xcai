@@ -64,7 +64,7 @@ class MetaXCData:
 class BaseXCDataset(Dataset):
     def __init__(self):
         self.n_data, self.n_lbl, self.n_meta, self.n_samples = None, None, None, None
-
+        
     def __len__(self):
         return self.n_data if self.n_data is not None else 0
 
@@ -191,6 +191,11 @@ class MainXCDataset(BaseXCDataset):
                 if n_lbl != cls.data_lbl.shape[1]:
                     raise ValueError(f'`lbl_info`({n_lbl}) should have same number of labels as `data_lbl`({cls.data_lbl.shape[1]})')
                 if cls.lbl_info_keys is None: cls.lbl_info_keys = list(cls.lbl_info.keys())
+
+    @classmethod
+    def _initialize(cls, dset):
+        return cls(dset.data_info, data_lbl=dset.data_lbl, lbl_info=dset.lbl_info, data_lbl_filterer=dset.data_lbl_filterer,
+                   n_lbl_samples=dset.n_lbl_samples, data_info_keys=dset.data_info_keys, lbl_info_keys=dset.lbl_info_keys)
         
 
 # %% ../nbs/02_data.ipynb 20
@@ -258,6 +263,11 @@ class MetaXCDataset(BaseXCDataset):
     def _getitems(self, idxs:List):
         return MetaXCDataset(self.prefix, self.data_meta[idxs], self.lbl_meta, self.meta_info, 
                              self.n_data_meta_samples, self.n_lbl_meta_samples, self.meta_info_keys)
+    
+    @classmethod
+    def _initialize(cls, dset):
+        return cls(dset.prefix, dset.data_meta, dset.lbl_meta, dset.meta_info, 
+                   dset.n_data_meta_samples, dset.n_lbl_meta_samples, dset.meta_info_keys)
 
     def _sample_meta_items(self, idxs:List):
         assert max(idxs) < self.n_meta, f"indices should be less than {self.n_meta}"
@@ -357,6 +367,10 @@ class XCDataset(BaseXCDataset):
         
     def _getitems(self, idxs:List):
         return XCDataset(self.data._getitems(idxs), **{k:meta._getitems(idxs) for k,meta in self.meta.items()})
+
+    @classmethod
+    def _initialize(cls, dset):
+        return cls(MainXCDataset._initialize(dset.data), **{k:MetaXCDataset._initialize(meta) for k,meta in dset.meta.items()})
         
     @classmethod
     @delegates(MainXCDataset.from_file)
@@ -488,6 +502,10 @@ class BaseXCDataBlock:
     def _getitems(self, idxs:List):
         return BaseXCDataBlock(self.dset._getitems(idxs), collate_fn=self.collate_fn, **self.dl_kwargs)
 
+    @classmethod
+    def _initialize(cls, dset):
+        return cls(XCDataset._initialize(dset.dset), collate_fn=dset.collate_fn, **dset.dl_kwargs) if dset is not None else None
+
     @property
     def bsz(self): return self.dl.batch_size
 
@@ -551,6 +569,10 @@ class XCDataBlock:
 
     def __init__(self, train:BaseXCDataBlock=None, valid:BaseXCDataBlock=None, test:BaseXCDataBlock=None):
         self.train, self.valid, self.test = train, valid, test
+
+    @classmethod
+    def _initialize(cls, dset):
+        return cls(BaseXCDataBlock._initialize(dset.train), BaseXCDataBlock._initialize(dset.valid), BaseXCDataBlock._initialize(dset.test))
 
     @staticmethod
     def load_cfg(fname):

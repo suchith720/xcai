@@ -4,14 +4,15 @@
 __all__ = ['show_data', 'Info', 'Filterer', 'get_tok_sparse', 'compute_inv_doc_freq', 'get_tok_idf', 'prepare_batch',
            'store_attr', 'get_attr', 'sorted_metric', 'display_metric', 'get_tensor_statistics', 'total_recall',
            'get_best_model', 'get_output_sparse', 'get_output', 'load_config', 'ScoreFusion', 'retain_randk',
-           'random_topk', 'robustness_analysis']
+           'random_topk', 'robustness_analysis', 'ShowMetric']
 
 # %% ../nbs/00_core.ipynb 2
-import pandas as pd, numpy as np, logging, sys, re, os, torch, json, inspect
+import pandas as pd, numpy as np, logging, sys, re, os, torch, json, inspect, torch.nn.functional as F
+
 from sklearn.tree import DecisionTreeClassifier
+from IPython.display import display
 from scipy import sparse
 from tqdm.auto import tqdm
-import torch.nn.functional as F
 from itertools import chain
 from scipy import sparse
 from IPython.display import display
@@ -395,3 +396,27 @@ def robustness_analysis(block, meta_name:str, analysis_type:str='missing', pct:f
     block.test.dset.meta[f'{meta_name}_meta'].update_meta_matrix(data_meta, lbl_meta)
     return block
     
+
+# %% ../nbs/00_core.ipynb 44
+class ShowMetric:
+
+    ORDER = ['P@1', 'P@5', 'N@5', 'PSP@1', 'PSP@5', 'R@200']
+
+    @staticmethod
+    def show_df(df):
+        with pd.option_context('display.precision',2,'display.max_colwidth',None,'display.max_columns',None):
+            display(df)
+
+    @staticmethod
+    def convert_df_and_remove_prefix(o):
+        m = {}
+        for key,val in o.items():
+            m[key] = {re.sub(r'^(test|eval)_(.*)', r'\2', k):v for k,v in val.items()}
+            
+        df = pd.DataFrame(m).T
+        return df[DisplayMetric.ORDER]
+
+    @staticmethod
+    def show(o):
+        ShowMetric.show_df(ShowMetric.convert_df_and_remove_prefix(o)*100)
+        
