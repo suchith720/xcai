@@ -630,7 +630,8 @@ class XCDataBlock:
         
         return XCDataBlock(train=train_dset)
 
-    def inference_dset(self, data_info:Dict, data_lbl:sparse.csr_matrix, lbl_info:Dict, data_lbl_filterer, **kwargs):
+    @staticmethod
+    def inference_dset(data_info:Dict, data_lbl:sparse.csr_matrix, lbl_info:Dict, data_lbl_filterer, **kwargs):
         x_idx = np.where(data_lbl.getnnz(axis=1) == 0)[0].reshape(-1,1)
         y_idx = np.zeros((len(x_idx),1), dtype=np.int64)
         data_lbl[x_idx, y_idx] = 1
