@@ -635,7 +635,7 @@ class XCDataBlock:
         x_idx = np.where(data_lbl.getnnz(axis=1) == 0)[0].reshape(-1,1)
         y_idx = np.zeros((len(x_idx),1), dtype=np.int64)
         data_lbl[x_idx, y_idx] = 1
-        data_lbl_filterer = np.vstack([np.hstack([x_idx, y_idx]), data_lbl_filterer])
+        data_lbl_filterer = np.hstack([x_idx, y_idx]) if data_lbl_filterer is None else np.vstack([np.hstack([x_idx, y_idx]), data_lbl_filterer])
     
         pred_dset = XCDataset(MainXCDataset(data_info=data_info, data_lbl=data_lbl, lbl_info=lbl_info,
                                             data_lbl_filterer=data_lbl_filterer, **kwargs))
