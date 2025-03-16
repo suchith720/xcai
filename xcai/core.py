@@ -408,16 +408,16 @@ class ShowMetric:
             display(df)
 
     @staticmethod
-    def convert_df_and_remove_prefix(o):
+    def convert_df_and_remove_prefix(o, order=None):
         m = {}
         for key,val in o.items():
             m[key] = {re.sub(r'^(test|eval)_(.*)', r'\2', k):v for k,v in val.items()}
             
         df = pd.DataFrame(m).T
-        
-        return df[[o for o in ShowMetric.ORDER if o in df.columns]]
+        order = [o for o in ShowMetric.ORDER if o in df.columns] if order is None else order
+        return df[order]
 
     @staticmethod
-    def show(o):
-        ShowMetric.show_df(ShowMetric.convert_df_and_remove_prefix(o)*100)
+    def show(o, order=None):
+        ShowMetric.show_df(ShowMetric.convert_df_and_remove_prefix(o, order)*100)
         
