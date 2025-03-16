@@ -414,7 +414,8 @@ class ShowMetric:
             m[key] = {re.sub(r'^(test|eval)_(.*)', r'\2', k):v for k,v in val.items()}
             
         df = pd.DataFrame(m).T
-        return df[ShowMetric.ORDER]
+        
+        return df[[o for o in ShowMetric.ORDER if o in df.columns]]
 
     @staticmethod
     def show(o):
