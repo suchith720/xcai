@@ -515,7 +515,7 @@ class Encoder003(DistilBertPreTrainedModel):
             else: m_embed = torch.zeros(size=(0,self.config.dim)).to(m_input_ids.device)
             meta_repr[m_key] = m_embed
                             
-            m_embed = m_embed.view(bsz, -1, self.config.dim)  
+            m_embed = m_embed.view(len(valid_meta_idx), -1, self.config.dim)  
             fused_embed = self.cross_head(embed[valid_meta_idx], m_embed)
             embed[valid_meta_idx] = embed[valid_meta_idx] + fused_embed
                
