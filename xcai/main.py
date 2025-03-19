@@ -60,7 +60,7 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
     else:
         block = joblib.load(pkl_file)
 
-        if isinstance(block, SXCBlock):
+        if isinstance(block, SXCDataBlock):
             if 'n_slbl_samples' in kwargs: 
                 block.train.dset.data.n_slbl_samples = kwargs['n_slbl_samples']
                 block.test.dset.data.n_slbl_samples = kwargs['n_slbl_samples']
