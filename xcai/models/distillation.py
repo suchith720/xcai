@@ -401,7 +401,7 @@ class DTL004(DistilBertPreTrainedModel):
                 data_attention_mask:Optional[torch.Tensor]=None,
                 **kwargs
             ):
-                return cls.m_student.get_label_representation(data_idx, data_input_ids, data_attention_mask, **kwargs)
+                return self.m_student.get_label_representation(data_idx, data_input_ids, data_attention_mask, **kwargs)
             self.get_label_representation = MethodType(get_label_representation, self)
         
     def forward(
