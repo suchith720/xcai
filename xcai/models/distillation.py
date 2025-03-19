@@ -5,11 +5,10 @@ __all__ = ['TCHOutput', 'TCH001', 'TCH002', 'TCH003', 'TCH004', 'DTL001', 'DTL00
            'DTL007', 'DTL008', 'DTL009', 'DTL010', 'DTL011', 'DTL012']
 
 # %% ../../nbs/17_models.distillation.ipynb 2
-import torch, numpy as np
+import torch, numpy as np, torch.nn.functional as F, torch.nn as nn
 from typing import Optional
-import torch.nn as nn
 from dataclasses import dataclass
-import torch.nn.functional as F
+from types import MethodType
 
 from ..core import store_attr
 from ..losses import Cosine, MultiTriplet
@@ -393,6 +392,17 @@ class DTL004(DistilBertPreTrainedModel):
         self.mse_loss_fn = nn.MSELoss()
         self.rep_loss_fn = MultiTriplet(bsz=bsz, tn_targ=tn_targ, margin=margin, n_negatives=n_negatives, tau=tau, 
                                         apply_softmax=apply_softmax, reduce='mean')
+
+        if hasattr(m_student, 'get_label_representation'):
+            def get_label_representation(
+                self,
+                data_idx:Optional[torch.Tensor]=None,
+                data_input_ids:Optional[torch.Tensor]=None,
+                data_attention_mask:Optional[torch.Tensor]=None,
+                **kwargs
+            ):
+                return cls.m_student.get_label_representation(data_idx, data_input_ids, data_attention_mask, **kwargs)
+            self.get_label_representation = MethodType(get_label_representation, self)
         
     def forward(
         self,

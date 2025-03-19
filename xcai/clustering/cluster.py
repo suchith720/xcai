@@ -2,15 +2,13 @@
 
 # %% auto 0
 __all__ = ['b_kmeans_dense_multi', 'b_kmeans_dense', 'b_kmeans_sparse', 'b_kmeans_dense_gpu', 'get_functions', 'cluster',
-           'partial_cluster', 'BalancedClusters', 'ClusterGroupedSampler']
+           'partial_cluster', 'BalancedClusters', 'ClusterGroupedSampler', 'get_cluster_mapping', 'get_cluster_size']
 
 # %% ../../nbs/13_clustering.cluster.ipynb 1
+import torch.nn.functional as F, scipy.sparse as sp, numpy as np, functools, operator, torch, time, sys, gc, os
 from sklearn.preprocessing import normalize
 from multiprocessing import Pool
-import torch.nn.functional as F
 from torch.utils.data import Sampler
-import scipy.sparse as sp
-import numpy as np, functools, operator, torch, time, sys, gc, os
 from typing import Optional, List, Union, Any
 
 from ..core import *
@@ -278,3 +276,17 @@ class ClusterGroupedSampler(Sampler):
         
         return iter(indices)
         
+
+# %% ../../nbs/13_clustering.cluster.ipynb 25
+def get_cluster_mapping(embeddings:torch.Tensor, cluster_sz:int=3):
+    clusters = BalancedClusters.proc(embeddings.half(), min_cluster_sz=cluster_sz)
+
+    cluster_mapping = torch.zeros(embeddings.shape[0], dtype=torch.int64)
+    for i,o in enumerate(clusters): cluster_mapping[o] = i
+    return cluster_mapping, len(clusters)
+    
+
+# %% ../../nbs/13_clustering.cluster.ipynb 26
+def get_cluster_size(emb_sz, cluster_sz):
+    return 2**int(np.ceil(np.log2(emb_sz / cluster_sz)))
+    

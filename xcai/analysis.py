@@ -7,7 +7,7 @@ __all__ = ['pointwise_eval', 'equal_volume_split', 'get_decile_stats', 'barplot'
 
 # %% ../nbs/16_analysis.ipynb 2
 import os,torch, torch.multiprocessing as mp, pickle, numpy as np, re
-from typing import Optional, Dict, List, Tuple
+from typing import Optional, Dict, List, Tuple, Union
 from torch.utils.data import Dataset
 from scipy import sparse
 from termcolor import colored, COLORS
@@ -135,19 +135,19 @@ def decile_plot(preds:Dict, data_lbl:sparse.csr_matrix, data_lbl_filterer:Option
 
 # %% ../nbs/16_analysis.ipynb 21
 @typedispatch
-def get_pred_dset(pred:sparse.csr_matrix, block:XCDataBlock):
+def get_pred_dset(pred:sparse.csr_matrix, block:Union[XCDataBlock,SXCDataBlock]):
     data = MainXCDataset(block.test.dset.data.data_info, pred, block.test.dset.data.lbl_info, 
                          block.test.dset.data.data_lbl_filterer)
     return XCDataset(data, **block.test.dset.meta)
 
 
 @typedispatch
-def get_pred_dset(pred:sparse.csr_matrix, dset:XCDataset):
+def get_pred_dset(pred:sparse.csr_matrix, dset:Union[XCDataset,SXCDataset]):
     data = MainXCDataset(dset.data.data_info, pred, dset.data.lbl_info, dset.data.data_lbl_filterer)
     return XCDataset(data, **dset.meta)
 
 @typedispatch
-def get_pred_dset(pred:sparse.csr_matrix, dset:MainXCDataset):
+def get_pred_dset(pred:sparse.csr_matrix, dset:[MainXCDataset,SMainXCDataset]):
     return MainXCDataset(dset.data_info, pred, dset.lbl_info, dset.data_lbl_filterer)
     
 
@@ -284,7 +284,7 @@ class CompareDataset:
                     ctr += 1
             print()
 
-    def dump_txt(self, fname, k=10):
+    def dump_txt(self, fname, idxs=None, k=10):
         assert self.dset1.n_data == self.dset2.n_data, f'Different number of datapoints, dset1({self.dset1.n_data}) and dset2({self.dset2.n_data})'
         if idxs is None: idxs = np.random.permutation(self.dset1.n_data)[:k]
             

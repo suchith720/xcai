@@ -510,10 +510,11 @@ class Encoder003(DistilBertPreTrainedModel):
             n_meta = m_args['data2ptr'].max()
             assert torch.all(m_args['data2ptr'] == n_meta), f'All datapoints should have same number of metadata.'
             
-            m_input_ids, m_attention_mask = m_args['input_ids'], m_args['attention_mask']
-            m_embed = self.meta_encode(input_ids=m_input_ids, attention_mask=m_attention_mask)
+            m_input_ids, m_attention_mask = m_args['input_ids'], m_args['attention_mask']    
+            if m_input_ids.shape[0] > 0: m_embed = self.meta_encode(input_ids=m_input_ids, attention_mask=m_attention_mask)
+            else: m_embed = torch.zeros(size=(0,self.config.dim)).to(m_input_ids.device)
             meta_repr[m_key] = m_embed
-                    
+                            
             m_embed = m_embed.view(bsz, -1, self.config.dim)  
             fused_embed = self.cross_head(embed, m_embed)
             embed = embed + fused_embed
