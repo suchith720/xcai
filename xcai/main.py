@@ -60,6 +60,28 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
     else:
         block = joblib.load(pkl_file)
 
+        if isinstance(block, SXCBlock):
+            if 'n_slbl_samples' in kwargs: 
+                block.train.dset.data.n_slbl_samples = kwargs['n_slbl_samples']
+                block.test.dset.data.n_slbl_samples = kwargs['n_slbl_samples']
+                
+            if 'main_oversample' in kwargs: 
+                block.train.dset.data.n_slbl_samples = kwargs['main_oversample']
+                block.test.dset.data.n_slbl_samples = kwargs['main_oversample']
+    
+            for k in block.train.dset.meta:
+                if 'n_sdata_meta_samples' in kwargs:
+                    block.train.dset.meta[k].n_sdata_meta_samples = kwargs['n_sdata_meta_samples']
+                    block.test.dset.meta[k].n_sdata_meta_samples = kwargs['n_sdata_meta_samples']
+    
+                if 'n_slbl_meta_samples' in kwargs:
+                    block.train.dset.meta[k].n_slbl_meta_samples = kwargs['n_slbl_meta_samples']
+                    block.test.dset.meta[k].n_slbl_meta_samples = kwargs['n_slbl_meta_samples']
+    
+                if 'meta_oversample' in kwargs:
+                    block.train.dset.meta[k].meta_oversample = kwargs['meta_oversample']
+                    block.test.dset.meta[k].meta_oversample = kwargs['meta_oversample']
+                    
     if remove_empty_datapoints: block = type(block)(train=get_valid_dset(block.train), test=get_valid_dset(block.test))
 
     return block
