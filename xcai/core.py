@@ -415,6 +415,7 @@ class ShowMetric:
             
         df = pd.DataFrame(m).T
         order = [o for o in ShowMetric.ORDER if o in df.columns] if order is None else order
+        if isinstance(df.index[0], tuple): df.index = pd.MultiIndex.from_tuples(df.index)
         return df[order]
 
     @staticmethod
