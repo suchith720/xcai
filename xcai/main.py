@@ -95,8 +95,8 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
                 block.test.dset.data.n_slbl_samples = kwargs['n_slbl_samples']
                 
             if 'main_oversample' in kwargs: 
-                block.train.dset.data.n_slbl_samples = kwargs['main_oversample']
-                block.test.dset.data.n_slbl_samples = kwargs['main_oversample']
+                block.train.dset.data.main_oversample = kwargs['main_oversample']
+                block.test.dset.data.main_oversample = kwargs['main_oversample']
     
             for k in block.train.dset.meta:
                 if 'n_sdata_meta_samples' in kwargs:
