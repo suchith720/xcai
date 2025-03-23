@@ -10,12 +10,11 @@ from enum import Enum
 from tqdm.auto import tqdm
 from scipy import sparse
 from packaging import version
-import torch, re, math, numpy as np, os, time, datasets, pickle
+import torch, re, math, numpy as np, os, time, datasets, pickle, transformers
 from typing import Any, Tuple, Optional, Sequence, Union, Dict, List, NamedTuple
 from transformers import AutoTokenizer, BatchEncoding, Seq2SeqTrainer, Seq2SeqTrainingArguments
 
-import torch.nn as nn
-import torch.nn.functional as F
+import torch.nn as nn, torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset, RandomSampler
 
 from torch.nn.parallel import DataParallel
@@ -30,6 +29,7 @@ from .generation.trie import *
 from .generation.generate import *
 from .clustering.cluster import *
 from .transform import PadFeatTfm
+from .optimizers.oakX import MultipleOptimizer, MultipleScheduler
 
 from fastcore.utils import *
 from fastcore.meta import *
@@ -429,7 +429,35 @@ class XCLearner(Seq2SeqTrainer):
             if isinstance(host_output, torch.Tensor) and to_cpu: host_output = host_output.cpu()
             return host_output if all_output is None else nested_concat(all_output, host_output, padding_index=-100)
         else: return all_output
-            
+
+    def create_optimizer_and_scheduler(self, num_training_steps: int):
+        if hasattr(self.model, 'meta_embeddings') and self.model.meta_embeddings.sparse:
+            NO_DECAY = ['bias', 'LayerNorm.weight']
+        
+            dense, sparse = [], []
+            for k, p in self.model.named_parameters():
+                if p.requires_grad:
+                    if "meta_embeddings" not in k: dense.append((k,p))
+                    else: sparse.append(p)
+        
+            params = [
+                {'params': [p for n, p in dense if not any(nd in n for nd in NO_DECAY)], 'weight_decay': 0.01},
+                {'params': [p for n, p in dense if any(nd in n for nd in NO_DECAY)], 'weight_decay': 0.0},
+            ]
+        
+            optimizer_list = [torch.optim.AdamW(params, **{'lr': self.args.learning_rate, 'eps': 1e-6}),
+                              torch.optim.SparseAdam(sparse, **{'lr': self.args.learning_rate * self.args.free_parameter_lr_coefficient, 'eps': 1e-6})]
+        
+            self.optimizer = MultipleOptimizer(optimizer_list)
+            scheduler_list = [transformers.get_linear_schedule_with_warmup(self.optimizer.optimizers[0], num_warmup_steps=self.args.warmup_steps,
+                                                                           num_training_steps=num_training_steps),
+                                transformers.get_cosine_schedule_with_warmup(self.optimizer.optimizers[1],
+                                                                             num_warmup_steps=self.args.free_parameter_warmup_steps,
+                                                                             num_training_steps=num_training_steps)]
+        
+            self.lr_scheduler = MultipleScheduler(scheduler_list)
+        else:
+            super().create_optimizer_and_scheduler(num_training_steps)
             
 
 # %% ../nbs/06_learner.ipynb 42
@@ -927,7 +955,7 @@ def get_representation(self:XCLearner, dataloader: DataLoader, representation_at
     return self._gather_all_output(data_host, all_data, to_cpu=to_cpu)
     
 
-# %% ../nbs/06_learner.ipynb 53
+# %% ../nbs/06_learner.ipynb 54
 @patch
 def _get_train_sampler(self:XCLearner):
     if self.train_dataset is None or not has_length(self.train_dataset):
@@ -956,7 +984,7 @@ def _get_train_sampler(self:XCLearner):
         return RandomSampler(self.train_dataset)
         
 
-# %% ../nbs/06_learner.ipynb 54
+# %% ../nbs/06_learner.ipynb 55
 @patch
 def get_train_dataloader(self:XCLearner):
     if self.train_dataset is None:
@@ -986,7 +1014,7 @@ def get_train_dataloader(self:XCLearner):
     return DataLoader(train_dataset, **dataloader_params)
     
 
-# %% ../nbs/06_learner.ipynb 55
+# %% ../nbs/06_learner.ipynb 56
 @patch
 def _get_min_cluster_sz(self:XCLearner, epochs_trained:int, num_train_epochs:int):
     
@@ -1013,7 +1041,7 @@ def _get_min_cluster_sz(self:XCLearner, epochs_trained:int, num_train_epochs:int
     else: raise ValueError(f'Invalid `clustering_type`({self.args.clustering_type}).')
     
 
-# %% ../nbs/06_learner.ipynb 57
+# %% ../nbs/06_learner.ipynb 58
 @patch
 def _get_train_data_cluster(self:XCLearner, epochs_trained:int, num_train_epochs:int):
     with torch.no_grad():
@@ -1035,7 +1063,7 @@ def update_dataloader_sampler(self:XCLearner, dataloader:DataLoader, epochs_trai
         dataloader.sampler.set_cluster(cluster)
     
 
-# %% ../nbs/06_learner.ipynb 58
+# %% ../nbs/06_learner.ipynb 59
 @patch
 def prune_metadata(self:XCLearner):
     if self.train_dataset.meta is None: return
@@ -1064,7 +1092,7 @@ def prune_metadata(self:XCLearner):
                                      thresh=self.args.prune_metadata_threshold, topk=self.args.prune_metadata_topk)
             
 
-# %% ../nbs/06_learner.ipynb 59
+# %% ../nbs/06_learner.ipynb 60
 @patch
 def get_aug_data_meta(self:XCLearner, data_repr:torch.Tensor, batch_size:Optional[int]=64):
     data_repr = F.normalize(data_repr, dim=1)
@@ -1082,7 +1110,7 @@ def get_aug_data_meta(self:XCLearner, data_repr:torch.Tensor, batch_size:Optiona
     return data_meta
     
 
-# %% ../nbs/06_learner.ipynb 60
+# %% ../nbs/06_learner.ipynb 61
 @patch
 def get_augmentation_metadata(self:XCLearner):
     self.model.train()
@@ -1132,7 +1160,7 @@ def get_augmentation_metadata(self:XCLearner):
     self.train_dataset.meta[f'{data_aug_prefix}_meta'] = metadata
     
 
-# %% ../nbs/06_learner.ipynb 61
+# %% ../nbs/06_learner.ipynb 62
 @patch
 def _get_data_representation(self:XCLearner, dataset:Optional[Dataset]=None, to_cpu:Optional[bool]=True):
     if dataset is not None:
@@ -1144,7 +1172,7 @@ def _get_data_representation(self:XCLearner, dataset:Optional[Dataset]=None, to_
         raise ValueError('`dataset` is None, could not create data representation.')
         
 
-# %% ../nbs/06_learner.ipynb 62
+# %% ../nbs/06_learner.ipynb 63
 @patch
 def get_data_and_lbl_representation(self:XCLearner, dataset:Optional[Dataset], to_cpu:Optional[bool]=True):
     with torch.no_grad():
@@ -1152,7 +1180,7 @@ def get_data_and_lbl_representation(self:XCLearner, dataset:Optional[Dataset], t
     return data_rep,lbl_rep
     
 
-# %% ../nbs/06_learner.ipynb 63
+# %% ../nbs/06_learner.ipynb 64
 @patch
 def mix_metadata(self:XCLearner, epochs_trained:int):
     if epochs_trained == self.args.maximum_mix_metadata_epochs: pct = 1
@@ -1163,7 +1191,7 @@ def mix_metadata(self:XCLearner, epochs_trained:int):
                                         pct=pct, k=self.args.mix_metadata_k)
     
 
-# %% ../nbs/06_learner.ipynb 64
+# %% ../nbs/06_learner.ipynb 65
 @patch
 def _validate_group_by_cluster(self:XCLearner):
     if self.args.group_by_cluster and (not hasattr(self.model,'use_representation') or  not getattr(unwrap_model(self.model),'use_representation')):
