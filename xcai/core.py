@@ -422,6 +422,6 @@ class ShowMetric:
     def show(o, order=None):
         df = ShowMetric.convert_df_and_remove_prefix(o, order)
         for k in df.columns:
-            if type(df[k].iloc[0]) == float: df[k] = df[k] * 100
+            if isinstance(df[k].iloc[0], float): df[k] = df[k] * 100
         ShowMetric.show_df(df)
         
