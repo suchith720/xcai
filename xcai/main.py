@@ -146,7 +146,7 @@ def get_output(pred_idx:torch.Tensor, pred_ptr:torch.Tensor, pred_score:torch.Te
     
 
 # %% ../nbs/36_main.ipynb 14
-def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None):
+def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:int=None, train_k:int=None):
     eval_dataset = learn.eval_dataset if eval_dataset is None else eval_dataset
     train_dataset = learn.train_dataset if train_dataset is None else train_dataset
     
@@ -173,6 +173,7 @@ def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None):
             print(o.metrics)
 
             tst_pred = get_output(o.pred_idx, o.pred_ptr, o.pred_score, n_lbl=n_lbl)
+            if eval_k is not None: tst_pred = retain_topk(tst_pred, k=eval_k)
 
             if args.save_test_prediction:
                 with open(f'{pred_dir}/test_predictions{prediction_suffix}.pkl', 'wb') as file:
@@ -184,6 +185,7 @@ def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None):
             print(o.metrics)
 
             trn_pred = get_output(o.pred_idx, o.pred_ptr, o.pred_score, n_lbl=n_lbl)
+            if train_k is not None: trn_pred = retain_topk(trn_pred, k=train_k)
             
             if args.save_train_prediction:
                 with open(f'{pred_dir}/train_predictions{prediction_suffix}.pkl', 'wb') as file:
