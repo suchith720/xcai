@@ -8,9 +8,12 @@ __all__ = ['parse_args', 'retain_topk_metadata', 'retrain_topk_labels', 'get_val
 import os, torch, scipy.sparse as sp, joblib, argparse, pickle, numpy as np
 from typing import Optional, Dict, Callable, Union
 
+from transformers import DistilBertConfig
+
 from .sdata import SXCDataBlock
 from .data import XCDataBlock
 from .block import SXCBlock, XCBlock
+from .models.distillation import TCH001
 from .core import get_best_model, load_config
 
 from xclib.utils.sparse import retain_topk
@@ -145,8 +148,8 @@ def get_output(pred_idx:torch.Tensor, pred_ptr:torch.Tensor, pred_score:torch.Te
     return pred
     
 
-# %% ../nbs/36_main.ipynb 14
-def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:int=None, train_k:int=None):
+# %% ../nbs/36_main.ipynb 15
+def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:int=None, train_k:int=None, save_teacher:bool=False):
     eval_dataset = learn.eval_dataset if eval_dataset is None else eval_dataset
     train_dataset = learn.train_dataset if train_dataset is None else train_dataset
     
@@ -167,6 +170,10 @@ def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:i
             torch.save(trn_repr, f'{pred_dir}/train_repr{prediction_suffix}.pth')
             torch.save(tst_repr, f'{pred_dir}/test_repr{prediction_suffix}.pth')
             torch.save(lbl_repr, f'{pred_dir}/label_repr{prediction_suffix}.pth')
+
+            if save_teacher:
+                teacher = TCH001(DistilBertConfig(), n_data=trn_repr.shape[0], n_lbl=lbl_repr.shape[0])
+                teacher.save_pretrained(f'{learn.args.output_dir}/teacher')
 
         if args.do_test_inference:
             o = learn.predict(eval_dataset)
