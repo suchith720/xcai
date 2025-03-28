@@ -29,6 +29,7 @@ def parse_args():
     
     parser.add_argument('--save_train_prediction', action='store_true')
     parser.add_argument('--save_test_prediction', action='store_true')
+    parser.add_argument('--save_label_prediction', action='store_true')
     
     parser.add_argument('--save_representation', action='store_true')
     
