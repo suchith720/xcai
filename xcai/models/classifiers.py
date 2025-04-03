@@ -56,9 +56,10 @@ class CLS001(DistilBertPreTrainedModel):
         self._train_inference = value
         
     def init_representation(self, train_repr:torch.Tensor, test_repr:torch.Tensor, lbl_repr:torch.Tensor):
-        self.train_repr.weight.data = train_repr
-        self.test_repr.weight.data = test_repr
-        self.lbl_repr.weight.data = lbl_repr
+        with torch.no_grad():
+            self.train_repr.weight.data.copy_(train_repr)
+            self.test_repr.weight.data.copy_(test_repr)
+            self.lbl_repr.weight.data.copy_(lbl_repr)
 
     def freeze_representation(self):
         self.train_repr.requires_grad_(False)
@@ -71,7 +72,8 @@ class CLS001(DistilBertPreTrainedModel):
         self.lbl_repr.requires_grad_(True)
 
     def init_lbl_embeddings(self):
-        self.lbl_embeddings.weight.data = torch.zeros_like(self.lbl_embeddings.weight.data)
+        with torch.no_grad():
+            torch.nn.init.zeros_(self.lbl_embeddings.weight.data)
 
     def get_label_representation(self, data_idx:torch.Tensor, **kwargs):
         data_rep = F.normalize(self.lbl_repr(data_idx) + self.lbl_embeddings(data_idx), dim=1)

@@ -14,6 +14,7 @@ from .sdata import SXCDataBlock
 from .data import XCDataBlock
 from .block import SXCBlock, XCBlock
 from .models.distillation import TCH001
+from .models.classifiers import CLS001
 from .core import get_best_model, load_config
 
 from xclib.utils.sparse import retain_topk
@@ -150,7 +151,8 @@ def get_output(pred_idx:torch.Tensor, pred_ptr:torch.Tensor, pred_score:torch.Te
     
 
 # %% ../nbs/36_main.ipynb 15
-def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:int=None, train_k:int=None, save_teacher:bool=False):
+def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:int=None, train_k:int=None, save_teacher:bool=False, 
+         save_classifier:bool=False):
     eval_dataset = learn.eval_dataset if eval_dataset is None else eval_dataset
     train_dataset = learn.train_dataset if train_dataset is None else train_dataset
     
@@ -177,6 +179,12 @@ def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:i
                 teacher.init_embeddings(trn_repr, lbl_repr)
                 teacher.freeze_embeddings()
                 teacher.save_pretrained(f'{learn.args.output_dir}/teacher')
+
+            if save_classifier:
+                classifier = CLS001(DistilBertConfig(), n_train=trn_repr.shape[0], n_test=tst_repr.shape[0], n_lbl=lbl_repr.shape[0])
+                classifier.init_representation(trn_repr, tst_repr, lbl_repr)
+                classifier.freeze_representation()
+                classifier.save_pretrained(f'{learn.args.output_dir}/representation')
 
         if args.do_test_inference:
             o = learn.predict(eval_dataset)
