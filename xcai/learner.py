@@ -48,7 +48,7 @@ from transformers.trainer_utils import has_length, denumpify_detensorize, speed_
 from transformers.trainer_callback import TrainerState, ExportableState
 from transformers.trainer import _is_peft_model
 from transformers.modeling_utils import unwrap_model
-from transformers.utils import is_sagemaker_mp_enabled, is_accelerate_available, is_torch_tpu_available, logging, is_datasets_available
+from transformers.utils import is_sagemaker_mp_enabled, is_accelerate_available, is_torch_xla_available, logging, is_datasets_available
 from transformers.debug_utils import DebugOption, DebugUnderflowOverflow
 
 from transformers.integrations import hp_params
@@ -1559,7 +1559,7 @@ def _inner_training_loop(
 
             if (
                 args.logging_nan_inf_filter
-                and not is_torch_tpu_available()
+                and not is_torch_xla_available()
                 and (torch.isnan(tr_loss_step) or torch.isinf(tr_loss_step))
             ):
                 # if loss is nan or inf simply add the average of previous logged losses
@@ -1631,7 +1631,7 @@ def _inner_training_loop(
                 # PyTorch/XLA relies on the data loader to insert the mark_step for
                 # each step. Since we are breaking the loop early, we need to manually
                 # insert the mark_step here.
-                if is_torch_tpu_available():
+                if is_torch_xla_available():
                     xm.mark_step()
                 break
 
@@ -1651,7 +1651,7 @@ def _inner_training_loop(
         self._maybe_log_save_evaluate(tr_loss, grad_norm, model, trial, epoch, ignore_keys_for_eval, start_time)
 
         if DebugOption.TPU_METRICS_DEBUG in self.args.debug:
-            if is_torch_tpu_available():
+            if is_torch_xla_available():
                 # tpu-comment: Logging debug metrics for PyTorch/XLA (compile, execute times, ops, etc.)
                 xm.master_print(met.metrics_report())
             else:
@@ -1669,7 +1669,7 @@ def _inner_training_loop(
     logger.info("\n\nTraining completed. Do not forget to share your model on huggingface.co/models =)\n\n")
     if args.load_best_model_at_end and self.state.best_model_checkpoint is not None:
         # Wait for everyone to get here so we are sure the model has been saved by process 0.
-        if is_torch_tpu_available():
+        if is_torch_xla_available():
             xm.rendezvous("load_best_model_at_end")
         elif args.parallel_mode == ParallelMode.DISTRIBUTED:
             dist.barrier()
