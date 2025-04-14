@@ -13,8 +13,6 @@ from transformers import DistilBertConfig
 from .sdata import SXCDataBlock
 from .data import XCDataBlock
 from .block import SXCBlock, XCBlock
-from .models.distillation import TCH001
-from .models.classifiers import CLS001
 from .core import get_best_model, load_config
 
 from xclib.utils.sparse import retain_topk
