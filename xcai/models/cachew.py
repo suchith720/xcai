@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['Parameters', 'MemoryConfig', 'CachewConfig', 'Memory', 'CrossCombinerBlock', 'EncoderOutput', 'Encoder',
-           'CAWModelOutput', 'CAW000', 'CAW001']
+           'CAWModelOutput', 'CAW000', 'CAW001', 'CAW002']
 
 # %% ../../nbs/37_models.cachew.ipynb 3
 import torch, torch.nn as nn, torch.nn.functional as F, re
@@ -36,9 +36,24 @@ class Parameters:
         if prefix is not None and f'{prefix}_{feat}2ptr' in kwargs:
             inputs.update({f'{prefix}_data2ptr': kwargs[f'{prefix}_{feat}2ptr']})
         return inputs
+
+    @staticmethod
+    def from_aug_meta_prefix_for_loss(feat:str, prefix:str, **kwargs):
+        keys = [f'{prefix}_idx', f'p{prefix}_idx']
+        args = {k: kwargs[k] for k in keys if k in kwargs}
+        if prefix is not None and f'{prefix}_{feat}2ptr' in kwargs:
+            args.update({f'{prefix}_data2ptr': kwargs[f'{prefix}_{feat}2ptr']})
+        if prefix is not None and f'p{prefix}_{feat}2ptr' in kwargs:
+            args.update({f'p{prefix}_data2ptr': kwargs[f'p{prefix}_{feat}2ptr']})
+
+        inputs = {}
+        for arg in args:
+            meta,param = arg.split('_', maxsplit=1)
+            inputs.setdefault(meta, {})[param] = args[arg]
+        return inputs
         
 
-# %% ../../nbs/37_models.cachew.ipynb 18
+# %% ../../nbs/37_models.cachew.ipynb 21
 class MemoryConfig(DistilBertConfig):
 
     def __init__(
@@ -52,13 +67,16 @@ class MemoryConfig(DistilBertConfig):
         super().__init__(**kwargs)
     
 
-# %% ../../nbs/37_models.cachew.ipynb 19
+# %% ../../nbs/37_models.cachew.ipynb 22
 class CachewConfig(MemoryConfig):
 
     def __init__(
         self,
         data_aug_meta_prefix:Optional[str] = None, 
-        lbl2data_aug_meta_prefix:Optional[str] = None, 
+        lbl2data_aug_meta_prefix:Optional[str] = None,
+
+        data_enrich:Optional[bool] = True,
+        lbl2data_enrich:Optional[bool] = True,
         
         num_batch_labels:Optional[int] = None,
         batch_size:Optional[int] = None,
@@ -75,6 +93,9 @@ class CachewConfig(MemoryConfig):
         use_calib_loss:Optional[float] = False,
         
         use_query_loss:Optional[float] = True,
+
+        meta_loss_weight:Optional[float] = 0.1,
+        use_meta_loss:Optional[bool] = False,
         
         use_encoder_parallel:Optional[bool] = True,
         
@@ -82,6 +103,9 @@ class CachewConfig(MemoryConfig):
     ):
         self.data_aug_meta_prefix = data_aug_meta_prefix
         self.lbl2data_aug_meta_prefix = lbl2data_aug_meta_prefix
+
+        self.data_enrich = data_enrich
+        self.lbl2data_enrich = lbl2data_enrich
 
         self.num_batch_labels = num_batch_labels
         self.batch_size = batch_size
@@ -99,12 +123,15 @@ class CachewConfig(MemoryConfig):
 
         self.use_query_loss = use_query_loss
 
+        self.meta_loss_weight = meta_loss_weight
+        self.use_meta_loss = use_meta_loss
+
         self.use_encoder_parallel = use_encoder_parallel
 
         super().__init__(**kwargs)
         
 
-# %% ../../nbs/37_models.cachew.ipynb 21
+# %% ../../nbs/37_models.cachew.ipynb 24
 class Memory(nn.Module):
 
     def __init__(self, config: PretrainedConfig):
@@ -165,12 +192,12 @@ class Memory(nn.Module):
             input_embeddings, input_mask = self.align_embeddings(input_embeddings, input_data2ptr)
 
         embeddings = pred_embeddings if input_embeddings is None else torch.cat([pred_embeddings, input_embeddings], dim=1)
-        mask = pred_mask if pred_mask is None else torch.cat([pred_mask, input_mask], dim=1)
+        mask = pred_mask if input_mask is None else torch.cat([pred_mask, input_mask], dim=1)
         
         return embeddings, mask, scores
         
 
-# %% ../../nbs/37_models.cachew.ipynb 30
+# %% ../../nbs/37_models.cachew.ipynb 33
 class CrossCombinerBlock(TransformerBlock):
 
     def __init__(self, config: PretrainedConfig):
@@ -225,7 +252,7 @@ class CrossCombinerBlock(TransformerBlock):
         return output
         
 
-# %% ../../nbs/37_models.cachew.ipynb 32
+# %% ../../nbs/37_models.cachew.ipynb 35
 @dataclass
 class EncoderOutput(ModelOutput):
     repr: Optional[torch.FloatTensor] = None
@@ -233,7 +260,7 @@ class EncoderOutput(ModelOutput):
     meta_scores: Optional[torch.FloatTensor] = None
     
 
-# %% ../../nbs/37_models.cachew.ipynb 33
+# %% ../../nbs/37_models.cachew.ipynb 36
 class Encoder(DistilBertPreTrainedModel):
     
     config_class = MemoryConfig
@@ -295,8 +322,8 @@ class Encoder(DistilBertPreTrainedModel):
     def encode_enriched_query(self, embed:torch.Tensor):
         return F.normalize(self.enriched_query_head(embed), dim=1)
 
-    def enrich_query_representation(self, data_repr:torch.Tensor, meta_kwargs:Dict):
-        meta_repr, meta_mask, meta_scores = self.memory(data_repr, meta_kwargs['idx'], meta_kwargs['data2ptr'])
+    def enrich_query_representation(self, data_repr:torch.Tensor, meta_kwargs:Optional[Dict]=None):
+        meta_repr, meta_mask, meta_scores = self.memory(data_repr) if meta_kwargs is None else self.memory(data_repr, meta_kwargs['idx'], meta_kwargs['data2ptr'])
         
         meta_mask = meta_mask.view(len(meta_mask), 1, 1, -1).bool()
         fusion_repr = self.combiner_head(x=data_repr.view(len(data_repr), 1, -1), m=meta_repr, attn_mask=meta_mask)
@@ -310,6 +337,7 @@ class Encoder(DistilBertPreTrainedModel):
         data_input_ids: torch.Tensor, 
         data_attention_mask: torch.Tensor,
         data_aug_meta_prefix: Optional[str]=None,
+        data_enrich: Optional[bool]=True,
         **kwargs
     ):  
         data_o = self.encode(data_input_ids, data_attention_mask)
@@ -317,8 +345,10 @@ class Encoder(DistilBertPreTrainedModel):
         
         enriched_data_repr = meta_scores = None
         meta_kwargs = Parameters.from_data_aug_meta_prefix_for_encoder(data_aug_meta_prefix, **kwargs)
-        if len(meta_kwargs): 
-            enriched_data_repr, meta_scores = self.enrich_query_representation(data_repr, meta_kwargs[data_aug_meta_prefix])
+        meta_kwargs = meta_kwargs.get(data_aug_meta_prefix, None)
+        
+        if data_enrich:
+            enriched_data_repr, meta_scores = self.enrich_query_representation(data_repr, meta_kwargs)
             
         return EncoderOutput(
             repr=data_repr,
@@ -327,7 +357,7 @@ class Encoder(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/37_models.cachew.ipynb 40
+# %% ../../nbs/37_models.cachew.ipynb 43
 @dataclass
 class CAWModelOutput(ModelOutput):
     loss: Optional[torch.FloatTensor] = None
@@ -337,7 +367,7 @@ class CAWModelOutput(ModelOutput):
     lbl2data_enriched_repr: Optional[torch.FloatTensor] = None
     
 
-# %% ../../nbs/37_models.cachew.ipynb 41
+# %% ../../nbs/37_models.cachew.ipynb 44
 class CAW000(nn.Module):
 
     config_class = CachewConfig
@@ -348,9 +378,8 @@ class CAW000(nn.Module):
     ):
         super().__init__(config)
         self.config, self.encoder = config, None
-        self.rep_loss_fn = MultiTriplet(bsz=config.batch_size, tn_targ=config.num_batch_labels, margin=config.margin, 
-                                        n_negatives=config.num_negatives, tau=config.tau, apply_softmax=config.apply_softmax, 
-                                        reduce='mean')
+        self.rep_loss_fn = MultiTriplet(margin=config.margin, n_negatives=config.num_negatives, tau=config.tau, 
+                                        apply_softmax=config.apply_softmax, reduce='mean')
         self.cab_loss_fn = Calibration(margin=config.calib_margin, tau=config.calib_tau, n_negatives=config.calib_num_negatives, 
                                        apply_softmax=config.calib_apply_softmax, reduce='mean')
         
@@ -395,13 +424,13 @@ class CAW000(nn.Module):
         
         data_meta_kwargs = Parameters.from_data_aug_meta_prefix_for_feature('data', self.config.data_aug_meta_prefix, **kwargs)
         data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask, 
-                         data_aug_meta_prefix=self.config.data_aug_meta_prefix, **data_meta_kwargs)
+                         data_aug_meta_prefix=self.config.data_aug_meta_prefix, data_enrich=self.config.data_enrich, **data_meta_kwargs)
         
         loss = None; lbl2data_o = EncoderOutput()
         if lbl2data_input_ids is not None:
             lbl2data_meta_kwargs = Parameters.from_data_aug_meta_prefix_for_feature('lbl2data', self.config.lbl2data_aug_meta_prefix, **kwargs)
             lbl2data_o = encoder(data_input_ids=lbl2data_input_ids, data_attention_mask=lbl2data_attention_mask, 
-                                 data_aug_meta_prefix=self.config.lbl2data_aug_meta_prefix, **lbl2data_meta_kwargs)
+                                 data_aug_meta_prefix=self.config.lbl2data_aug_meta_prefix, data_enrich=self.config.lbl2data_enrich, **lbl2data_meta_kwargs)
             
             loss = self.compute_loss(data_o.enriched_repr, lbl2data_o.repr,lbl2data_data2ptr,lbl2data_idx,
                                      plbl2data_data2ptr,plbl2data_idx)
@@ -427,7 +456,7 @@ class CAW000(nn.Module):
         )
         
 
-# %% ../../nbs/37_models.cachew.ipynb 43
+# %% ../../nbs/37_models.cachew.ipynb 46
 class CAW001(CAW000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -441,4 +470,88 @@ class CAW001(CAW000, DistilBertPreTrainedModel):
 
     def remap_post_init(self):
         self.distilbert = self.encoder.distilbert
+        
+
+# %% ../../nbs/37_models.cachew.ipynb 78
+class CAW002(CAW000, DistilBertPreTrainedModel):
+    use_generation,use_representation = False,True
+    _tied_weights_keys = ["encoder.distilbert"]
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.encoder = Encoder(config)
+        self.meta_loss_fn = MultiTripletFromScores(margin=config.margin, n_negatives=config.num_negatives, tau=config.tau, 
+                                                  apply_softmax=config.apply_softmax, reduce='mean')
+        self.post_init()
+        self.remap_post_init()
+
+    def remap_post_init(self):
+        self.distilbert = self.encoder.distilbert
+
+    def compute_meta_loss(self, scores, feat, prefix, **kwargs):
+        loss = 0.0
+        meta_kwargs = Parameters.from_aug_meta_prefix_for_loss(feat, prefix, **kwargs)
+        if len(meta_kwargs):
+            args, pargs = meta_kwargs[prefix], meta_kwargs[f'p{prefix}']
+            loss = self.config.meta_loss_weight * self.meta_loss_fn(scores[:, args['idx']], args['data2ptr'], args['idx'], 
+                                                                    pargs['data2ptr'], pargs['idx'])
+        return loss
+
+    def forward(
+        self,
+        data_input_ids:Optional[torch.Tensor]=None,
+        data_attention_mask:Optional[torch.Tensor]=None,
+        lbl2data_data2ptr:Optional[torch.Tensor]=None,
+        lbl2data_idx:Optional[torch.Tensor]=None,
+        lbl2data_input_ids:Optional[torch.Tensor]=None,
+        lbl2data_attention_mask:Optional[torch.Tensor]=None,
+        plbl2data_data2ptr:Optional[torch.Tensor]=None,
+        plbl2data_idx:Optional[torch.Tensor]=None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+        **kwargs
+    ): 
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        
+        if self.config.use_encoder_parallel: 
+            encoder = XCDataParallel(module=self.encoder)
+        else: encoder = self.encoder
+        
+        data_meta_kwargs = Parameters.from_data_aug_meta_prefix_for_feature('data', self.config.data_aug_meta_prefix, **kwargs)
+        data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask, 
+                         data_aug_meta_prefix=self.config.data_aug_meta_prefix, data_enrich=self.config.data_enrich, **data_meta_kwargs)
+        
+        loss = None; lbl2data_o = EncoderOutput()
+        if lbl2data_input_ids is not None:
+            lbl2data_meta_kwargs = Parameters.from_data_aug_meta_prefix_for_feature('lbl2data', self.config.lbl2data_aug_meta_prefix, **kwargs)
+            lbl2data_o = encoder(data_input_ids=lbl2data_input_ids, data_attention_mask=lbl2data_attention_mask, 
+                                 data_aug_meta_prefix=self.config.lbl2data_aug_meta_prefix, data_enrich=self.config.lbl2data_enrich, **lbl2data_meta_kwargs)
+            
+            loss = self.compute_loss(data_o.enriched_repr, lbl2data_o.repr,lbl2data_data2ptr,lbl2data_idx,
+                                     plbl2data_data2ptr,plbl2data_idx)
+            
+            if self.config.use_query_loss:
+                loss += self.compute_loss(data_o.repr, lbl2data_o.repr,lbl2data_data2ptr,lbl2data_idx,
+                                          plbl2data_data2ptr,plbl2data_idx)
+                
+            if self.config.use_calib_loss:
+                loss += self.calibration_loss(data_o.enriched_repr, data_o.repr, lbl2data_o.repr,lbl2data_data2ptr,lbl2data_idx,
+                                              plbl2data_data2ptr,plbl2data_idx)
+
+            if self.config.use_meta_loss:
+                loss += self.compute_meta_loss(data_o.meta_scores, 'data', self.config.data_aug_meta_prefix, **kwargs)
+                loss += self.compute_meta_loss(data_o.meta_scores, 'lbl2data', self.config.lbl2data_aug_meta_prefix, **kwargs)
+            
+        if not return_dict:
+            o = (data_o.repr,data_o.enriched_repr,lbl2data_o.repr,lbl2data_o.enriched_repr)
+            return ((loss,) + o) if loss is not None else o
+        
+        return CAWModelOutput(
+            loss=loss,
+            data_repr=data_o.repr,
+            data_enriched_repr=data_o.enriched_repr,
+            lbl2data_repr=lbl2data_o.repr,
+            lbl2data_enriched_repr=lbl2data_o.enriched_repr,
+        )
         
