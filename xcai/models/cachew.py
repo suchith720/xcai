@@ -488,6 +488,18 @@ class CAW002(CAW000, DistilBertPreTrainedModel):
     def remap_post_init(self):
         self.distilbert = self.encoder.distilbert
 
+    def freeze_query_encoder(self):
+        module_names = ['distilbert', 'query_head']
+        for name in module_names:
+            module = getattr(self.encoder, name)
+            for param in module.parameters(): param.requires_grad_(False)
+
+    def unfreeze_query_encoder(self):
+        module_names = ['distilbert', 'query_head']
+        for name in module_names:
+            module = getattr(self.encoder, name)
+            for param in module.parameters(): param.requires_grad_(True)
+
     def compute_meta_loss(self, scores, feat, prefix, **kwargs):
         loss = 0.0
         meta_kwargs = Parameters.from_aug_meta_prefix_for_loss(feat, prefix, **kwargs)
