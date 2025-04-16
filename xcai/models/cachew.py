@@ -541,7 +541,7 @@ class CAW002(CAW000, DistilBertPreTrainedModel):
 
             if self.config.use_meta_loss:
                 loss += self.compute_meta_loss(data_o.meta_scores, 'data', self.config.data_aug_meta_prefix, **kwargs)
-                loss += self.compute_meta_loss(data_o.meta_scores, 'lbl', self.config.lbl2data_aug_meta_prefix, **kwargs)
+                loss += self.compute_meta_loss(lbl2data_o.meta_scores, 'lbl', self.config.lbl2data_aug_meta_prefix, **kwargs)
             
         if not return_dict:
             o = (data_o.repr,data_o.enriched_repr,lbl2data_o.repr,lbl2data_o.enriched_repr)
