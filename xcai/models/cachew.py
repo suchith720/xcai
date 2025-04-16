@@ -30,7 +30,7 @@ class Parameters:
         return inputs
     
     @staticmethod
-    def from_data_aug_meta_prefix_for_feature(feat:str, prefix:str, **kwargs):
+    def from_aug_meta_prefix_for_feature(feat:str, prefix:str, **kwargs):
         keys = ['attention_mask', 'input_ids', 'idx']        
         inputs = {f'{prefix}_{k}': kwargs[f'{prefix}_{k}'] for k in keys if f'{prefix}_{k}' in kwargs}
         if prefix is not None and f'{prefix}_{feat}2ptr' in kwargs:
@@ -422,13 +422,13 @@ class CAW000(nn.Module):
             encoder = XCDataParallel(module=self.encoder)
         else: encoder = self.encoder
         
-        data_meta_kwargs = Parameters.from_data_aug_meta_prefix_for_feature('data', self.config.data_aug_meta_prefix, **kwargs)
+        data_meta_kwargs = Parameters.from_aug_meta_prefix_for_feature('data', self.config.data_aug_meta_prefix, **kwargs)
         data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask, 
                          data_aug_meta_prefix=self.config.data_aug_meta_prefix, data_enrich=self.config.data_enrich, **data_meta_kwargs)
         
         loss = None; lbl2data_o = EncoderOutput()
         if lbl2data_input_ids is not None:
-            lbl2data_meta_kwargs = Parameters.from_data_aug_meta_prefix_for_feature('lbl2data', self.config.lbl2data_aug_meta_prefix, **kwargs)
+            lbl2data_meta_kwargs = Parameters.from_aug_meta_prefix_for_feature('lbl', self.config.lbl2data_aug_meta_prefix, **kwargs)
             lbl2data_o = encoder(data_input_ids=lbl2data_input_ids, data_attention_mask=lbl2data_attention_mask, 
                                  data_aug_meta_prefix=self.config.lbl2data_aug_meta_prefix, data_enrich=self.config.lbl2data_enrich, **lbl2data_meta_kwargs)
             
@@ -518,13 +518,13 @@ class CAW002(CAW000, DistilBertPreTrainedModel):
             encoder = XCDataParallel(module=self.encoder)
         else: encoder = self.encoder
         
-        data_meta_kwargs = Parameters.from_data_aug_meta_prefix_for_feature('data', self.config.data_aug_meta_prefix, **kwargs)
+        data_meta_kwargs = Parameters.from_aug_meta_prefix_for_feature('data', self.config.data_aug_meta_prefix, **kwargs)
         data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask, 
                          data_aug_meta_prefix=self.config.data_aug_meta_prefix, data_enrich=self.config.data_enrich, **data_meta_kwargs)
         
         loss = None; lbl2data_o = EncoderOutput()
         if lbl2data_input_ids is not None:
-            lbl2data_meta_kwargs = Parameters.from_data_aug_meta_prefix_for_feature('lbl2data', self.config.lbl2data_aug_meta_prefix, **kwargs)
+            lbl2data_meta_kwargs = Parameters.from_aug_meta_prefix_for_feature('lbl', self.config.lbl2data_aug_meta_prefix, **kwargs)
             lbl2data_o = encoder(data_input_ids=lbl2data_input_ids, data_attention_mask=lbl2data_attention_mask, 
                                  data_aug_meta_prefix=self.config.lbl2data_aug_meta_prefix, data_enrich=self.config.lbl2data_enrich, **lbl2data_meta_kwargs)
             
@@ -541,7 +541,7 @@ class CAW002(CAW000, DistilBertPreTrainedModel):
 
             if self.config.use_meta_loss:
                 loss += self.compute_meta_loss(data_o.meta_scores, 'data', self.config.data_aug_meta_prefix, **kwargs)
-                loss += self.compute_meta_loss(data_o.meta_scores, 'lbl2data', self.config.lbl2data_aug_meta_prefix, **kwargs)
+                loss += self.compute_meta_loss(data_o.meta_scores, 'lbl', self.config.lbl2data_aug_meta_prefix, **kwargs)
             
         if not return_dict:
             o = (data_o.repr,data_o.enriched_repr,lbl2data_o.repr,lbl2data_o.enriched_repr)
