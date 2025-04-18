@@ -333,10 +333,12 @@ class Encoder(DistilBertPreTrainedModel):
         return F.normalize(self.enriched_query_head(embed), dim=1)
 
     def enrich_query_representation(self, data_repr:torch.Tensor, meta_kwargs:Optional[Dict]=None):
-        if self.config.use_self_link:
+        if self.config.use_self_linker:
             meta_repr, meta_mask, meta_scores = self.memory(data_repr) if meta_kwargs is None else self.memory(data_repr, meta_kwargs['idx'], meta_kwargs['data2ptr'])
         else:
             meta_repr, meta_mask, meta_scores = self.memory(input_indices=meta_kwargs['idx'], input_data2ptr=meta_kwargs['data2ptr'])
+            
+        if meta_repr is None: raise ValueError('Metadata representation is None.')
             
         meta_mask = meta_mask.view(len(meta_mask), 1, 1, -1).bool()
         fusion_repr = self.combiner_head(x=data_repr.view(len(data_repr), 1, -1), m=meta_repr, attn_mask=meta_mask)
