@@ -99,6 +99,8 @@ class CachewConfig(MemoryConfig):
         
         use_encoder_parallel:Optional[bool] = True,
         
+        use_self_linker:Optional[bool] = True,
+        
         **kwargs,
     ):
         self.data_aug_meta_prefix = data_aug_meta_prefix
@@ -127,11 +129,13 @@ class CachewConfig(MemoryConfig):
         self.use_meta_loss = use_meta_loss
 
         self.use_encoder_parallel = use_encoder_parallel
-
+        
+        self.use_self_linker = use_self_linker
+        
         super().__init__(**kwargs)
         
 
-# %% ../../nbs/37_models.cachew.ipynb 24
+# %% ../../nbs/37_models.cachew.ipynb 26
 class Memory(nn.Module):
 
     def __init__(self, config: PretrainedConfig):
@@ -170,20 +174,22 @@ class Memory(nn.Module):
 
         return output, mask
         
-    def forward(self, input_embeds:torch.Tensor, input_indices:Optional[torch.Tensor]=None, input_data2ptr:Optional[torch.Tensor]=None):
-        assert input_embeds.dim() == 2, f'Input embeddings should be 2-dimensional, but got dim:{input_embeds.dim()}'
-        
-        meta_norm = F.normalize(self.memory_embeddings.weight, dim=-1)
-        input_norm = F.normalize(input_embeds, dim=-1)
-        
-        scores = input_norm@meta_norm.T
-        values, indices = torch.topk(scores, self.top_k_metadata, dim=-1)
-        
-        pred_embeddings = self.memory_embeddings(indices) + self.position_embeddings(indices)
-        pred_embeddings = self.LayerNorm(pred_embeddings)
-        pred_embeddings = self.dropout(pred_embeddings)
-        pred_mask = torch.ones(pred_embeddings.shape[0], pred_embeddings.shape[1], device=pred_embeddings.device)
-
+    def forward(self, input_embeds:Optional[torch.Tensor]=None, input_indices:Optional[torch.Tensor]=None, input_data2ptr:Optional[torch.Tensor]=None):
+        pred_embeddings = pred_mask = scores = None
+        if input_embeds is not None:
+            assert input_embeds.dim() == 2, f'Input embeddings should be 2-dimensional, but got dim:{input_embeds.dim()}'
+            
+            meta_norm = F.normalize(self.memory_embeddings.weight, dim=-1)
+            input_norm = F.normalize(input_embeds, dim=-1)
+            
+            scores = input_norm@meta_norm.T
+            values, indices = torch.topk(scores, self.top_k_metadata, dim=-1)
+            
+            pred_embeddings = self.memory_embeddings(indices) + self.position_embeddings(indices)
+            pred_embeddings = self.LayerNorm(pred_embeddings)
+            pred_embeddings = self.dropout(pred_embeddings)
+            pred_mask = torch.ones(pred_embeddings.shape[0], pred_embeddings.shape[1], device=pred_embeddings.device)
+            
         input_embeddings = input_mask = None
         if input_indices is not None:
             input_embeddings = self.memory_embeddings(input_indices) + self.position_embeddings(input_indices)
@@ -191,13 +197,17 @@ class Memory(nn.Module):
             input_embeddings = self.dropout(input_embeddings)
             input_embeddings, input_mask = self.align_embeddings(input_embeddings, input_data2ptr)
 
-        embeddings = pred_embeddings if input_embeddings is None else torch.cat([pred_embeddings, input_embeddings], dim=1)
-        mask = pred_mask if input_mask is None else torch.cat([pred_mask, input_mask], dim=1)
-        
+        if input_embeddings is None:
+            embeddings, mask = pred_embeddings, pred_mask
+        elif pred_embeddings is None: 
+            embeddings, mask = input_embeddings, input_mask
+        else:
+            embeddings, mask = torch.cat([pred_embeddings, input_embeddings], dim=1), torch.cat([pred_mask, input_mask], dim=1)
+            
         return embeddings, mask, scores
         
 
-# %% ../../nbs/37_models.cachew.ipynb 33
+# %% ../../nbs/37_models.cachew.ipynb 35
 class CrossCombinerBlock(TransformerBlock):
 
     def __init__(self, config: PretrainedConfig):
@@ -252,7 +262,7 @@ class CrossCombinerBlock(TransformerBlock):
         return output
         
 
-# %% ../../nbs/37_models.cachew.ipynb 35
+# %% ../../nbs/37_models.cachew.ipynb 37
 @dataclass
 class EncoderOutput(ModelOutput):
     repr: Optional[torch.FloatTensor] = None
@@ -260,7 +270,7 @@ class EncoderOutput(ModelOutput):
     meta_scores: Optional[torch.FloatTensor] = None
     
 
-# %% ../../nbs/37_models.cachew.ipynb 36
+# %% ../../nbs/37_models.cachew.ipynb 38
 class Encoder(DistilBertPreTrainedModel):
     
     config_class = MemoryConfig
@@ -288,7 +298,7 @@ class Encoder(DistilBertPreTrainedModel):
     @torch.no_grad()
     def init_combiner_to_last_layer(self):
         lsd = self.distilbert.transformer.layer[-1].state_dict()
-        lsd_keys = lsd.keys()        
+        lsd_keys = lsd.keys()
         csd = self.combiner_head.state_dict()
         csd_keys = csd.keys()
         
@@ -323,8 +333,11 @@ class Encoder(DistilBertPreTrainedModel):
         return F.normalize(self.enriched_query_head(embed), dim=1)
 
     def enrich_query_representation(self, data_repr:torch.Tensor, meta_kwargs:Optional[Dict]=None):
-        meta_repr, meta_mask, meta_scores = self.memory(data_repr) if meta_kwargs is None else self.memory(data_repr, meta_kwargs['idx'], meta_kwargs['data2ptr'])
-        
+        if self.config.use_self_link:
+            meta_repr, meta_mask, meta_scores = self.memory(data_repr) if meta_kwargs is None else self.memory(data_repr, meta_kwargs['idx'], meta_kwargs['data2ptr'])
+        else:
+            meta_repr, meta_mask, meta_scores = self.memory(input_indices=meta_kwargs['idx'], input_data2ptr=meta_kwargs['data2ptr'])
+            
         meta_mask = meta_mask.view(len(meta_mask), 1, 1, -1).bool()
         fusion_repr = self.combiner_head(x=data_repr.view(len(data_repr), 1, -1), m=meta_repr, attn_mask=meta_mask)
         fusion_repr = fusion_repr[0].squeeze(dim=1)
@@ -357,7 +370,7 @@ class Encoder(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/37_models.cachew.ipynb 43
+# %% ../../nbs/37_models.cachew.ipynb 45
 @dataclass
 class CAWModelOutput(ModelOutput):
     loss: Optional[torch.FloatTensor] = None
@@ -367,7 +380,7 @@ class CAWModelOutput(ModelOutput):
     lbl2data_enriched_repr: Optional[torch.FloatTensor] = None
     
 
-# %% ../../nbs/37_models.cachew.ipynb 44
+# %% ../../nbs/37_models.cachew.ipynb 46
 class CAW000(nn.Module):
 
     config_class = CachewConfig
@@ -456,7 +469,7 @@ class CAW000(nn.Module):
         )
         
 
-# %% ../../nbs/37_models.cachew.ipynb 46
+# %% ../../nbs/37_models.cachew.ipynb 48
 class CAW001(CAW000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -472,7 +485,7 @@ class CAW001(CAW000, DistilBertPreTrainedModel):
         self.distilbert = self.encoder.distilbert
         
 
-# %% ../../nbs/37_models.cachew.ipynb 78
+# %% ../../nbs/37_models.cachew.ipynb 80
 class CAW002(CAW000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
