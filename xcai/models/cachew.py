@@ -524,6 +524,31 @@ class CAW002(CAW000, DistilBertPreTrainedModel):
                                                                     pargs['data2ptr'], pargs['idx'])
         return loss
 
+    def get_label_representation(
+        self,
+        data_idx:Optional[torch.Tensor]=None,
+        data_input_ids:Optional[torch.Tensor]=None,
+        data_attention_mask:Optional[torch.Tensor]=None,
+        **kwargs
+    ):
+        if self.use_encoder_parallel: 
+            encoder = XCDataParallel(module=self.encoder)
+        else: encoder = self.encoder
+
+        meta_prefix = None
+        if self.config.lbl2data_aug_meta_prefix is not None:
+            meta_prefix = self.config.lbl2data_aug_meta_prefix.split('2')[0]
+            meta_prefix = f'{meta_prefix}2data'
+        
+        meta_kwargs = Parameters.from_aug_meta_prefix_for_feature('data', meta_prefix, **kwargs)
+        data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask, data_aug_meta_prefix=meta_prefix, 
+                         data_enrich=self.config.lbl2data_enrich, **meta_kwargs)
+        
+        return CAWModelOutput(
+            data_repr=data_o.repr,
+            data_enriched_repr=data_o.enriched_repr,
+        )
+
     def forward(
         self,
         data_input_ids:Optional[torch.Tensor]=None,
