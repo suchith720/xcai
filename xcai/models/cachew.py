@@ -531,7 +531,7 @@ class CAW002(CAW000, DistilBertPreTrainedModel):
         data_attention_mask:Optional[torch.Tensor]=None,
         **kwargs
     ):
-        if self.use_encoder_parallel: 
+        if self.config.use_encoder_parallel: 
             encoder = XCDataParallel(module=self.encoder)
         else: encoder = self.encoder
 
