@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['get_sparse_matrix', 'BaseLoss', 'MultiCrossEntropy', 'Calibration', 'BaseMultiTriplet', 'MultiTriplet',
-           'MultiTripletFromScores', 'Cosine', 'Entropy', 'Triplet', 'SoupCon']
+           'MultiTripletFromScores', 'PKMMultiTripletFromScores', 'Cosine', 'Entropy', 'Triplet', 'SoupCon']
 
 # %% ../nbs/04_losses.ipynb 3
 import functools, torch, torch.nn as nn, torch.nn.functional as F, pickle
@@ -313,7 +313,84 @@ class MultiTripletFromScores(BaseMultiTriplet):
                                apply_softmax=apply_softmax, n_negatives=n_negatives, **kwargs)
         
 
-# %% ../nbs/04_losses.ipynb 58
+# %% ../nbs/04_losses.ipynb 57
+class PKMMultiTripletFromScores(BaseMultiTriplet):
+
+    @staticmethod
+    def get_row_mask(a_dataptr: torch.Tensor, a_indices: torch.Tensor, b_dataptr: torch.Tensor, b_indices: torch.Tensor):
+        R = a_dataptr.size(0)
+        device = a_indices.device
+    
+        # 1) Build row‐ids for each flat entry
+        rows = torch.arange(R, device=device)
+        a_rows = rows.repeat_interleave(a_dataptr)
+        b_rows = rows.repeat_interleave(b_dataptr)
+    
+        # 2) Choose an offset > max column index so keys don't collide
+        max_col = max(int(a_indices.max()), int(b_indices.max()))
+        offset = max_col + 1
+    
+        # 3) Encode each (row, col) as a single integer key
+        a_keys = a_rows * offset + a_indices
+        b_keys = b_rows * offset + b_indices
+    
+        # 4) One‐shot membership test
+        mask = torch.isin(a_keys, b_keys)
+        return mask
+    
+    def forward(
+        self, 
+        scores:torch.FloatTensor,  
+        inp2targ_idx:torch.LongTensor,
+        n_pinp2targ:torch.LongTensor,
+        pinp2targ_idx:torch.LongTensor,
+        margin:Optional[float]=None,
+        tau:Optional[float]=None,
+        apply_softmax:Optional[bool]=None,
+        n_negatives:Optional[int]=None,
+        **kwargs
+    ):
+        store_attr('margin,tau,apply_softmax,n_negatives', is_none=False)
+        
+        assert scores.dim() == 2
+        assert inp2targ_idx.dim() == 2
+        
+        mask = self.get_row_mask(inp2targ_idx.new_full((inp2targ_idx.size(0),), inp2targ_idx.size(1)), inp2targ_idx.flatten(), 
+                                 n_pinp2targ, pinp2targ_idx)
+        mask = mask.view(inp2targ_idx.shape)
+
+        pos_scores = scores[mask]
+        pos_n_inp2targ = mask.sum(dim=1)
+
+        pos_scores, pos_mask = self.align_indices(pos_scores, pos_n_inp2targ)
+        neg_incidence = ~mask
+
+        loss = scores.unsqueeze(1) - pos_scores.unsqueeze(2) + self.margin
+        loss = F.relu(neg_incidence.unsqueeze(1) * loss)
+        
+        scores = scores.unsqueeze(1).expand_as(loss)
+        neg_incidence = neg_incidence.unsqueeze(1).expand_as(loss)
+
+        if self.n_negatives is not None:
+            loss, idx = torch.topk(loss, min(self.n_negatives, loss.shape[2]), dim=2, largest=True)
+            scores, neg_incidence = scores.gather(2, idx), neg_incidence.gather(2, idx)
+
+        if self.apply_softmax:
+            mask = loss != 0
+            penalty = scores / self.tau * mask
+            penalty[neg_incidence == 0] = torch.finfo(penalty.dtype).min
+            penalty = torch.softmax(penalty, dim=2)
+            loss = loss*penalty
+        
+        loss /= (neg_incidence.sum(dim=2, keepdim=True) + 1e-9)
+        loss = loss[pos_mask.bool()].sum(dim=1)
+
+        if self.reduction == 'mean': return loss.mean()
+        elif self.reduction == 'sum': return loss.sum()
+        else: raise ValueError(f'`reduction` cannot be `{self.reduction}`')
+        
+
+# %% ../nbs/04_losses.ipynb 59
 class Cosine(BaseLoss):
 
     def __init__(self, 
@@ -321,7 +398,7 @@ class Cosine(BaseLoss):
         super().__init__(**kwargs)
         
 
-# %% ../nbs/04_losses.ipynb 59
+# %% ../nbs/04_losses.ipynb 60
 @patch
 def forward(cls:Cosine, 
             inp:torch.FloatTensor,
@@ -346,7 +423,7 @@ def forward(cls:Cosine,
     else: raise ValueError(f'`reduction` cannot be `{cls.reduction}`')
         
 
-# %% ../nbs/04_losses.ipynb 65
+# %% ../nbs/04_losses.ipynb 66
 class Entropy(BaseLoss):
 
     def __init__(self, 
@@ -359,7 +436,7 @@ class Entropy(BaseLoss):
         store_attr('margin,tau,apply_softmax,n_negatives')
         
 
-# %% ../nbs/04_losses.ipynb 66
+# %% ../nbs/04_losses.ipynb 67
 @patch
 def forward(cls:Entropy, 
             inp:torch.FloatTensor,
@@ -394,7 +471,7 @@ def forward(cls:Entropy,
     else: raise ValueError(f'`reduction` cannot be `{cls.reduction}`')
         
 
-# %% ../nbs/04_losses.ipynb 72
+# %% ../nbs/04_losses.ipynb 73
 class Triplet(BaseLoss):
 
     def __init__(self, 
@@ -407,7 +484,7 @@ class Triplet(BaseLoss):
         store_attr('margin,tau,apply_softmax,n_negatives')
 
 
-# %% ../nbs/04_losses.ipynb 73
+# %% ../nbs/04_losses.ipynb 74
 @patch
 def forward(cls:Triplet, 
             inp:torch.FloatTensor, 
@@ -441,7 +518,7 @@ def forward(cls:Triplet,
     else: raise ValueError(f'`reduction` cannot be `{cls.reduction}`')
         
 
-# %% ../nbs/04_losses.ipynb 78
+# %% ../nbs/04_losses.ipynb 79
 class SoupCon(BaseLoss):
 
     @delegates(BaseLoss.__init__)
@@ -452,7 +529,7 @@ class SoupCon(BaseLoss):
         self.tau = nn.Parameter(torch.tensor(tau, dtype=torch.float32))
         
 
-# %% ../nbs/04_losses.ipynb 80
+# %% ../nbs/04_losses.ipynb 81
 @patch
 def forward(cls:SoupCon,
             inp:torch.FloatTensor,
