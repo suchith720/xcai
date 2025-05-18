@@ -101,7 +101,7 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
                 block.train.dset.data.main_oversample = kwargs['main_oversample']
                 block.test.dset.data.main_oversample = kwargs['main_oversample']
     
-            for k in block.train.dset.meta:
+            for k in block.test.dset.meta:
                 if 'n_sdata_meta_samples' in kwargs:
                     block.train.dset.meta[k].n_sdata_meta_samples = kwargs['n_sdata_meta_samples']
                     block.test.dset.meta[k].n_sdata_meta_samples = kwargs['n_sdata_meta_samples']

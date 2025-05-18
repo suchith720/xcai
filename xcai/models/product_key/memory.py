@@ -395,7 +395,7 @@ class HashingMemory(nn.Module):
             if self.v_proj and not self.swilu_proj:
                 output = self.value_proj(output)
             if self.swilu_proj:
-                output = self.value_proj(output * F.silu(self.swilu_projection(input)))
+                output = self.value_proj(output * F.silu(self.swilu_projection(x)))
         else:
             u = self.values_u(indices)
             x = torch.einsum(
