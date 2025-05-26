@@ -7,7 +7,7 @@ import triton
 from triton import language as tl
 from torch.nn import functional as F
 
-from torch.distributed.tensor import (
+from torch.distributed._tensor import (
     DeviceMesh,
     distribute_module,
     distribute_tensor,

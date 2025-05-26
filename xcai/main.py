@@ -44,23 +44,23 @@ def parse_args():
 
 # %% ../nbs/36_main.ipynb 7
 def retain_topk_metadata(block, train_k:int=5, test_k:int=3):
-    for meta_name in block.train.dset.meta.keys():
-        if train_k is not None:
+    for meta_name in block.test.dset.meta.keys():
+        if train_k is not None and block.train is not None:
             data_meta = retain_topk(block.train.dset.meta[meta_name].data_meta, k=train_k)
             lbl_meta = block.train.dset.meta[meta_name].lbl_meta
             block.train.dset.meta[meta_name].update_meta_matrix(data_meta, lbl_meta)
 
-        if test_k is not None:
+        if test_k is not None and block.test is not None:
             data_meta = retain_topk(block.test.dset.meta[meta_name].data_meta, k=test_k)
             lbl_meta = block.test.dset.meta[meta_name].lbl_meta
             block.test.dset.meta[meta_name].update_meta_matrix(data_meta, lbl_meta)
 
 def retrain_topk_labels(block, train_k:int=5, test_k:int=3):
-    if train_k is not None:
+    if train_k is not None and block.train is not None:
         block.train.dset.data.data_lbl = retain_topk(block.train.dset.data.data_lbl, k=train_k)
         block.train.dset.data._store_indices()
 
-    if test_k is not None:
+    if test_k is not None and block.test is not None:
         block.test.dset.data.data_lbl = retain_topk(block.test.dset.data.data_lbl, k=test_k)
         block.test.dset.data._store_indices()
     
@@ -94,25 +94,25 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
 
         if isinstance(block, SXCDataBlock):
             if 'n_slbl_samples' in kwargs: 
-                block.train.dset.data.n_slbl_samples = kwargs['n_slbl_samples']
-                block.test.dset.data.n_slbl_samples = kwargs['n_slbl_samples']
+                if block.train is not None: block.train.dset.data.n_slbl_samples = kwargs['n_slbl_samples']
+                if block.test is not None: block.test.dset.data.n_slbl_samples = kwargs['n_slbl_samples']
                 
             if 'main_oversample' in kwargs: 
-                block.train.dset.data.main_oversample = kwargs['main_oversample']
-                block.test.dset.data.main_oversample = kwargs['main_oversample']
+                if block.train is not None: block.train.dset.data.main_oversample = kwargs['main_oversample']
+                if block.test is not None: block.test.dset.data.main_oversample = kwargs['main_oversample']
     
             for k in block.test.dset.meta:
                 if 'n_sdata_meta_samples' in kwargs:
-                    block.train.dset.meta[k].n_sdata_meta_samples = kwargs['n_sdata_meta_samples']
-                    block.test.dset.meta[k].n_sdata_meta_samples = kwargs['n_sdata_meta_samples']
+                    if block.train is not None: block.train.dset.meta[k].n_sdata_meta_samples = kwargs['n_sdata_meta_samples']
+                    if block.test is not None: block.test.dset.meta[k].n_sdata_meta_samples = kwargs['n_sdata_meta_samples']
     
                 if 'n_slbl_meta_samples' in kwargs:
-                    block.train.dset.meta[k].n_slbl_meta_samples = kwargs['n_slbl_meta_samples']
-                    block.test.dset.meta[k].n_slbl_meta_samples = kwargs['n_slbl_meta_samples']
+                    if block.train is not None: block.train.dset.meta[k].n_slbl_meta_samples = kwargs['n_slbl_meta_samples']
+                    if block.test is not None: block.test.dset.meta[k].n_slbl_meta_samples = kwargs['n_slbl_meta_samples']
     
                 if 'meta_oversample' in kwargs:
-                    block.train.dset.meta[k].meta_oversample = kwargs['meta_oversample']
-                    block.test.dset.meta[k].meta_oversample = kwargs['meta_oversample']
+                    if block.train is not None: block.train.dset.meta[k].meta_oversample = kwargs['meta_oversample']
+                    if block.test is not None: block.test.dset.meta[k].meta_oversample = kwargs['meta_oversample']
                     
     if remove_empty_datapoints: block = type(block)(train=get_valid_dset(block.train), test=get_valid_dset(block.test))
 

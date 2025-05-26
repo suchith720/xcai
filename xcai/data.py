@@ -27,8 +27,9 @@ from fastcore.dispatch import *
 from .core import *
 
 # %% ../nbs/02_data.ipynb 8
-def _read_sparse_file(fname:str):
-    if fname.endswith('.txt'): return du.read_sparse_file(fname)
+def _read_sparse_file(fname:Optional[str]=None):
+    if fname is None: return
+    elif fname.endswith('.txt'): return du.read_sparse_file(fname)
     elif fname.endswith('.npz'): return sparse.load_npz(fname)
     else: raise ValueError(f'Invalid file extension : {fname}')
     
@@ -38,7 +39,7 @@ class MainXCData:
     
     @classmethod
     @delegates(Info.from_txt)
-    def from_file(cls, data_lbl:str, data_info:str, lbl_info:str, data_lbl_filterer:Optional[str]=None, 
+    def from_file(cls, data_info:str, lbl_info:str, data_lbl:Optional[str]=None, data_lbl_filterer:Optional[str]=None, 
                   main_max_data_sequence_length:Optional[int]=None, main_max_lbl_sequence_length:Optional[int]=None, **kwargs):
         return {
             'data_lbl': _read_sparse_file(data_lbl),
@@ -193,6 +194,9 @@ class MainXCDataset(BaseXCDataset):
                 if n_lbl != cls.data_lbl.shape[1]:
                     raise ValueError(f'`lbl_info`({n_lbl}) should have same number of labels as `data_lbl`({cls.data_lbl.shape[1]})')
                 if cls.lbl_info_keys is None: cls.lbl_info_keys = list(cls.lbl_info.keys())
+        elif cls.lbl_info is not None:
+            cls.n_lbl = cls._verify_info(cls.lbl_info)
+            if cls.lbl_info_keys is None: cls.lbl_info_keys = list(cls.lbl_info.keys())
 
     @classmethod
     def _initialize(cls, dset):
@@ -205,7 +209,7 @@ class MainXCDataset(BaseXCDataset):
 def __getitem__(cls:MainXCDataset, idx:int):
     x = {f'data_{k}': v[idx] for k,v in cls.data_info.items() if k in cls.data_info_keys}
     x['data_idx'] = idx
-    if cls.n_lbl is not None:
+    if cls.data_lbl is not None:
         prefix = 'lbl2data'
         x[f'{prefix}_idx'] = cls.curr_data_lbl[idx]
         if cls.n_lbl_samples: x[f'{prefix}_idx'] = [x[f'{prefix}_idx'][i] for i in np.random.permutation(len(x[f'{prefix}_idx']))[:cls.n_lbl_samples]]
@@ -587,7 +591,9 @@ class XCDataBlock:
     def lbl_dset(self): return MainXCDataset(self.train.dset.data.lbl_info)
 
     @property
-    def n_lbl(self): return self.train.dset.n_lbl
+    def n_lbl(self):
+        if self.train.dset is None: return self.test.dset.n_lbl
+        return self.train.dset.n_lbl
 
     @property
     def collator(self): return self.train.collate_fn

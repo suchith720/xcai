@@ -36,7 +36,7 @@ class SMainXCDataset(MainXCDataset):
     def __getitems__(self, idxs:List):
         x = {'data_idx': torch.tensor(idxs, dtype=torch.int64)}
         x.update(self.get_info('data', idxs, self.data_info, self.data_info_keys))
-        if self.n_lbl is not None:
+        if self.data_lbl is not None:
             prefix = 'lbl2data'
             o = self.extract_items(prefix, self.curr_data_lbl, idxs, self.n_lbl_samples, self.n_slbl_samples, self.main_oversample, 
                                    self.lbl_info, self.lbl_info_keys)
