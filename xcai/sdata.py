@@ -257,10 +257,11 @@ class SXCDataset(BaseXCDataset):
         main_oversample = kwargs.get('main_oversample') if 'main_oversample' in kwargs else self.data.main_oversample
         use_main_distribution = kwargs.get('use_main_distribution') if 'use_main_distribution' in kwargs else self.data.use_main_distribution
         
-        return SMainXCDataset(data_info=data_info, data_lbl=sp.hstack([data_lbl, data_meta]), lbl_info=comb_info, 
+        dset = SMainXCDataset(data_info=data_info, data_lbl=sp.hstack([data_lbl, data_meta]), lbl_info=comb_info, 
                               data_lbl_filterer=self.data.data_lbl_filterer, n_lbl_samples=n_lbl_samples, data_info_keys=data_info_keys, 
                               lbl_info_keys=lbl_info_keys, n_slbl_samples=n_slbl_samples, main_oversample=main_oversample,
                               use_main_distribution=use_main_distribution)
+        return SXCDataset(dset)
         
 
 # %% ../nbs/35_sdata.ipynb 40

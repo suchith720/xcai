@@ -462,8 +462,9 @@ class XCDataset(BaseXCDataset):
         data_info_keys = kwargs.get('data_info_keys') if 'data_info_keys' in kwargs else self.data.data_info_keys
         lbl_info_keys = kwargs.get('lbl_info_keys') if 'lbl_info_keys' in kwargs else self.data.lbl_info_keys
         
-        return MainXCDataset(data_info, sp.hstack([data_lbl, data_meta]), comb_info, self.data.data_lbl_filterer,
+        dset = MainXCDataset(data_info, sp.hstack([data_lbl, data_meta]), comb_info, self.data.data_lbl_filterer,
                              n_lbl_samples=n_lbl_samples, data_info_keys=data_info_keys, lbl_info_keys=lbl_info_keys)
+        return XCDataset(dset)
 
     def _retain_randk(self, matrix:sparse.csr_matrix, topk:Optional[int]=3):
         data, indices, indptr = [], [], np.zeros_like(matrix.indptr)
