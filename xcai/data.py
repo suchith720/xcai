@@ -132,7 +132,7 @@ class BaseXCDataset(Dataset):
         return x
 
     def extract_items(self, prefix:str, data_lbl:List, idxs:List, n_samples:int, n_s_samples:int, oversample:bool, 
-                      info:Dict, info_keys:List):
+                      info:Dict, info_keys:List, use_distribution:Optional[bool]=False, data_lbl_scores:Optional[List]=None):
         x, entity = dict(), prefix.split('2')[-1]
         
         x[f'p{prefix}_idx'] = [data_lbl[idx] for idx in idxs]
@@ -141,7 +141,11 @@ class BaseXCDataset(Dataset):
         x[f'p{prefix}_{entity}2ptr'] = torch.tensor([len(o) for o in x[f'p{prefix}_idx']], dtype=torch.int64)
 
         if oversample:
-            x[f'{prefix}_idx'] = [np.random.choice(o, size=n_s_samples) if len(o) else [] for o in x[f'p{prefix}_idx']]
+            if use_distribution:
+                probs = [data_lbl_scores[idx] for idx in idxs]
+                x[f'{prefix}_idx'] = [np.random.choice(o, size=n_s_samples, p=p) if len(o) else [] for o,p in zip(x[f'p{prefix}_idx'],probs)]
+            else:
+                x[f'{prefix}_idx'] = [np.random.choice(o, size=n_s_samples) if len(o) else [] for o in x[f'p{prefix}_idx']]
         else:
             x[f'{prefix}_idx'] = [[o[i] for i in np.random.permutation(len(o))[:n_s_samples]] for o in x[f'p{prefix}_idx']]
         x[f'{prefix}_{entity}2ptr'] = torch.tensor([len(o) for o in x[f'{prefix}_idx']], dtype=torch.int64)
@@ -421,6 +425,45 @@ class XCDataset(BaseXCDataset):
         if seed is not None: torch.manual_seed(seed)
         idxs = list(torch.randperm(len(self)).numpy())[:bsz]
         return [self[idx] for idx in idxs]
+
+    def combined_lbl_and_meta(self, meta_name:str, pad_token:int=0, p_data=0.5, **kwargs):
+        if f'{meta_name}_meta' not in self.meta: raise ValueError(f'Invalid metadata: {meta_name}')
+            
+        data_lbl = self.data.data_lbl
+        data_lbl = data_lbl.multiply(1/(data_lbl.getnnz(axis=1).reshape(-1, 1) + 1e-9))
+        data_lbl = data_lbl.tocsr() * p_data
+        
+        data_meta = self.meta[f'{meta_name}_meta'].data_meta
+        data_meta = data_meta.multiply(1/(data_meta.getnnz(axis=1).reshape(-1, 1) + 1e-9))
+        data_meta = data_meta.tocsr() * (1 - p_data)
+    
+        data_info = self.data.data_info
+        lbl_info = self.data.lbl_info
+        meta_info = self.meta[f'{meta_name}_meta'].meta_info
+    
+        comb_info = dict()
+        for k,v in lbl_info.items():
+            if isinstance(v, tuple) or isinstance(v, list): comb_info[k] = v + meta_info[k]
+            elif isinstance(v, torch.Tensor):
+                n_data = v.shape[0] + meta_info[k].shape[0]
+                seq_len = max(v.shape[1], meta_info[k].shape[1]) 
+                
+                if k == 'input_ids': 
+                    info = torch.full((n_data, seq_len), pad_token, dtype=v.dtype)
+                elif k == 'attention_mask': 
+                    info = torch.full((n_data, seq_len), 0, dtype=v.dtype)
+                    
+                info[:v.shape[0], :v.shape[1]] = v
+                info[v.shape[0]:, :meta_info[k].shape[1]] = meta_info[k]
+        
+                comb_info[k] = info
+    
+        n_lbl_samples = kwargs.get('n_lbl_samples') if 'n_lbl_samples' in kwargs else self.data.n_lbl_samples
+        data_info_keys = kwargs.get('data_info_keys') if 'data_info_keys' in kwargs else self.data.data_info_keys
+        lbl_info_keys = kwargs.get('lbl_info_keys') if 'lbl_info_keys' in kwargs else self.data.lbl_info_keys
+        
+        return MainXCDataset(data_info, sp.hstack([data_lbl, data_meta]), comb_info, self.data.data_lbl_filterer,
+                             n_lbl_samples=n_lbl_samples, data_info_keys=data_info_keys, lbl_info_keys=lbl_info_keys)
 
     def _retain_randk(self, matrix:sparse.csr_matrix, topk:Optional[int]=3):
         data, indices, indptr = [], [], np.zeros_like(matrix.indptr)

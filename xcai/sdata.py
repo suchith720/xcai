@@ -28,18 +28,25 @@ class SMainXCDataset(MainXCDataset):
         self,
         n_slbl_samples:Optional[int]=1,
         main_oversample:Optional[bool]=False,
+        use_main_distribution:Optional[bool]=False,
         **kwargs
     ):
         super().__init__(**kwargs)
-        store_attr('n_slbl_samples,main_oversample')
+        store_attr('n_slbl_samples,main_oversample,use_main_distribution')
+        
+        self.data_lbl_scores = None
+        if use_main_distribution: self._store_scores()
 
+    def _store_scores(self):
+        if self.data_lbl is not None: self.data_lbl_scores = [o.data.tolist() for o in self.data_lbl]
+            
     def __getitems__(self, idxs:List):
         x = {'data_idx': torch.tensor(idxs, dtype=torch.int64)}
         x.update(self.get_info('data', idxs, self.data_info, self.data_info_keys))
         if self.data_lbl is not None:
             prefix = 'lbl2data'
             o = self.extract_items(prefix, self.curr_data_lbl, idxs, self.n_lbl_samples, self.n_slbl_samples, self.main_oversample, 
-                                   self.lbl_info, self.lbl_info_keys)
+                                   self.lbl_info, self.lbl_info_keys, self.use_main_distribution, self.data_lbl_scores)
             x.update(o)
         return x
 
@@ -52,10 +59,12 @@ class SMainXCDataset(MainXCDataset):
         lbl_info_keys:Optional[List]=None,
         n_slbl_samples:Optional[int]=1,
         main_oversample:Optional[bool]=False,
+        use_main_distribution:Optional[bool]=False,
         **kwargs
     ):
         return cls(**MainXCData.from_file(**kwargs), n_lbl_samples=n_lbl_samples, data_info_keys=data_info_keys, 
-                   lbl_info_keys=lbl_info_keys, n_slbl_samples=n_slbl_samples, main_oversample=main_oversample)
+                   lbl_info_keys=lbl_info_keys, n_slbl_samples=n_slbl_samples, main_oversample=main_oversample, 
+                   use_main_distribution=use_main_distribution)
 
     def _getitems(cls, idxs:List):
         return SMainXCDataset(
@@ -68,6 +77,7 @@ class SMainXCDataset(MainXCDataset):
             lbl_info_keys=cls.lbl_info_keys,
             n_slbl_samples=cls.n_slbl_samples,
             main_oversample=cls.main_oversample,
+            use_main_distribution=cls.use_main_distribution,
         )
     
 
@@ -204,7 +214,51 @@ class SXCDataset(BaseXCDataset):
         if seed is not None: torch.manual_seed(seed)
         idxs = list(torch.randperm(len(self)).numpy())[:bsz]
         return [self[idx] for idx in idxs]
-       
+
+    def combined_lbl_and_meta(self, meta_name:str, pad_token:int=0, p_data=0.5, **kwargs): 
+        if f'{meta_name}_meta' not in self.meta: raise ValueError(f'Invalid metadata: {meta_name}')
+            
+        data_lbl = self.data.data_lbl
+        data_lbl = data_lbl.multiply(1/(data_lbl.getnnz(axis=1).reshape(-1, 1) + 1e-9))
+        data_lbl = data_lbl.tocsr() * p_data
+        
+        data_meta = self.meta[f'{meta_name}_meta'].data_meta
+        data_meta = data_meta.multiply(1/(data_meta.getnnz(axis=1).reshape(-1, 1) + 1e-9))
+        data_meta = data_meta.tocsr() * (1 - p_data)
+    
+        data_info = self.data.data_info
+        lbl_info = self.data.lbl_info
+        meta_info = self.meta[f'{meta_name}_meta'].meta_info
+    
+        comb_info = dict()
+        for k,v in lbl_info.items():
+            if isinstance(v, tuple) or isinstance(v, list): comb_info[k] = v + meta_info[k]
+            elif isinstance(v, torch.Tensor):
+                n_data = v.shape[0] + meta_info[k].shape[0]
+                seq_len = max(v.shape[1], meta_info[k].shape[1]) 
+                
+                if k == 'input_ids': 
+                    info = torch.full((n_data, seq_len), pad_token, dtype=v.dtype)
+                elif k == 'attention_mask': 
+                    info = torch.full((n_data, seq_len), 0, dtype=v.dtype)
+                    
+                info[:v.shape[0], :v.shape[1]] = v
+                info[v.shape[0]:, :meta_info[k].shape[1]] = meta_info[k]
+        
+                comb_info[k] = info
+    
+        n_lbl_samples = kwargs.get('n_lbl_samples') if 'n_lbl_samples' in kwargs else self.data.n_lbl_samples
+        data_info_keys = kwargs.get('data_info_keys') if 'data_info_keys' in kwargs else self.data.data_info_keys
+        lbl_info_keys = kwargs.get('lbl_info_keys') if 'lbl_info_keys' in kwargs else self.data.lbl_info_keys
+        n_slbl_samples = kwargs.get('n_slbl_samples') if 'n_slbl_samples' in kwargs else self.data.n_slbl_samples
+        main_oversample = kwargs.get('main_oversample') if 'main_oversample' in kwargs else self.data.main_oversample
+        use_main_distribution = kwargs.get('use_main_distribution') if 'use_main_distribution' in kwargs else self.data.use_main_distribution
+        
+        return SMainXCDataset(data_info=data_info, data_lbl=sp.hstack([data_lbl, data_meta]), lbl_info=comb_info, 
+                              data_lbl_filterer=self.data.data_lbl_filterer, n_lbl_samples=n_lbl_samples, data_info_keys=data_info_keys, 
+                              lbl_info_keys=lbl_info_keys, n_slbl_samples=n_slbl_samples, main_oversample=main_oversample,
+                              use_main_distribution=use_main_distribution)
+        
 
 # %% ../nbs/35_sdata.ipynb 40
 class SBaseXCDataBlock(BaseXCDataBlock):

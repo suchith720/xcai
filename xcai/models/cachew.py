@@ -345,6 +345,9 @@ class CrossCombinerBlock(TransformerBlock):
     def post_init(self):
         for module in self.modules(): self._init_weights(module)
 
+    def _initialize_weights(self, module: nn.Module):
+        for m in module.modules(): self._init_weights(m)
+
     def _init_weights(self, module: nn.Module):
         if isinstance(module, nn.Linear):
             torch.nn.init.eye_(module.weight)

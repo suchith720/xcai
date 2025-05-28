@@ -521,8 +521,8 @@ def _build_aug_index(self:XCLearner, dataset:Optional[Dataset]=None):
 
 @patch
 def _build_lbl_index(self:XCLearner, dataset:Optional[Dataset]=None):
-    dataset = dataset if self.eval_dataset is None else self.eval_dataset
-    dataset = dataset if self.train_dataset is None else self.train_dataset
+    dataset = self.eval_dataset if dataset is None or dataset.lbl_info is None else dataset
+    dataset = self.train_dataset if dataset is None or dataset.lbl_info is None else dataset
     
     if dataset is not None: 
         to_cpu = True if isinstance(self.idxs, IndexSearch) else self.args.use_cpu_for_searching
