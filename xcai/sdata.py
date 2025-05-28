@@ -38,7 +38,10 @@ class SMainXCDataset(MainXCDataset):
         if use_main_distribution: self._store_scores()
 
     def _store_scores(self):
-        if self.data_lbl is not None: self.data_lbl_scores = [o.data.tolist() for o in self.data_lbl]
+        if self.data_lbl is not None:
+            data_lbl = self.data_lbl / self.data_lbl.sum(axis=1)
+            data_lbl = data_lbl.tocsr()
+            self.data_lbl_scores = [o.data.tolist() for o in data_lbl]
             
     def __getitems__(self, idxs:List):
         x = {'data_idx': torch.tensor(idxs, dtype=torch.int64)}
