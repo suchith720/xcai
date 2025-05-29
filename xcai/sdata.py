@@ -13,6 +13,7 @@ from .core import Filterer
 from .data import MainXCData, MetaXCData
 from .data import BaseXCDataset, MainXCDataset, MetaXCDataset, MetaXCDatasets
 from .data import BaseXCDataBlock
+from .graph.operations import *
 
 from fastcore.utils import *
 from fastcore.meta import *
@@ -218,14 +219,23 @@ class SXCDataset(BaseXCDataset):
         idxs = list(torch.randperm(len(self)).numpy())[:bsz]
         return [self[idx] for idx in idxs]
 
-    def get_one_hop_metadata(self, batch_size:int=1024, thresh:int=10, topk:Optional[int]=10, **kwargs):
-        data_lbl = self.threshold_on_degree(self.data.data_lbl, thresh=thresh)
-        data_meta, lbl_meta = self.one_hop_matrix(data_lbl, batch_size=batch_size, topk=topk)
+    def get_one_hop_metadata(self, batch_size:Optional[int]=1024, thresh:Optional[int]=10, topk:Optional[int]=10, **kwargs):
+        data_lbl = Graph.threshold_on_degree(self.data.data_lbl, thresh=thresh)
+        data_meta, lbl_meta = Graph.one_hop_matrix(data_lbl, batch_size=batch_size, topk=topk)
         data_meta = data_meta/(data_meta.sum(axis=1) + 1e-9)
         data_meta = data_meta.tocsr()
         lbl_meta = lbl_meta/(lbl_meta.sum(axis=1) + 1e-9)
         lbl_meta = lbl_meta.tocsr()
         self.meta['ohm_meta'] = SMetaXCDataset(prefix='ohm', data_meta=data_meta, lbl_meta=lbl_meta, 
+                                               meta_info=self.data.lbl_info, **kwargs)
+
+    def get_random_walk_metadata(self, batch_size:Optional[int]=1024, walk_to:Optional[int]=100, prob_reset:Optional[float]=0.8, 
+                                 thresh:Optional[int]=10):
+        data_meta = perform_random_walk(self.data.data_lbl, batch_size=batch_size, walk_to=walk_to, prob_reset=prob_reset, 
+                                        n_hops=1, thresh=thresh)
+        lbl_meta = perform_random_walk(self.data.data_lbl.transpose().tocsr(), batch_size=batch_size, walk_to=walk_to, 
+                                       prob_reset=prob_reset, n_hops=2, thresh=thresh)
+        self.meta['rnw_meta'] = SMetaXCDataset(prefix='rnw', data_meta=data_meta, lbl_meta=lbl_meta,
                                                meta_info=self.data.lbl_info, **kwargs)
         
     def combined_lbl_and_meta(self, meta_name:str, pad_token:int=0, p_data=0.5, **kwargs): 
