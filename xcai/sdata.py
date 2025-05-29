@@ -230,7 +230,7 @@ class SXCDataset(BaseXCDataset):
                                                meta_info=self.data.lbl_info, **kwargs)
 
     def get_random_walk_metadata(self, batch_size:Optional[int]=1024, walk_to:Optional[int]=100, prob_reset:Optional[float]=0.8, 
-                                 thresh:Optional[int]=10):
+                                 thresh:Optional[int]=10, **kwargs):
         data_meta = perform_random_walk(self.data.data_lbl, batch_size=batch_size, walk_to=walk_to, prob_reset=prob_reset, 
                                         n_hops=1, thresh=thresh)
         lbl_meta = perform_random_walk(self.data.data_lbl.transpose().tocsr(), batch_size=batch_size, walk_to=walk_to, 
