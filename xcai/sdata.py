@@ -221,8 +221,10 @@ class SXCDataset(BaseXCDataset):
     def get_one_hop_metadata(self, batch_size:int=1024, thresh:int=10, **kwargs):
         data_lbl = self.threshold_on_degree(self.data.data_lbl, thresh=thresh)
         data_meta, lbl_meta = self.one_hop_matrix(data_lbl, batch_size=batch_size)
-        data_meta = data_meta/data_meta.sum(axis=1)
-        lbl_meta = lbl_meta/lbl_meta.sum(axis=1)
+        data_meta = data_meta/(data_meta.sum(axis=1) + 1e-9)
+        data_meta = data_meta.tocsr()
+        lbl_meta = lbl_meta/(lbl_meta.sum(axis=1) + 1e-9)
+        lbl_meta = lbl_meta.tocsr()
         self.meta['ohm_meta'] = SMetaXCDataset(prefix='ohm', data_meta=data_meta, lbl_meta=lbl_meta, 
                                                meta_info=self.data.lbl_info, **kwargs)
         
