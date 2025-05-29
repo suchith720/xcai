@@ -218,6 +218,14 @@ class SXCDataset(BaseXCDataset):
         idxs = list(torch.randperm(len(self)).numpy())[:bsz]
         return [self[idx] for idx in idxs]
 
+    def get_one_hop_metadata(self, batch_size:int=1024, thresh:int=10, **kwargs):
+        data_lbl = self.threshold_on_degree(self.data.data_lbl, thresh=thresh)
+        data_meta, lbl_meta = self.one_hop_matrix(data_lbl, batch_size=batch_size)
+        data_meta = data_meta/data_meta.sum(axis=1)
+        lbl_meta = lbl_meta/lbl_meta.sum(axis=1)
+        self.meta['ohm_meta'] = SMetaXCDataset(prefix='ohm', data_meta=data_meta, lbl_meta=lbl_meta, 
+                                               meta_info=self.data.lbl_info, **kwargs)
+        
     def combined_lbl_and_meta(self, meta_name:str, pad_token:int=0, p_data=0.5, **kwargs): 
         if f'{meta_name}_meta' not in self.meta: raise ValueError(f'Invalid metadata: {meta_name}')
             

@@ -7,7 +7,7 @@ __all__ = ['MainXCData', 'MetaXCData', 'BaseXCDataset', 'MainXCDataset', 'MetaXC
            'XCCollator', 'BaseXCDataBlock', 'XCDataBlock']
 
 # %% ../nbs/02_data.ipynb 3
-import torch, inspect, numpy as np, pandas as pd, torch.nn.functional as F, random
+import torch, inspect, numpy as np, pandas as pd, torch.nn.functional as F, random, scipy.sparse as sp
 
 from scipy import sparse
 from itertools import chain
@@ -157,6 +157,25 @@ class BaseXCDataset(Dataset):
             x.update(self.get_info(prefix, x[f'{prefix}_idx'], info, info_keys))
             
         return x
+
+    @staticmethod
+    def one_hop_matrix(data_lbl:sp.csr_matrix, batch_size:int=1024):
+        data_lbl_t = data_lbl.transpose().tocsr()
+        lbl_lbl = sp.vstack([data_lbl_t[i:i+batch_size]@data_lbl for i in tqdm(range(0, data_lbl_t.shape[0], batch_size))])
+        data_lbl = sp.vstack([data_lbl[i:i+batch_size]@lbl_lbl for i in tqdm(range(0, data_lbl.shape[0], batch_size))])
+        lbl_lbl.sort_indices()
+        data_lbl.sort_indices()
+        return data_lbl,lbl_lbl
+
+    @staticmethod
+    def threshold_on_degree(data_lbl:sp.csr_matrix, thresh:int=10):
+        data_lbl = data_lbl.copy()
+        idx = np.where(data_lbl.getnnz(axis=1) > thresh)[0]
+        for i in idx:
+            p,q = data_lbl.indptr[i],data_lbl.indptr[i+1]
+            data_lbl.data[p:q] = 0
+        data_lbl.eliminate_zeros()
+        return data_lbl
             
 
 # %% ../nbs/02_data.ipynb 19
@@ -465,6 +484,13 @@ class XCDataset(BaseXCDataset):
         dset = MainXCDataset(data_info, sp.hstack([data_lbl, data_meta]), comb_info, self.data.data_lbl_filterer,
                              n_lbl_samples=n_lbl_samples, data_info_keys=data_info_keys, lbl_info_keys=lbl_info_keys)
         return XCDataset(dset)
+
+    def get_one_hop_metadata(self, batch_size:int=1024, thresh:int=10, **kwargs):
+        data_lbl = self.threshold_on_degree(self.data.data_lbl, thresh=thresh)
+        data_meta, lbl_meta = self.one_hop_matrix(data_lbl, batch_size=batch_size)
+        data_meta = data_meta/data_meta.sum(axis=1)
+        lbl_meta = lbl_meta/lbl_meta.sum(axis=1)
+        self.meta['ohm_meta'] = MetaXCDataset('ohm', data_meta, lbl_meta, self.data.lbl_info, **kwargs)
 
     def _retain_randk(self, matrix:sparse.csr_matrix, topk:Optional[int]=3):
         data, indices, indptr = [], [], np.zeros_like(matrix.indptr)
