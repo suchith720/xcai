@@ -159,13 +159,15 @@ class BaseXCDataset(Dataset):
         return x
 
     @staticmethod
-    def one_hop_matrix(data_lbl:sp.csr_matrix, batch_size:int=1024):
+    def one_hop_matrix(data_lbl:sp.csr_matrix, batch_size:int=1024, topk:Optional[int]=None):
         data_lbl_t = data_lbl.transpose().tocsr()
         lbl_lbl = sp.vstack([data_lbl_t[i:i+batch_size]@data_lbl for i in tqdm(range(0, data_lbl_t.shape[0], batch_size))])
         data_lbl = sp.vstack([data_lbl[i:i+batch_size]@lbl_lbl for i in tqdm(range(0, data_lbl.shape[0], batch_size))])
         lbl_lbl.sort_indices()
         data_lbl.sort_indices()
-        return data_lbl,lbl_lbl
+        if topk is not None:
+            data_lbl, lbl_lbl = retain_topk(data_lbl, k=topk), retain_topk(lbl_lbl, k=topk)
+        return data_lbl, lbl_lbl
 
     @staticmethod
     def threshold_on_degree(data_lbl:sp.csr_matrix, thresh:int=10):
@@ -485,9 +487,9 @@ class XCDataset(BaseXCDataset):
                              n_lbl_samples=n_lbl_samples, data_info_keys=data_info_keys, lbl_info_keys=lbl_info_keys)
         return XCDataset(dset)
 
-    def get_one_hop_metadata(self, batch_size:int=1024, thresh:int=10, **kwargs):
+    def get_one_hop_metadata(self, batch_size:Optional[int]=1024, thresh:Optional[int]=10, topk:Optional[int]=10, **kwargs):
         data_lbl = self.threshold_on_degree(self.data.data_lbl, thresh=thresh)
-        data_meta, lbl_meta = self.one_hop_matrix(data_lbl, batch_size=batch_size)
+        data_meta, lbl_meta = self.one_hop_matrix(data_lbl, batch_size=batch_size, topk=topk)
         data_meta = data_meta/(data_meta.sum(axis=1) + 1e-9)
         data_meta = data_meta.tocsr()
         lbl_meta = lbl_meta/(lbl_meta.sum(axis=1) + 1e-9)
