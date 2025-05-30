@@ -316,6 +316,7 @@ class Encoder(BaseEncoder):
         meta_kwargs = Parameters.from_data_aug_meta_prefix_for_encoder(data_aug_meta_prefix, **kwargs)
         meta_kwargs = meta_kwargs.get(data_aug_meta_prefix, None)
 
+        meta_repr = None
         if meta_kwargs is not None and len(meta_kwargs['idx']):
             meta_o = self.encode_meta(meta_kwargs['input_ids'], meta_kwargs['attention_mask'])
             meta_repr = self.encode_meta_query(meta_o[0], meta_kwargs['attention_mask'])
