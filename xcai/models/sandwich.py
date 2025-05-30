@@ -316,7 +316,7 @@ class Encoder(BaseEncoder):
         meta_kwargs = Parameters.from_data_aug_meta_prefix_for_encoder(data_aug_meta_prefix, **kwargs)
         meta_kwargs = meta_kwargs.get(data_aug_meta_prefix, None)
 
-        if meta_kwargs is not None:
+        if meta_kwargs is not None and len(meta_kwargs['idx']):
             meta_o = self.encode_meta(meta_kwargs['input_ids'], meta_kwargs['attention_mask'])
             meta_repr = self.encode_meta_query(meta_o[0], meta_kwargs['attention_mask'])
 
@@ -377,23 +377,25 @@ class SAW000(nn.Module):
     def compute_meta_loss(self, data_o, lbl2data_o, **kwargs):
         loss = 0.0
         meta_kwargs = Parameters.from_aug_meta_prefix_for_loss('data', self.config.data_aug_meta_prefix, **kwargs)
-        if meta_kwargs is not None:
+        if meta_kwargs is not None and len(meta_kwargs['idx']):
             prefix = self.config.data_aug_meta_prefix
+            idx = torch.where(meta_kwargs[prefix]['data2ptr'] > 0)
             loss += self.config.meta_loss_weight * self.compute_loss(data_o.data_meta_repr, 
                                                                      data_o.meta_repr,
-                                                                     meta_kwargs[prefix]['data2ptr'],
+                                                                     meta_kwargs[prefix]['data2ptr'][idx],
                                                                      meta_kwargs[prefix]['idx'],
-                                                                     meta_kwargs[f'p{prefix}']['data2ptr'],
+                                                                     meta_kwargs[f'p{prefix}']['data2ptr'][idx],
                                                                      meta_kwargs[f'p{prefix}']['idx'])
             
         meta_kwargs = Parameters.from_aug_meta_prefix_for_loss('lbl', self.config.lbl2data_aug_meta_prefix, **kwargs)
-        if meta_kwargs is not None:
+        if meta_kwargs is not None and len(meta_kwargs['idx']):
             prefix = self.config.lbl2data_aug_meta_prefix
+            idx = torch.where(meta_kwargs[prefix]['data2ptr'] > 0)
             loss += self.config.meta_loss_weight * self.compute_loss(lbl2data_o.data_meta_repr, 
                                                                      lbl2data_o.meta_repr,
-                                                                     meta_kwargs[prefix]['data2ptr'],
+                                                                     meta_kwargs[prefix]['data2ptr'][idx],
                                                                      meta_kwargs[prefix]['idx'],
-                                                                     meta_kwargs[f'p{prefix}']['data2ptr'],
+                                                                     meta_kwargs[f'p{prefix}']['data2ptr'][idx],
                                                                      meta_kwargs[f'p{prefix}']['idx'])
         return loss
 
