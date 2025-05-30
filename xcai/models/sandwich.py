@@ -327,7 +327,7 @@ class Encoder(BaseEncoder):
             data_repr=data_repr,
             data_meta_repr=data_meta_repr,
             enriched_data_repr=enriched_data_repr,
-            meta_repr=enriched_data_repr,
+            meta_repr=meta_repr,
         )
         
 
@@ -381,7 +381,7 @@ class SAW000(nn.Module):
         prefix = self.config.data_aug_meta_prefix
         if meta_kwargs is not None and len(meta_kwargs[prefix]['idx']):
             idx = torch.where(meta_kwargs[prefix]['data2ptr'] > 0)[0]
-            loss += self.config.meta_loss_weight * self.compute_loss(data_o.data_meta_repr, 
+            loss += self.config.meta_loss_weight * self.compute_loss(data_o.data_meta_repr[idx], 
                                                                      data_o.meta_repr,
                                                                      meta_kwargs[prefix]['data2ptr'][idx],
                                                                      meta_kwargs[prefix]['idx'],
@@ -392,7 +392,7 @@ class SAW000(nn.Module):
         prefix = self.config.lbl2data_aug_meta_prefix
         if meta_kwargs is not None and len(meta_kwargs[prefix]['idx']):
             idx = torch.where(meta_kwargs[prefix]['data2ptr'] > 0)[0]
-            loss += self.config.meta_loss_weight * self.compute_loss(lbl2data_o.data_meta_repr, 
+            loss += self.config.meta_loss_weight * self.compute_loss(lbl2data_o.data_meta_repr[idx], 
                                                                      lbl2data_o.meta_repr,
                                                                      meta_kwargs[prefix]['data2ptr'][idx],
                                                                      meta_kwargs[prefix]['idx'],
