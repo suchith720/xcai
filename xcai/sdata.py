@@ -38,6 +38,25 @@ class SMainXCDataset(MainXCDataset):
         self.data_lbl_scores = None
         if use_main_distribution: self._store_scores()
 
+    def _get_dataset(
+        self, 
+        data_info:Dict, 
+        data_lbl:Optional[sp.csr_matrix]=None, 
+        lbl_info:Optional[Dict]=None, 
+        data_lbl_filterer:Optional[Union[sp.csr_matrix,np.array]]=None, 
+        **kwargs
+    ):
+        n_lbl_samples = kwargs.get('n_lbl_samples') if 'n_lbl_samples' in kwargs else self.n_lbl_samples
+        data_info_keys = kwargs.get('data_info_keys') if 'data_info_keys' in kwargs else self.data_info_keys
+        lbl_info_keys = kwargs.get('lbl_info_keys') if 'lbl_info_keys' in kwargs else self.lbl_info_keys
+        n_slbl_samples = kwargs.get('n_slbl_samples') if 'n_slbl_samples' in kwargs else self.n_slbl_samples
+        main_oversample = kwargs.get('main_oversample') if 'main_oversample' in kwargs else self.main_oversample
+        use_main_distribution = kwargs.get('use_main_distribution') if 'use_main_distribution' in kwargs else self.use_main_distribution
+        
+        return SMainXCDataset(data_info=data_info, data_lbl=data_lbl, lbl_info=lbl_info, data_lbl_filterer=data_lbl_filterer, 
+                              n_lbl_samples=n_lbl_samples, data_info_keys=data_info_keys, lbl_info_keys=lbl_info_keys, 
+                              n_slbl_samples=n_slbl_samples, main_oversample=main_oversample, use_main_distribution=use_main_distribution)
+        
     def _store_scores(self):
         if self.data_lbl is not None:
             data_lbl = self.data_lbl / self.data_lbl.sum(axis=1)
@@ -221,22 +240,49 @@ class SXCDataset(BaseXCDataset):
 
     def get_one_hop_metadata(self, batch_size:Optional[int]=1024, thresh:Optional[int]=10, topk:Optional[int]=10, **kwargs):
         data_lbl = Graph.threshold_on_degree(self.data.data_lbl, thresh=thresh)
-        data_meta, lbl_meta = Graph.one_hop_matrix(data_lbl, batch_size=batch_size, topk=topk)
-        data_meta = data_meta/(data_meta.sum(axis=1) + 1e-9)
-        data_meta = data_meta.tocsr()
-        lbl_meta = lbl_meta/(lbl_meta.sum(axis=1) + 1e-9)
-        lbl_meta = lbl_meta.tocsr()
+        data_meta, lbl_meta = Graph.one_hop_matrix(data_lbl, batch_size=batch_size, topk=topk, do_normalize=True)
         self.meta['ohm_meta'] = SMetaXCDataset(prefix='ohm', data_meta=data_meta, lbl_meta=lbl_meta, 
                                                meta_info=self.data.lbl_info, **kwargs)
 
     def get_random_walk_metadata(self, batch_size:Optional[int]=1024, walk_to:Optional[int]=100, prob_reset:Optional[float]=0.8, 
                                  thresh:Optional[int]=10, **kwargs):
         data_meta = perform_random_walk(self.data.data_lbl, batch_size=batch_size, walk_to=walk_to, prob_reset=prob_reset, 
-                                        n_hops=1, thresh=thresh)
+                                        n_hops=1, thresh=thresh, do_normalize=True)
         lbl_meta = perform_random_walk(self.data.data_lbl.transpose().tocsr(), batch_size=batch_size, walk_to=walk_to, 
-                                       prob_reset=prob_reset, n_hops=2, thresh=thresh)
+                                       prob_reset=prob_reset, n_hops=2, thresh=thresh, do_normalize=True)
         self.meta['rnw_meta'] = SMetaXCDataset(prefix='rnw', data_meta=data_meta, lbl_meta=lbl_meta,
                                                meta_info=self.data.lbl_info, **kwargs)
+        
+    @staticmethod
+    def combine_info(info_1:Dict, info_2:Dict, pad_token:int=0):
+        comb_info = dict()
+        for k,v in info_1.items():
+            if isinstance(v, tuple) or isinstance(v, list): comb_info[k] = v + info_2[k]
+            elif isinstance(v, torch.Tensor):
+                n_data = v.shape[0] + info_2[k].shape[0]
+                seq_len = max(v.shape[1], info_2[k].shape[1]) 
+                
+                if k == 'input_ids': 
+                    info = torch.full((n_data, seq_len), pad_token, dtype=v.dtype)
+                elif k == 'attention_mask': 
+                    info = torch.full((n_data, seq_len), 0, dtype=v.dtype)
+                    
+                info[:v.shape[0], :v.shape[1]] = v
+                info[v.shape[0]:, :info_2[k].shape[1]] = info_2[k]
+                
+                comb_info[k] = info
+        return comb_info
+
+    def _get_main_dataset(
+        self,
+        data_info:Dict, 
+        data_lbl:Optional[sp.csr_matrix]=None, 
+        lbl_info:Optional[Dict]=None, 
+        data_lbl_filterer:Optional[Union[sp.csr_matrix,np.array]]=None, 
+        **kwargs
+    ):
+        dset = self._get_dataset(data_info, data_lbl, lbl_info, data_lbl_filterer, **kwargs)
+        return SXCDataset(dset)
         
     def combined_lbl_and_meta(self, meta_name:str, pad_token:int=0, p_data=0.5, **kwargs): 
         if f'{meta_name}_meta' not in self.meta: raise ValueError(f'Invalid metadata: {meta_name}')
@@ -248,40 +294,25 @@ class SXCDataset(BaseXCDataset):
         data_meta = self.meta[f'{meta_name}_meta'].data_meta
         data_meta = data_meta.multiply(1/(data_meta.getnnz(axis=1).reshape(-1, 1) + 1e-9))
         data_meta = data_meta.tocsr() * (1 - p_data)
-    
-        data_info = self.data.data_info
+        
         lbl_info = self.data.lbl_info
         meta_info = self.meta[f'{meta_name}_meta'].meta_info
-    
-        comb_info = dict()
-        for k,v in lbl_info.items():
-            if isinstance(v, tuple) or isinstance(v, list): comb_info[k] = v + meta_info[k]
-            elif isinstance(v, torch.Tensor):
-                n_data = v.shape[0] + meta_info[k].shape[0]
-                seq_len = max(v.shape[1], meta_info[k].shape[1]) 
-                
-                if k == 'input_ids': 
-                    info = torch.full((n_data, seq_len), pad_token, dtype=v.dtype)
-                elif k == 'attention_mask': 
-                    info = torch.full((n_data, seq_len), 0, dtype=v.dtype)
-                    
-                info[:v.shape[0], :v.shape[1]] = v
-                info[v.shape[0]:, :meta_info[k].shape[1]] = meta_info[k]
+
+        comb_info = self.combine_info(lbl_info, meta_info, pad_token)
         
-                comb_info[k] = info
-    
-        n_lbl_samples = kwargs.get('n_lbl_samples') if 'n_lbl_samples' in kwargs else self.data.n_lbl_samples
-        data_info_keys = kwargs.get('data_info_keys') if 'data_info_keys' in kwargs else self.data.data_info_keys
-        lbl_info_keys = kwargs.get('lbl_info_keys') if 'lbl_info_keys' in kwargs else self.data.lbl_info_keys
-        n_slbl_samples = kwargs.get('n_slbl_samples') if 'n_slbl_samples' in kwargs else self.data.n_slbl_samples
-        main_oversample = kwargs.get('main_oversample') if 'main_oversample' in kwargs else self.data.main_oversample
-        use_main_distribution = kwargs.get('use_main_distribution') if 'use_main_distribution' in kwargs else self.data.use_main_distribution
+        return self._get_main_dataset(self.data.data_info, sp.hstack([data_lbl, data_meta]), comb_info, self.data.data_lbl_filterer)
+
+    def combined_data_and_meta(self, meta_name:str, pad_token:int=0, **kwargs):
+        if f'{meta_name}_meta' not in self.meta: raise ValueError(f'Invalid metadata: {meta_name}')
         
-        dset = SMainXCDataset(data_info=data_info, data_lbl=sp.hstack([data_lbl, data_meta]), lbl_info=comb_info, 
-                              data_lbl_filterer=self.data.data_lbl_filterer, n_lbl_samples=n_lbl_samples, data_info_keys=data_info_keys, 
-                              lbl_info_keys=lbl_info_keys, n_slbl_samples=n_slbl_samples, main_oversample=main_oversample,
-                              use_main_distribution=use_main_distribution)
-        return SXCDataset(dset)
+        data_lbl, meta_lbl = self.data.data_lbl, self.meta[f'{meta_name}_meta'].lbl_meta.transpose().tocsr()
+        assert data_lbl.shape[1] == meta_lbl.shape[1], f"Incompatible metadata shape: {meta_lbl.shape}"
+
+        data_info = self.data.data_info
+        meta_info = self.meta[f'{meta_name}_meta'].meta_info
+        comb_info = self.combine_info(data_info, meta_info, pad_token)
+
+        return self._get_main_dataset(comb_info, sp.vstack([data_lbl, meta_lbl]), self.data.lbl_info, self.data.data_lbl_filterer)
         
 
 # %% ../nbs/35_sdata.ipynb 40

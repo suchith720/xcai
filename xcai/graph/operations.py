@@ -78,7 +78,7 @@ class Graph:
         return sp.vstack([walk_func(data_start=i, data_end=min(i+batch_size, data_lbl.shape[0])) for i in tqdm(range(0, data_lbl.shape[0], batch_size))])
 
     @staticmethod
-    def one_hop_matrix(data_lbl:sp.csr_matrix, batch_size:int=1024, topk:Optional[int]=None):
+    def one_hop_matrix(data_lbl:sp.csr_matrix, batch_size:int=1024, topk:Optional[int]=None, do_normalize:Optional[bool]=False):
         data_lbl_t = data_lbl.transpose().tocsr()
         lbl_lbl = sp.vstack([data_lbl_t[i:i+batch_size]@data_lbl for i in tqdm(range(0, data_lbl_t.shape[0], batch_size))])
         data_lbl = sp.vstack([data_lbl[i:i+batch_size]@lbl_lbl for i in tqdm(range(0, data_lbl.shape[0], batch_size))])
@@ -86,7 +86,10 @@ class Graph:
         data_lbl.sort_indices()
         if topk is not None:
             data_lbl, lbl_lbl = retain_topk(data_lbl, k=topk), retain_topk(lbl_lbl, k=topk)
-        return data_lbl, lbl_lbl
+        if do_normalize:
+            data_meta = data_meta / (data_meta.sum(axis=1) + 1e-9)
+            lbl_meta = lbl_meta / (lbl_meta.sum(axis=1) + 1e-9)
+        return data_lbl.tocsr(), lbl_lbl.tocsr()
 
     @staticmethod
     def threshold_on_degree(data_lbl:sp.csr_matrix, thresh:int=10):
@@ -115,10 +118,10 @@ def perform_random_walk(
     prob_reset:Optional[float]=0.8, 
     n_hops:Optional[int]=2,
     thresh:Optional[int]=10,
+    do_normalize:Optional[bool]=False,
 ):
     data_lbl = Graph.threshold_on_degree(data_lbl, thresh=thresh)
     data_lbl = Graph.random_walk(data_lbl, walk_to=walk_to, batch_size=batch_size, prob_reset=prob_reset, n_hops=n_hops)
-    data_lbl = data_lbl / (data_lbl.sum(axis=1) + 1e-9)
-    data_lbl = data_lbl.tocsr()
-    return data_lbl
+    if do_normalize: data_lbl = data_lbl / (data_lbl.sum(axis=1) + 1e-9)
+    return data_lbl.tocsr()
     
