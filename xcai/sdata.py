@@ -300,7 +300,8 @@ class SXCDataset(BaseXCDataset):
 
         comb_info = self.combine_info(lbl_info, meta_info, pad_token)
         
-        return self._get_main_dataset(self.data.data_info, sp.hstack([data_lbl, data_meta]), comb_info, self.data.data_lbl_filterer)
+        return self._get_main_dataset(self.data.data_info, sp.hstack([data_lbl, data_meta]), comb_info, 
+                                      self.data.data_lbl_filterer, **kwargs)
 
     def combined_data_and_meta(self, meta_name:str, pad_token:int=0, **kwargs):
         if f'{meta_name}_meta' not in self.meta: raise ValueError(f'Invalid metadata: {meta_name}')
@@ -312,7 +313,8 @@ class SXCDataset(BaseXCDataset):
         meta_info = self.meta[f'{meta_name}_meta'].meta_info
         comb_info = self.combine_info(data_info, meta_info, pad_token)
 
-        return self._get_main_dataset(comb_info, sp.vstack([data_lbl, meta_lbl]), self.data.lbl_info, self.data.data_lbl_filterer)
+        return self._get_main_dataset(comb_info, sp.vstack([data_lbl, meta_lbl]), self.data.lbl_info, 
+                                      self.data.data_lbl_filterer, **kwargs)
         
 
 # %% ../nbs/35_sdata.ipynb 40
