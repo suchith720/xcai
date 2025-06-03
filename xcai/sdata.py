@@ -257,12 +257,14 @@ class SXCDataset(BaseXCDataset):
                                                prob_reset:Optional[float]=0.8, topk_thresh:Optional[int]=10, data_degree_thresh=20, 
                                                lbl_degree_thresh=20, **kwargs):
         if f'{meta_name}_meta' not in self.meta: raise ValueError(f'Invalid metadata: {meta_name}')
-        data_meta = perform_random_walk_with_matrices(data_meta, lbl_meta, batch_size=batch_size, walk_to=walk_to, prob_reset=prob_reset, 
-                                                      n_hops=2, thresh=data_degree_thresh, topk=topk_thresh, do_normalize=True)
-        lbl_meta = perform_random_walk_with_matrices(lbl_meta, data_meta, batch_size=batch_size, walk_to=walk_to, prob_reset=prob_reset, 
-                                                     n_hops=3, thresh=lbl_degree_thresh, topk=topk_thresh, do_normalize=True)
-        self.meta['rnw_meta'] = SMetaXCDataset(prefix='rnw', data_meta=data_meta, lbl_meta=lbl_meta,
-                                               meta_info=self.data.lbl_info, **kwargs)
+        data_meta, lbl_meta = self.meta[f'{meta_name}_meta'].data_meta, self.meta[f'{meta_name}_meta'].lbl_meta
+        data_rnw = perform_random_walk_with_matrices(data_meta, lbl_meta, batch_size=batch_size, walk_to=walk_to, prob_reset=prob_reset, 
+                                                     n_hops=2, data_thresh=data_degree_thresh, lbl_thresh=lbl_degree_thresh, 
+                                                     topk=topk_thresh, do_normalize=True)
+        lbl_rnw = perform_random_walk_with_matrices(lbl_meta, data_meta, batch_size=batch_size, walk_to=walk_to, prob_reset=prob_reset, 
+                                                    n_hops=3, data_thresh=data_degree_thresh, lbl_thresh=lbl_degree_thresh, 
+                                                    topk=topk_thresh, do_normalize=True)
+        self.meta['rnw_meta'] = SMetaXCDataset(prefix='rnw', data_meta=data_rnw, lbl_meta=lbl_rnw, meta_info=self.data.lbl_info, **kwargs)
         
     @staticmethod
     def combine_info(info_1:Dict, info_2:Dict, pad_token:int=0):
