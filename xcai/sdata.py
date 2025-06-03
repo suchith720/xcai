@@ -245,11 +245,12 @@ class SXCDataset(BaseXCDataset):
                                                meta_info=self.data.lbl_info, **kwargs)
 
     def get_random_walk_metadata(self, batch_size:Optional[int]=1024, walk_to:Optional[int]=100, prob_reset:Optional[float]=0.8, 
-                                 thresh:Optional[int]=10, **kwargs):
-        data_meta = perform_random_walk(self.data.data_lbl, batch_size=batch_size, walk_to=walk_to, prob_reset=prob_reset, 
-                                        n_hops=1, thresh=thresh, do_normalize=True)
-        lbl_meta = perform_random_walk(self.data.data_lbl.transpose().tocsr(), batch_size=batch_size, walk_to=walk_to, 
-                                       prob_reset=prob_reset, n_hops=2, thresh=thresh, do_normalize=True)
+                                 topk_thresh:Optional[int]=10, degree_thresh=20, **kwargs):
+        data_lbl = Graph.threshold_on_degree(self.data.data_lbl, thresh=degree_thresh)
+        data_meta = perform_random_walk(data_lbl, batch_size=batch_size, walk_to=walk_to, prob_reset=prob_reset, 
+                                        n_hops=1, thresh=topk_thresh, do_normalize=True)
+        lbl_meta = perform_random_walk(data_lbl.transpose().tocsr(), batch_size=batch_size, walk_to=walk_to, 
+                                       prob_reset=prob_reset, n_hops=2, thresh=topk_thresh, do_normalize=True)
         self.meta['rnw_meta'] = SMetaXCDataset(prefix='rnw', data_meta=data_meta, lbl_meta=lbl_meta,
                                                meta_info=self.data.lbl_info, **kwargs)
         
@@ -281,10 +282,10 @@ class SXCDataset(BaseXCDataset):
         data_lbl_filterer:Optional[Union[sp.csr_matrix,np.array]]=None, 
         **kwargs
     ):
-        dset = self._get_dataset(data_info, data_lbl, lbl_info, data_lbl_filterer, **kwargs)
+        dset = self.data._get_dataset(data_info, data_lbl, lbl_info, data_lbl_filterer, **kwargs)
         return SXCDataset(dset)
         
-    def combined_lbl_and_meta(self, meta_name:str, pad_token:int=0, p_data=0.5, **kwargs): 
+    def combine_lbl_and_meta(self, meta_name:str, pad_token:int=0, p_data=0.5, **kwargs): 
         if f'{meta_name}_meta' not in self.meta: raise ValueError(f'Invalid metadata: {meta_name}')
             
         data_lbl = self.data.data_lbl
@@ -303,7 +304,7 @@ class SXCDataset(BaseXCDataset):
         return self._get_main_dataset(self.data.data_info, sp.hstack([data_lbl, data_meta]), comb_info, 
                                       self.data.data_lbl_filterer, **kwargs)
 
-    def combined_data_and_meta(self, meta_name:str, pad_token:int=0, **kwargs):
+    def combine_data_and_meta(self, meta_name:str, pad_token:int=0, **kwargs):
         if f'{meta_name}_meta' not in self.meta: raise ValueError(f'Invalid metadata: {meta_name}')
         
         data_lbl, meta_lbl = self.data.data_lbl, self.meta[f'{meta_name}_meta'].lbl_meta.transpose().tocsr()
@@ -313,8 +314,11 @@ class SXCDataset(BaseXCDataset):
         meta_info = self.meta[f'{meta_name}_meta'].meta_info
         comb_info = self.combine_info(data_info, meta_info, pad_token)
 
-        return self._get_main_dataset(comb_info, sp.vstack([data_lbl, meta_lbl]), self.data.lbl_info, 
+        dset = self._get_main_dataset(comb_info, sp.vstack([data_lbl, meta_lbl]), self.data.lbl_info, 
                                       self.data.data_lbl_filterer, **kwargs)
+        valid_idx = np.where(dset.data.data_lbl.getnnz(axis=1) > 0)[0]
+        return dset._getitems(valid_idx)
+        
         
 
 # %% ../nbs/35_sdata.ipynb 40
