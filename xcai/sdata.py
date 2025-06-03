@@ -246,11 +246,21 @@ class SXCDataset(BaseXCDataset):
 
     def get_random_walk_metadata(self, batch_size:Optional[int]=1024, walk_to:Optional[int]=100, prob_reset:Optional[float]=0.8, 
                                  topk_thresh:Optional[int]=10, degree_thresh=20, **kwargs):
-        data_lbl = Graph.threshold_on_degree(self.data.data_lbl, thresh=degree_thresh)
         data_meta = perform_random_walk(data_lbl, batch_size=batch_size, walk_to=walk_to, prob_reset=prob_reset, 
-                                        n_hops=1, thresh=topk_thresh, do_normalize=True)
+                                        n_hops=1, thresh=degree_thresh, topk=topk_thresh, do_normalize=True)
         lbl_meta = perform_random_walk(data_lbl.transpose().tocsr(), batch_size=batch_size, walk_to=walk_to, 
-                                       prob_reset=prob_reset, n_hops=2, thresh=topk_thresh, do_normalize=True)
+                                       prob_reset=prob_reset, n_hops=2, thresh=degree_thresh, topk=topk_thresh, do_normalize=True)
+        self.meta['rnw_meta'] = SMetaXCDataset(prefix='rnw', data_meta=data_meta, lbl_meta=lbl_meta,
+                                               meta_info=self.data.lbl_info, **kwargs)
+
+    def get_random_walk_with_matrices_metadata(self, meta_name:str, batch_size:Optional[int]=1024, walk_to:Optional[int]=100, 
+                                               prob_reset:Optional[float]=0.8, topk_thresh:Optional[int]=10, data_degree_thresh=20, 
+                                               lbl_degree_thresh=20, **kwargs):
+        if f'{meta_name}_meta' not in self.meta: raise ValueError(f'Invalid metadata: {meta_name}')
+        data_meta = perform_random_walk_with_matrices(data_meta, lbl_meta, batch_size=batch_size, walk_to=walk_to, prob_reset=prob_reset, 
+                                                      n_hops=2, thresh=data_degree_thresh, topk=topk_thresh, do_normalize=True)
+        lbl_meta = perform_random_walk_with_matrices(lbl_meta, data_meta, batch_size=batch_size, walk_to=walk_to, prob_reset=prob_reset, 
+                                                     n_hops=3, thresh=lbl_degree_thresh, topk=topk_thresh, do_normalize=True)
         self.meta['rnw_meta'] = SMetaXCDataset(prefix='rnw', data_meta=data_meta, lbl_meta=lbl_meta,
                                                meta_info=self.data.lbl_info, **kwargs)
         
