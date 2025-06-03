@@ -107,7 +107,7 @@ class Graph:
                 if p == q: continue
                 meta_i = np.random.choice(data_meta_indices[p:q])
                 
-                p,q = meta_lbl_indptr[lbl_i], meta_lbl_indptr[lbl_i+1]
+                p,q = meta_lbl_indptr[meta_i], meta_lbl_indptr[meta_i+1]
                 if p == q: continue
                 lbl_i = np.random.choice(meta_lbl_indices[p:q])
 
@@ -115,7 +115,7 @@ class Graph:
                 if p == q: continue
                 meta_i = np.random.choice(lbl_meta_indices[p:q])
 
-                p,q = meta_data_indptr[lbl_i], meta_data_indptr[lbl_i+1]
+                p,q = meta_data_indptr[meta_i], meta_data_indptr[meta_i+1]
                 if p == q: continue
                 data_i = np.random.choice(meta_data_indices[p:q])
 
