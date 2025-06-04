@@ -63,6 +63,9 @@ PARAM = {
     'n_sdata_meta_samples': 1,
     'n_slbl_meta_samples': 1,
     'meta_oversample': False,
+
+    'use_meta_distribution': False,
+    'use_main_distribution': False,
 }
 
 # %% ../nbs/25_config.ipynb 7

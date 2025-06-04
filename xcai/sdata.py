@@ -112,16 +112,32 @@ class SMetaXCDataset(MetaXCDataset):
         n_sdata_meta_samples:Optional[int]=1,
         n_slbl_meta_samples:Optional[int]=1,
         meta_oversample:Optional[bool]=False,
+        use_meta_distribution:Optional[bool]=False,
         **kwargs
     ):
         super().__init__(**kwargs)
-        store_attr('n_sdata_meta_samples,n_slbl_meta_samples,meta_oversample')
+        store_attr('n_sdata_meta_samples,n_slbl_meta_samples,meta_oversample,use_meta_distribution')
+
+        self.data_meta_scores, self.data_meta_scores = None, None
+        if use_meta_distribution: self._store_scores()
+
+    def _store_scores(self):
+        if self.data_meta is not None:
+            data_meta = self.data_meta / self.data_meta.sum(axis=1)
+            data_meta = data_meta.tocsr()
+            self.data_meta_scores = [o.data.tolist() for o in data_meta]
+            
+        if self.lbl_meta is not None:
+            lbl_meta = self.lbl_meta / self.lbl_meta.sum(axis=1)
+            lbl_meta = lbl_meta.tocsr()
+            self.lbl_meta_scores = [o.data.tolist() for o in lbl_meta]
 
     def _getitems(self, idxs:List):
         return SMetaXCDataset(prefix=self.prefix, data_meta=self.data_meta[idxs], lbl_meta=self.lbl_meta, meta_info=self.meta_info, 
                               n_data_meta_samples=self.n_data_meta_samples, n_lbl_meta_samples=self.n_lbl_meta_samples, 
                               meta_info_keys=self.meta_info_keys, n_sdata_meta_samples=self.n_sdata_meta_samples, 
-                              n_slbl_meta_samples=self.n_slbl_meta_samples, meta_oversample=self.meta_oversample)
+                              n_slbl_meta_samples=self.n_slbl_meta_samples, meta_oversample=self.meta_oversample, 
+                              use_meta_distribution=self.use_meta_distribution)
 
     def _sample_meta_items(self, idxs:List):
         assert max(idxs) < self.n_meta, f"indices should be less than {self.n_meta}"
@@ -129,7 +145,8 @@ class SMetaXCDataset(MetaXCDataset):
         return SMetaXCDataset(prefix=self.prefix, data_meta=self.data_meta[:, idxs], lbl_meta=self.lbl_meta[:, idxs], meta_info=meta_info, 
                               n_data_meta_samples=self.n_data_meta_samples, n_lbl_meta_samples=self.n_lbl_meta_samples,
                               meta_info_keys=self.meta_info_keys, n_sdata_meta_samples=self.n_sdata_meta_samples, 
-                              n_slbl_meta_samples=self.n_slbl_meta_samples, meta_oversample=self.meta_oversample)
+                              n_slbl_meta_samples=self.n_slbl_meta_samples, meta_oversample=self.meta_oversample, 
+                              use_meta_distribution=self.use_meta_distribution)
         
     @classmethod
     @delegates(MetaXCData.from_file)
@@ -141,23 +158,24 @@ class SMetaXCDataset(MetaXCDataset):
         n_sdata_meta_samples:Optional[int]=1,
         n_slbl_meta_samples:Optional[int]=1,
         meta_oversample:Optional[bool]=False,
+        use_meta_distribution:Optional[bool]=False,
         **kwargs
     ):
         return cls(**MetaXCData.from_file(**kwargs), n_data_meta_samples=n_data_meta_samples, n_lbl_meta_samples=n_lbl_meta_samples, 
                    meta_info_keys=meta_info_keys, n_sdata_meta_samples=n_sdata_meta_samples, n_slbl_meta_samples=n_slbl_meta_samples,
-                   meta_oversample=meta_oversample)
+                   meta_oversample=meta_oversample, use_meta_distribution=use_meta_distribution)
 
     def get_data_meta(self, idxs:List):
         x, prefix = dict(), f'{self.prefix}2data'
-        o = self.extract_items(prefix, self.curr_data_meta, idxs, self.n_data_meta_samples, self.n_sdata_meta_samples, 
-                               self.meta_oversample, self.meta_info, self.meta_info_keys)
+        o = self.extract_items(prefix, self.curr_data_meta, idxs, self.n_data_meta_samples, self.n_sdata_meta_samples, self.meta_oversample, 
+                               self.meta_info, self.meta_info_keys, self.use_meta_distribution, self.data_meta_scores)
         x.update(o)
         return x
         
     def get_lbl_meta(self, idxs:List):
         x, prefix = dict(), f'{self.prefix}2lbl'
-        o = self.extract_items(prefix, self.curr_lbl_meta, idxs, self.n_lbl_meta_samples, self.n_slbl_meta_samples, 
-                               self.meta_oversample, self.meta_info, self.meta_info_keys)
+        o = self.extract_items(prefix, self.curr_lbl_meta, idxs, self.n_lbl_meta_samples, self.n_slbl_meta_samples, self.meta_oversample, 
+                               self.meta_info, self.meta_info_keys, self.use_meta_distribution, self.lbl_meta_scores)
         x.update(o)
         return x
 
@@ -487,12 +505,15 @@ class SXCDataBlock:
     def collator(self): return self.test.collate_fn if self.train is None else self.train.collate_fn
         
     @classmethod
-    def from_cfg(cls, 
-                 cfg:Union[str,Dict],
-                 collate_fn:Optional[Callable]=identity_collate_fn,
-                 valid_pct:Optional[float]=0.2,
-                 seed=None):
+    def from_cfg(
+        cls, 
+        cfg:Union[str,Dict],
+        collate_fn:Optional[Callable]=identity_collate_fn,
+        valid_pct:Optional[float]=0.2,
+        seed=None,
+        **kwargs,
+    ):
         if isinstance(cfg, str): cfg = cls.load_cfg(cfg)
-        blks = {o:SBaseXCDataBlock.from_file(**cfg['path'][o], **cfg['parameters'], collate_fn=collate_fn) for o in ['train', 'valid', 'test'] if o in cfg['path']}
+        blks = {o:SBaseXCDataBlock.from_file(**cfg['path'][o], **cfg['parameters'], collate_fn=collate_fn, **kwargs) for o in ['train', 'valid', 'test'] if o in cfg['path']}
         return cls(**blks)
         
