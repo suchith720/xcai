@@ -107,20 +107,29 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
     
             for k in block.test.dset.meta:
                 if 'n_sdata_meta_samples' in kwargs:
-                    if block.train is not None: block.train.dset.meta[k].n_sdata_meta_samples = kwargs['n_sdata_meta_samples']
                     if block.test is not None: block.test.dset.meta[k].n_sdata_meta_samples = kwargs['n_sdata_meta_samples']
     
                 if 'n_slbl_meta_samples' in kwargs:
-                    if block.train is not None: block.train.dset.meta[k].n_slbl_meta_samples = kwargs['n_slbl_meta_samples']
                     if block.test is not None: block.test.dset.meta[k].n_slbl_meta_samples = kwargs['n_slbl_meta_samples']
     
                 if 'meta_oversample' in kwargs:
-                    if block.train is not None: block.train.dset.meta[k].meta_oversample = kwargs['meta_oversample']
                     if block.test is not None: block.test.dset.meta[k].meta_oversample = kwargs['meta_oversample']
 
                 if 'use_meta_distribution' in kwargs:
-                    if block.train is not None: block.train.dset.meta[k].use_meta_distribution = kwargs['use_meta_distribution']
                     if block.test is not None: block.test.dset.meta[k].use_meta_distribution = kwargs['use_meta_distribution']
+
+            for k in block.train.dset.meta:
+                if 'n_sdata_meta_samples' in kwargs:
+                    if block.train is not None: block.train.dset.meta[k].n_sdata_meta_samples = kwargs['n_sdata_meta_samples']
+    
+                if 'n_slbl_meta_samples' in kwargs:
+                    if block.train is not None: block.train.dset.meta[k].n_slbl_meta_samples = kwargs['n_slbl_meta_samples']
+    
+                if 'meta_oversample' in kwargs:
+                    if block.train is not None: block.train.dset.meta[k].meta_oversample = kwargs['meta_oversample']
+
+                if 'use_meta_distribution' in kwargs:
+                    if block.train is not None: block.train.dset.meta[k].use_meta_distribution = kwargs['use_meta_distribution']                
                     
     if remove_empty_datapoints: block = type(block)(train=get_valid_dset(block.train), test=get_valid_dset(block.test))
 
