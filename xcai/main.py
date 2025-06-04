@@ -100,6 +100,10 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
             if 'main_oversample' in kwargs: 
                 if block.train is not None: block.train.dset.data.main_oversample = kwargs['main_oversample']
                 if block.test is not None: block.test.dset.data.main_oversample = kwargs['main_oversample']
+
+            if 'use_main_distribution' in kwargs: 
+                if block.train is not None: block.train.dset.data.use_main_distribution = kwargs['use_main_distribution']
+                if block.test is not None: block.test.dset.data.use_main_distribution = kwargs['use_main_distribution']
     
             for k in block.test.dset.meta:
                 if 'n_sdata_meta_samples' in kwargs:
@@ -113,6 +117,10 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
                 if 'meta_oversample' in kwargs:
                     if block.train is not None: block.train.dset.meta[k].meta_oversample = kwargs['meta_oversample']
                     if block.test is not None: block.test.dset.meta[k].meta_oversample = kwargs['meta_oversample']
+
+                if 'use_meta_distribution' in kwargs:
+                    if block.train is not None: block.train.dset.meta[k].use_meta_distribution = kwargs['use_meta_distribution']
+                    if block.test is not None: block.test.dset.meta[k].use_meta_distribution = kwargs['use_meta_distribution']
                     
     if remove_empty_datapoints: block = type(block)(train=get_valid_dset(block.train), test=get_valid_dset(block.test))
 
