@@ -348,6 +348,19 @@ class SXCDataset(BaseXCDataset):
                                       self.data.data_lbl_filterer, **kwargs)
         valid_idx = np.where(dset.data.data_lbl.getnnz(axis=1) > 0)[0]
         return dset._getitems(valid_idx)
+
+    @staticmethod
+    def get_combined_data_and_meta(dset, meta_lbl:sp.csr_matrix, meta_info:Dict, pad_token:int=0, **kwargs):    
+        data_lbl = dset.data.data_lbl
+        assert data_lbl.shape[1] == meta_lbl.shape[1], f"Incompatible metadata shape: {meta_lbl.shape}"
+        
+        data_info = dset.data.data_info
+        comb_info = dset.combine_info(data_info, meta_info, pad_token)
+        
+        dset = dset._get_main_dataset(comb_info, sp.vstack([data_lbl, meta_lbl]), dset.data.lbl_info, 
+                                      dset.data.data_lbl_filterer, **kwargs)
+        valid_idx = np.where(dset.data.data_lbl.getnnz(axis=1) > 0)[0]
+        return dset._getitems(valid_idx)
         
         
 

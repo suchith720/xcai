@@ -176,8 +176,8 @@ class Graph:
         if topk is not None:
             data_lbl, lbl_lbl = retain_topk(data_lbl, k=topk), retain_topk(lbl_lbl, k=topk)
         if do_normalize:
-            data_meta = data_meta / (data_meta.sum(axis=1) + 1e-9)
-            lbl_meta = lbl_meta / (lbl_meta.sum(axis=1) + 1e-9)
+            data_lbl = data_lbl / (data_lbl.sum(axis=1) + 1e-9)
+            lbl_lbl = lbl_lbl / (lbl_lbl.sum(axis=1) + 1e-9)
         return data_lbl.tocsr(), lbl_lbl.tocsr()
 
     @staticmethod
