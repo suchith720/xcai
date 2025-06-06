@@ -118,7 +118,7 @@ class SMetaXCDataset(MetaXCDataset):
         super().__init__(**kwargs)
         store_attr('n_sdata_meta_samples,n_slbl_meta_samples,meta_oversample,use_meta_distribution')
 
-        self.data_meta_scores, self.data_meta_scores = None, None
+        self.data_meta_scores, self.lbl_meta_scores = None, None
         if use_meta_distribution: self._store_scores()
 
     def _store_scores(self):
