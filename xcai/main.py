@@ -14,7 +14,7 @@ from .sdata import SXCDataBlock
 from .data import XCDataBlock
 from .block import SXCBlock, XCBlock
 from .core import get_best_model, load_config
-from .transformers import AugmentMetaInputIdsTfm
+from .transform import AugmentMetaInputIdsTfm
 
 from xclib.utils.sparse import retain_topk
 
