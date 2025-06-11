@@ -439,9 +439,18 @@ class SAW000(nn.Module):
             lbl2data_meta_kwargs = Parameters.from_aug_meta_prefix_for_feature('lbl', self.config.lbl2data_aug_meta_prefix, **kwargs)
             lbl2data_o = encoder(data_input_ids=lbl2data_input_ids, data_attention_mask=lbl2data_attention_mask, 
                                  data_aug_meta_prefix=self.config.lbl2data_aug_meta_prefix, data_enrich=self.config.lbl2data_enrich, **lbl2data_meta_kwargs)
-            
-            loss = self.compute_loss(data_o.enriched_data_repr, lbl2data_o.enriched_data_repr,lbl2data_data2ptr,lbl2data_idx,
-                                     plbl2data_data2ptr,plbl2data_idx)
+
+            if self.config.data_enrich and self.config.lbl2data_enrich:
+                loss = self.compute_loss(data_o.enriched_data_repr, lbl2data_o.enriched_data_repr,lbl2data_data2ptr,lbl2data_idx,
+                                         plbl2data_data2ptr,plbl2data_idx)
+            elif self.config.data_enrich:
+                loss = self.compute_loss(data_o.enriched_data_repr, lbl2data_o.data_repr,lbl2data_data2ptr,lbl2data_idx,
+                                         plbl2data_data2ptr,plbl2data_idx)
+            elif self.config.lbl2data_enrich:
+                loss = self.compute_loss(data_o.data_repr, lbl2data_o.enriched_data_repr,lbl2data_data2ptr,lbl2data_idx,
+                                         plbl2data_data2ptr,plbl2data_idx)
+            else:
+                raise ValueError(f'Either `data_enrich` or `lbl2data_enrich` should be active')
 
             if self.config.use_query_loss:
                 loss += self.compute_loss(data_o.data_repr, lbl2data_o.data_repr,lbl2data_data2ptr,lbl2data_idx,
