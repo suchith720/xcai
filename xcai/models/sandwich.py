@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['Parameters', 'SandwichConfig', 'CrossCombinerBlock', 'EncoderOutput', 'BaseEncoder', 'Encoder', 'SAWModelOutput',
-           'SAW000', 'SAW001']
+           'SAW000', 'SAW001', 'Encoder002', 'SAW002']
 
 # %% ../../nbs/40_models.sandwich.ipynb 3
 import torch, torch.nn as nn, torch.nn.functional as F, re
@@ -340,8 +340,10 @@ class SAWModelOutput(ModelOutput):
     loss: Optional[torch.FloatTensor] = None
     data_repr: Optional[torch.FloatTensor] = None
     data_enriched_repr: Optional[torch.FloatTensor] = None
+    data_meta_repr:Optional[torch.FloatTensor] = None
     lbl2data_repr: Optional[torch.FloatTensor] = None
     lbl2data_enriched_repr: Optional[torch.FloatTensor] = None
+    lbl2data_meta_repr:Optional[torch.FloatTensor] = None
     
 
 # %% ../../nbs/40_models.sandwich.ipynb 43
@@ -367,6 +369,10 @@ class SAW000(nn.Module):
     def init_combiner_to_last_layer(self):
         if self.encoder is None: raise ValueError('Encoder not initialized.')
         self.encoder.init_combiner_to_last_layer()
+
+    def init_combiner_to_identity(self):
+        if self.encoder is None: raise ValueError('Encoder not initialized.')
+        self.encoder.init_combiner_to_identity()
 
     def init_meta_distilbert(self):
         if self.encoder is None: raise ValueError('Encoder not initialized.')
@@ -458,8 +464,10 @@ class SAW000(nn.Module):
             loss=loss,
             data_repr=data_o.data_repr,
             data_enriched_repr=data_o.enriched_data_repr,
+            data_meta_repr=data_o.meta_repr,
             lbl2data_repr=lbl2data_o.data_repr,
             lbl2data_enriched_repr=lbl2data_o.enriched_data_repr,
+            lbl2data_meta_repr=lbl2data_o.meta_repr,
         )
         
 
@@ -471,6 +479,88 @@ class SAW001(SAW000, DistilBertPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
         self.encoder = Encoder(config)
+        
+        self.post_init()
+        self.remap_post_init()
+
+    def remap_post_init(self):
+        self.distilbert = self.encoder.distilbert
+        
+
+# %% ../../nbs/40_models.sandwich.ipynb 60
+class Encoder002(BaseEncoder):
+    
+    config_class = SandwichConfig
+    
+    def __init__(
+        self, 
+        config:PretrainedConfig, 
+    ):
+        super().__init__(config)
+        self.combiner_head = nn.Linear(2 * config.dim, config.dim)
+        self.post_init()
+
+    @torch.no_grad()
+    def init_heads_to_identity(self):
+        super().init_heads_to_identity()
+
+    @torch.no_grad()
+    def init_combiner_to_identity(self):
+        nn.init.eye_(self.combiner_head.weight)
+        nn.init.zeros_(self.combiner_head.bias)
+
+    @torch.no_grad()
+    def init_meta_distilbert(self):
+        super().init_meta_distilbert()
+
+    def enrich_query_representation(self, data_o:torch.Tensor, data_meta_o:torch.Tensor, data_attention_mask:torch.Tensor):
+        fused_o = self.combiner_head(torch.cat([data_o, data_meta_o], dim=-1))
+        enriched_data_repr = self.encode_enriched_query(fused_o, data_attention_mask)
+        return enriched_data_repr
+
+    def forward(
+        self, 
+        data_input_ids: torch.Tensor, 
+        data_attention_mask: torch.Tensor,
+        data_aug_meta_prefix: Optional[str]=None,
+        data_enrich: Optional[bool]=True,
+        **kwargs
+    ):
+        data_o = self.encode(data_input_ids, data_attention_mask)
+        data_repr = self.encode_query(data_o[0], data_attention_mask)
+
+        data_meta_o = self.encode_meta(data_input_ids, data_attention_mask)
+        data_meta_repr = self.encode_meta_query(data_meta_o[0], data_attention_mask)
+        
+        meta_kwargs = Parameters.from_data_aug_meta_prefix_for_encoder(data_aug_meta_prefix, **kwargs)
+        meta_kwargs = meta_kwargs.get(data_aug_meta_prefix, None)
+
+        meta_repr = torch.zeros(0, data_repr.shape[1], device=data_repr.device, dtype=data_repr.dtype)
+        if meta_kwargs is not None and len(meta_kwargs['idx']):
+            meta_o = self.encode_meta(meta_kwargs['input_ids'], meta_kwargs['attention_mask'])
+            meta_repr = self.encode_meta_query(meta_o[0], meta_kwargs['attention_mask'])
+
+        enriched_data_repr = (
+            self.enrich_query_representation(data_o[0], data_meta_o[0], data_attention_mask) 
+            if data_enrich else torch.zeros(0, data_repr.shape[1], device=data_repr.device, dtype=data_repr.dtype)
+        )
+        
+        return EncoderOutput(
+            data_repr=data_repr,
+            data_meta_repr=data_meta_repr,
+            enriched_data_repr=enriched_data_repr,
+            meta_repr=meta_repr,
+        )
+        
+
+# %% ../../nbs/40_models.sandwich.ipynb 61
+class SAW002(SAW000, DistilBertPreTrainedModel):
+    use_generation,use_representation = False,True
+    _tied_weights_keys = ["encoder.distilbert"]
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.encoder = Encoder002(config)
         
         self.post_init()
         self.remap_post_init()
