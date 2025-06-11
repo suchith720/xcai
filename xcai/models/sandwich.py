@@ -388,7 +388,7 @@ class SAW000(nn.Module):
         loss = 0.0
         meta_kwargs = Parameters.from_aug_meta_prefix_for_loss('data', self.config.data_aug_meta_prefix, **kwargs)
         prefix = self.config.data_aug_meta_prefix
-        if meta_kwargs is not None and len(meta_kwargs[prefix]['idx']):
+        if meta_kwargs is not None and prefix in meta_kwargs and len(meta_kwargs[prefix]['idx']):
             idx = torch.where(meta_kwargs[prefix]['data2ptr'] > 0)[0]
             loss += self.config.meta_loss_weight * self.compute_loss(data_o.data_meta_repr[idx], 
                                                                      data_o.meta_repr,
@@ -399,7 +399,7 @@ class SAW000(nn.Module):
             
         meta_kwargs = Parameters.from_aug_meta_prefix_for_loss('lbl', self.config.lbl2data_aug_meta_prefix, **kwargs)
         prefix = self.config.lbl2data_aug_meta_prefix
-        if meta_kwargs is not None and len(meta_kwargs[prefix]['idx']):
+        if meta_kwargs is not None and prefix in meta_kwargs and len(meta_kwargs[prefix]['idx']):
             idx = torch.where(meta_kwargs[prefix]['data2ptr'] > 0)[0]
             loss += self.config.meta_loss_weight * self.compute_loss(lbl2data_o.data_meta_repr[idx], 
                                                                      lbl2data_o.meta_repr,
