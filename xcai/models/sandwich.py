@@ -448,10 +448,12 @@ class SAW000(nn.Module):
                                           plbl2data_data2ptr,plbl2data_idx)
 
             if self.config.use_calib_loss:
-                loss += self.calibration_loss(data_o.enriched_data_repr, data_o.data_repr, lbl2data_o.data_repr,
-                                              lbl2data_data2ptr,lbl2data_idx,plbl2data_data2ptr,plbl2data_idx)
-                loss += self.calibration_loss(data_o.enriched_data_repr, data_o.data_repr, lbl2data_o.enriched_data_repr,
-                                              lbl2data_data2ptr,lbl2data_idx, plbl2data_data2ptr,plbl2data_idx)
+                if self.config.data_enrich:
+                    loss += self.calibration_loss(data_o.enriched_data_repr, data_o.data_repr, lbl2data_o.data_repr,
+                                                  lbl2data_data2ptr,lbl2data_idx,plbl2data_data2ptr,plbl2data_idx)
+                if self.config.lbl2data_enrich:
+                    loss += self.calibration_loss(data_o.enriched_data_repr, data_o.data_repr, lbl2data_o.enriched_data_repr,
+                                                  lbl2data_data2ptr,lbl2data_idx, plbl2data_data2ptr,plbl2data_idx)
 
             if self.config.use_meta_loss:
                 loss += self.compute_meta_loss(data_o, lbl2data_o, **kwargs)
