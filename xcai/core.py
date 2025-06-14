@@ -20,7 +20,7 @@ from transformers import AutoTokenizer, PreTrainedTokenizerBase, BatchEncoding
 from typing import List, Dict, Union, Optional, Any, Callable
 from torch.utils.data import Dataset
 
-from fastcore.dispatch import *
+from plum import dispatch
 from fastcore.basics import *
 
 # %% ../nbs/00_core.ipynb 5

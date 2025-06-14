@@ -406,11 +406,11 @@ class SBaseXCDataBlock(BaseXCDataBlock):
     @data_lbl_filterer.setter
     def data_lbl_filterer(self, val): self.dset.data.data_lbl_filterer = val
 
-    @typedispatch
+    @dispatch
     def one_batch(self):
         return next(iter(self.dl))
 
-    @typedispatch
+    @dispatch
     def one_batch(self, bsz:int):
         self.dl_kwargs['batch_size'] = bsz
         self.dl = DataLoader(self.dset, collate_fn=self.collate_fn, **self.dl_kwargs) if self.collate_fn is not None else None

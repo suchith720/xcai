@@ -22,7 +22,7 @@ from transformers import PreTrainedTokenizerBase, AutoTokenizer
 
 from fastcore.utils import *
 from fastcore.meta import *
-from fastcore.dispatch import *
+from plum import dispatch
 
 from .core import *
 from .graph.operations import *
@@ -292,7 +292,7 @@ class MetaXCDataset(BaseXCDataset):
         return cls(**MetaXCData.from_file(**kwargs), n_data_meta_samples=n_data_meta_samples, 
                    n_lbl_meta_samples=n_lbl_meta_samples, meta_info_keys=meta_info_keys)
 
-    @typedispatch
+    @dispatch
     def get_lbl_meta(self, idx:int):
         prefix = f'{self.prefix}2lbl2data'
         x = {f'{prefix}_idx': self.curr_lbl_meta[idx]}
@@ -301,7 +301,7 @@ class MetaXCDataset(BaseXCDataset):
             x.update({f'{prefix}_{k}':[v[i] for i in x[f'{prefix}_idx']] for k,v in self.meta_info.items() if k in self.meta_info_keys})
         return x
     
-    @typedispatch
+    @dispatch
     def get_lbl_meta(self, idxs:List):
         prefix = f'{self.prefix}2lbl2data'
         x = {f'{prefix}_idx': [self.curr_lbl_meta[idx] for idx in idxs]}
@@ -580,11 +580,11 @@ class BaseXCDataBlock:
     @data_lbl_filterer.setter
     def data_lbl_filterer(self, val): self.dset.data.data_lbl_filterer = val
 
-    @typedispatch
+    @dispatch
     def one_batch(self):
         return next(iter(self.dl))
 
-    @typedispatch
+    @dispatch
     def one_batch(self, bsz:int):
         self.dl_kwargs['batch_size'] = bsz
         self.dl = DataLoader(self.dset, collate_fn=self.collate_fn, **self.dl_kwargs) if self.collate_fn is not None else None

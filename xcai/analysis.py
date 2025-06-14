@@ -13,7 +13,7 @@ from scipy import sparse
 from termcolor import colored, COLORS
 import matplotlib.pyplot as plt
 
-from fastcore.dispatch import *
+from plum import dispatch
 
 from .basics import *
 from .data import *
@@ -134,36 +134,36 @@ def decile_plot(preds:Dict, data_lbl:sparse.csr_matrix, data_lbl_filterer:Option
     
 
 # %% ../nbs/16_analysis.ipynb 21
-@typedispatch
+@dispatch
 def get_pred_dset(pred:sparse.csr_matrix, block:Union[XCDataBlock,SXCDataBlock]):
     data = MainXCDataset(block.test.dset.data.data_info, pred, block.test.dset.data.lbl_info, 
                          block.test.dset.data.data_lbl_filterer)
     return XCDataset(data, **block.test.dset.meta)
 
 
-@typedispatch
+@dispatch
 def get_pred_dset(pred:sparse.csr_matrix, dset:Union[XCDataset,SXCDataset]):
     data = MainXCDataset(dset.data.data_info, pred, dset.data.lbl_info, dset.data.data_lbl_filterer)
     return XCDataset(data, **dset.meta)
 
-@typedispatch
+@dispatch
 def get_pred_dset(pred:sparse.csr_matrix, dset:[MainXCDataset,SMainXCDataset]):
     return MainXCDataset(dset.data_info, pred, dset.lbl_info, dset.data_lbl_filterer)
     
 
 # %% ../nbs/16_analysis.ipynb 22
-@typedispatch
+@dispatch
 def get_pred_sparse(out:XCPredictionOutput, n_lbl:int):
     pred_ptr = torch.concat([torch.zeros((1,), dtype=torch.long), out.pred_ptr.cumsum(dim=0)])
     return sparse.csr_matrix((out.pred_score, out.pred_idx, pred_ptr), shape=(len(out.pred_ptr), n_lbl))
 
-@typedispatch
+@dispatch
 def get_pred_sparse(fname:str, n_lbl:int):
     with open(fname, 'rb') as f: out = pickle.load(f)
     pred_ptr = torch.concat([torch.zeros((1,), dtype=torch.long), out.pred_ptr.cumsum(dim=0)])
     return sparse.csr_matrix((out.pred_score, out.pred_idx, pred_ptr), shape=(len(out.pred_ptr), n_lbl))
 
-@typedispatch
+@dispatch
 def load_pred_sparse(fname:str):
     o = np.load(fname)
     return sparse.csr_matrix((o['data'], o['indices'], o['indptr']), dtype=float, shape=o['shape'])

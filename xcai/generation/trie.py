@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Optional, List, Any, Union
 
 from ..data import XCDataBlock
-from fastcore.dispatch import *
+from plum import dispatch
 
 # %% ../../nbs/08_generation.trie.ipynb 8
 class TrieNode:
@@ -108,23 +108,23 @@ class Trie(object):
     def bos_tok(self):
         return self.root.tok
 
-    @typedispatch
+    @dispatch
     def update(self, x:List):
         for o in tqdm(x): self.insert(o)
 
-    @typedispatch
+    @dispatch
     def update(self, x:List, y:List):
         for p,q in tqdm(zip(x,y), total=len(x)): self.insert(p,q)
 
     @classmethod
-    @typedispatch
+    @dispatch
     def from_list(cls, x:List, max_info:Optional[int]=None):
         self = cls(max_info)
         for o in tqdm(x): self.insert(o)
         return self
 
     @classmethod
-    @typedispatch
+    @dispatch
     def from_list(cls, x:List, y:List, max_info:Optional[int]=None):
         self = cls(max_info)
         for p,q in tqdm(zip(x,y), total=len(x)): self.insert(p,q)

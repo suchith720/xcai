@@ -14,7 +14,7 @@ from itertools import chain
 
 from fastcore.utils import *
 from fastcore.meta import *
-from fastcore.dispatch import *
+from plum import dispatch
 from fastprogress.fastprogress import master_bar, progress_bar
 
 from .core import *
@@ -192,7 +192,7 @@ class AlignInputIdsTfm:
                  **kwargs):
         store_attr('inp,targ,ptr,sep_tok,pad_tok,device')
 
-    @typedispatch
+    @dispatch
     def proc(self, inp_ids:List, targ_ids:List, sep_tok:int, targ_mask:Optional[List]=None, targ_tok:Optional[List]=None, **kwargs):
         for i,ids in enumerate(inp_ids):
             inp_len = len(ids)
@@ -203,7 +203,7 @@ class AlignInputIdsTfm:
                     if targ_tok is not None: targ_tok[i][j] = targ_tok[i][j][:inp_len] 
         return targ_ids, targ_mask, targ_tok
 
-    @typedispatch
+    @dispatch
     def proc(self, inp_ids:torch.Tensor, targ_ids:torch.Tensor, ptr:torch.Tensor, sep_tok:int, pad_tok:int,
              targ_mask:Optional[torch.Tensor]=None, targ_tok:Optional[torch.Tensor]=None):
         inp_len = (inp_ids == sep_tok).cumsum(1).argmax(1) + 1
