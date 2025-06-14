@@ -17,7 +17,7 @@ from .graph.operations import *
 
 from fastcore.utils import *
 from fastcore.meta import *
-from fastcore.dispatch import *
+from plum import dispatch
 
 # %% ../nbs/35_sdata.ipynb 10
 def identity_collate_fn(batch): return BatchEncoding(batch)

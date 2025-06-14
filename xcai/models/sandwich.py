@@ -340,9 +340,11 @@ class SAWModelOutput(ModelOutput):
     loss: Optional[torch.FloatTensor] = None
     data_repr: Optional[torch.FloatTensor] = None
     data_enriched_repr: Optional[torch.FloatTensor] = None
+    data_data_meta_repr:Optional[torch.FloatTensor] = None
     data_meta_repr:Optional[torch.FloatTensor] = None
     lbl2data_repr: Optional[torch.FloatTensor] = None
     lbl2data_enriched_repr: Optional[torch.FloatTensor] = None
+    lbl2data_data_meta_repr:Optional[torch.FloatTensor] = None
     lbl2data_meta_repr:Optional[torch.FloatTensor] = None
     
 
@@ -475,9 +477,11 @@ class SAW000(nn.Module):
             loss=loss,
             data_repr=data_o.data_repr,
             data_enriched_repr=data_o.enriched_data_repr,
+            data_data_meta_repr=data_o.data_meta_repr,
             data_meta_repr=data_o.meta_repr,
             lbl2data_repr=lbl2data_o.data_repr,
             lbl2data_enriched_repr=lbl2data_o.enriched_data_repr,
+            lbl2data_data_meta_repr=lbl2data_o.data_meta_repr,
             lbl2data_meta_repr=lbl2data_o.meta_repr,
         )
         
