@@ -145,7 +145,36 @@ def WIKISEEALSOTITLES(data_dir):
                 },
             },
             'parameters': PARAM,
-        }, 
+        },
+        'data_hlk' : {
+            'path': {
+                'train': {
+                    'data_lbl': f'{data_dir}/{DATASETS["wikiseealsotitles"]}/trn_X_Y.txt',
+                    'data_info': f'{data_dir}/{DATASETS["wikiseealsotitles"]}/raw_data/train.raw.txt',
+                    'lbl_info': f'{data_dir}/{DATASETS["wikiseealsotitles"]}/raw_data/label.raw.txt',
+                    'data_lbl_filterer': f'{data_dir}/{DATASETS["wikiseealsotitles"]}/filter_labels_train.txt',
+                    'hlk_meta': {
+                        'prefix': 'hlk',
+                        'data_meta': f'{data_dir}/{DATASETS["wikiseealsotitles"]}/hyper_link_trn_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/{DATASETS["wikiseealsotitles"]}/hyper_link_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/{DATASETS["wikiseealsotitles"]}/raw_data/hyper_link.raw.txt'
+                    },
+                },
+                'test': {
+                    'data_lbl': f'{data_dir}/{DATASETS["wikiseealsotitles"]}/tst_X_Y.txt',
+                    'data_info': f'{data_dir}/{DATASETS["wikiseealsotitles"]}/raw_data/test.raw.txt',
+                    'lbl_info': f'{data_dir}/{DATASETS["wikiseealsotitles"]}/raw_data/label.raw.txt',
+                    'data_lbl_filterer': f'{data_dir}/{DATASETS["wikiseealsotitles"]}/filter_labels_test.txt',
+                    'hlk_meta': {
+                        'prefix': 'hlk',
+                        'data_meta': f'{data_dir}/{DATASETS["wikiseealsotitles"]}/hyper_link_tst_X_Y.txt',
+                        'lbl_meta': f'{data_dir}/{DATASETS["wikiseealsotitles"]}/hyper_link_lbl_X_Y.txt',
+                        'meta_info': f'{data_dir}/{DATASETS["wikiseealsotitles"]}/raw_data/hyper_link.raw.txt',
+                    },
+                },
+            },
+            'parameters': PARAM,
+        },
         'data_metas' : {
             'path': {
                 'train': {
