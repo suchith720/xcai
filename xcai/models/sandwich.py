@@ -587,7 +587,7 @@ class SAW002(SAW000, DistilBertPreTrainedModel):
 # %% ../../nbs/40_models.sandwich.ipynb 77
 class SAW003(SAW002, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
-    _tied_weights_keys = ["encoder.distilbert,encoder.meta_distilbert.embeddings.word_embeddings.weight"]
+    _tied_weights_keys = ["encoder.distilbert", "encoder.meta_distilbert.embeddings.word_embeddings.weight"]
 
     def __init__(self, config):
         super().__init__(config)
