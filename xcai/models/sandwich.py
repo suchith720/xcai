@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['Parameters', 'SandwichConfig', 'CrossCombinerBlock', 'EncoderOutput', 'BaseEncoder', 'Encoder', 'SAWModelOutput',
-           'SAW000', 'SAW001', 'Encoder002', 'SAW002']
+           'SAW000', 'SAW001', 'Encoder002', 'SAW002', 'SAW003']
 
 # %% ../../nbs/40_models.sandwich.ipynb 3
 import torch, torch.nn as nn, torch.nn.functional as F, re
@@ -579,6 +579,25 @@ class SAW002(SAW000, DistilBertPreTrainedModel):
         
         self.post_init()
         self.remap_post_init()
+
+    def remap_post_init(self):
+        self.distilbert = self.encoder.distilbert
+        
+
+# %% ../../nbs/40_models.sandwich.ipynb 77
+class SAW003(SAW002, DistilBertPreTrainedModel):
+    use_generation,use_representation = False,True
+    _tied_weights_keys = ["encoder.distilbert,encoder.meta_distilbert.embeddings.word_embeddings.weight"]
+
+    def __init__(self, config):
+        super().__init__(config)
+        
+        self.post_init()
+        self.remap_post_init()
+        self._tie_weights()
+
+    def _tie_weights(self):
+        self.encoder.meta_distilbert.embeddings.word_embeddings.weight = self.encoder.distilbert.embeddings.word_embeddings.weight
 
     def remap_post_init(self):
         self.distilbert = self.encoder.distilbert
