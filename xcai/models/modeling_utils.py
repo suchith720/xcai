@@ -47,7 +47,7 @@ class Pooling:
     @staticmethod
     def mean_pooling(data_embeds:torch.FloatTensor, data_attention_mask:torch.LongTensor):
         data_attention_mask = data_attention_mask.unsqueeze(2).expand(data_embeds.size()).float()
-        return torch.sum(data_embeds * data_attention_mask, 1) / torch.clamp(data_attention_mask.sum(1), min=1e-9)
+        return torch.sum(data_embeds * data_attention_mask, 1) / torch.clamp(data_attention_mask.sum(1), min=1e-6)
 
 
 # %% ../../nbs/21_models.modeling_utils.ipynb 21
