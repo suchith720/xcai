@@ -14,7 +14,6 @@ from typing import Optional, Sequence, Any, Dict, List
 from dataclasses import dataclass
 
 from fastcore.utils import *
-from fastcore.dispatch import *
 from fastcore.meta import *
 from fastcore.parallel import *
 
