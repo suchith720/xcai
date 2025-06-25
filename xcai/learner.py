@@ -33,7 +33,6 @@ from .optimizers.oakX import MultipleOptimizer, MultipleScheduler
 
 from fastcore.utils import *
 from fastcore.meta import *
-from fastcore.dispatch import *
 
 # %% ../nbs/06_learner.ipynb 4
 from transformers.trainer_pt_utils import (

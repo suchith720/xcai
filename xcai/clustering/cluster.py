@@ -14,7 +14,6 @@ from typing import Optional, List, Union, Any
 from ..core import *
 from .fast_cluster import balanced_cluster, next_power_of_two
 
-from fastcore.dispatch import *
 from fastcore.basics import *
 
 # %% ../../nbs/13_clustering.cluster.ipynb 4
