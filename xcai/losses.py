@@ -235,7 +235,8 @@ class BaseMultiTriplet(BaseLoss):
     ):
         store_attr('margin,tau,apply_softmax,n_negatives', is_none=False)
 
-        inp, targ, scores = inp.float(), targ.float(), scores.float()
+        inp, targ = inp.float(), targ.float()
+        scores = scores if scores is None else scores.float()
         
         pinp2targ_idx, n_pinp2targ = self.remove_redundant_indices(inp2targ_idx, n_inp2targ, pinp2targ_idx, n_pinp2targ)
         inp2targ_idx, pinp2targ_idx, indices = self.reset_indices(inp2targ_idx, n_inp2targ, pinp2targ_idx, n_pinp2targ)
