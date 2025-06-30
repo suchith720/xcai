@@ -88,6 +88,7 @@ class SandwichConfig(DistilBertConfig):
         meta_loss_weight:Optional[float] = 0.1,
         
         use_encoder_parallel:Optional[bool] = True,
+        combiner_bias:Optional[bool] = True,
         
         **kwargs,
     ):
@@ -117,11 +118,12 @@ class SandwichConfig(DistilBertConfig):
         self.meta_loss_weight = meta_loss_weight
 
         self.use_encoder_parallel = use_encoder_parallel
+        self.combiner_bias = combiner_bias
         
         super().__init__(**kwargs)
         
 
-# %% ../../nbs/40_models.sandwich.ipynb 30
+# %% ../../nbs/40_models.sandwich.ipynb 31
 class CrossCombinerBlock(TransformerBlock):
 
     def __init__(self, config: PretrainedConfig):
@@ -179,7 +181,7 @@ class CrossCombinerBlock(TransformerBlock):
         return output
         
 
-# %% ../../nbs/40_models.sandwich.ipynb 32
+# %% ../../nbs/40_models.sandwich.ipynb 33
 @dataclass
 class EncoderOutput(ModelOutput):
     data_repr: Optional[torch.FloatTensor] = None
@@ -188,7 +190,7 @@ class EncoderOutput(ModelOutput):
     meta_repr: Optional[torch.FloatTensor] = None
     
 
-# %% ../../nbs/40_models.sandwich.ipynb 33
+# %% ../../nbs/40_models.sandwich.ipynb 34
 class BaseEncoder(DistilBertPreTrainedModel):
     
     config_class= None
@@ -262,7 +264,7 @@ class BaseEncoder(DistilBertPreTrainedModel):
         raise NotImplementedError("Override this method in a subclass.")
     
 
-# %% ../../nbs/40_models.sandwich.ipynb 35
+# %% ../../nbs/40_models.sandwich.ipynb 36
 class Encoder(BaseEncoder):
     
     config_class = SandwichConfig
@@ -334,7 +336,7 @@ class Encoder(BaseEncoder):
         )
         
 
-# %% ../../nbs/40_models.sandwich.ipynb 42
+# %% ../../nbs/40_models.sandwich.ipynb 43
 @dataclass
 class SAWModelOutput(ModelOutput):
     loss: Optional[torch.FloatTensor] = None
@@ -348,7 +350,7 @@ class SAWModelOutput(ModelOutput):
     lbl2data_meta_repr:Optional[torch.FloatTensor] = None
     
 
-# %% ../../nbs/40_models.sandwich.ipynb 43
+# %% ../../nbs/40_models.sandwich.ipynb 44
 class SAW000(nn.Module):
 
     config_class = SandwichConfig
@@ -486,7 +488,7 @@ class SAW000(nn.Module):
         )
         
 
-# %% ../../nbs/40_models.sandwich.ipynb 45
+# %% ../../nbs/40_models.sandwich.ipynb 46
 class SAW001(SAW000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -502,7 +504,7 @@ class SAW001(SAW000, DistilBertPreTrainedModel):
         self.distilbert = self.encoder.distilbert
         
 
-# %% ../../nbs/40_models.sandwich.ipynb 60
+# %% ../../nbs/40_models.sandwich.ipynb 61
 class Encoder002(BaseEncoder):
     
     config_class = SandwichConfig
@@ -512,7 +514,7 @@ class Encoder002(BaseEncoder):
         config:PretrainedConfig, 
     ):
         super().__init__(config)
-        self.combiner_head = nn.Linear(2 * config.dim, config.dim)
+        self.combiner_head = nn.Linear(2 * config.dim, config.dim, bias=config.combiner_bias)
         self.post_init()
 
     @torch.no_grad()
@@ -522,7 +524,15 @@ class Encoder002(BaseEncoder):
     @torch.no_grad()
     def init_combiner_to_identity(self):
         nn.init.eye_(self.combiner_head.weight)
-        nn.init.zeros_(self.combiner_head.bias)
+        if self.combiner_head.bias is not None:
+            nn.init.zeros_(self.combiner_head.bias)
+
+    @torch.no_grad()
+    def init_combiner_to_double_identity(self):
+        nn.init.eye_(self.combiner_head.weight[:, :config.dim])
+        nn.init.eye_(self.combiner_head.weight[:, config.dim:])
+        if self.combiner_head.bias is not None:
+            nn.init.zeros_(self.combiner_head.bias)
 
     @torch.no_grad()
     def init_meta_distilbert(self):
@@ -568,7 +578,7 @@ class Encoder002(BaseEncoder):
         )
         
 
-# %% ../../nbs/40_models.sandwich.ipynb 61
+# %% ../../nbs/40_models.sandwich.ipynb 62
 class SAW002(SAW000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -582,9 +592,13 @@ class SAW002(SAW000, DistilBertPreTrainedModel):
 
     def remap_post_init(self):
         self.distilbert = self.encoder.distilbert
+
+    @torch.no_grad()
+    def init_combiner_to_double_identity(self):
+        self.encoder.init_combiner_to_double_identity()
         
 
-# %% ../../nbs/40_models.sandwich.ipynb 77
+# %% ../../nbs/40_models.sandwich.ipynb 83
 class SAW003(SAW002, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert", "encoder.meta_distilbert.embeddings.word_embeddings.weight"]
@@ -603,7 +617,7 @@ class SAW003(SAW002, DistilBertPreTrainedModel):
         self.distilbert = self.encoder.distilbert
         
 
-# %% ../../nbs/40_models.sandwich.ipynb 88
+# %% ../../nbs/40_models.sandwich.ipynb 94
 class Encoder004(BaseEncoder):
     
     config_class = SandwichConfig
@@ -673,7 +687,7 @@ class Encoder004(BaseEncoder):
         )
         
 
-# %% ../../nbs/40_models.sandwich.ipynb 89
+# %% ../../nbs/40_models.sandwich.ipynb 95
 class SAW004(SAW000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
