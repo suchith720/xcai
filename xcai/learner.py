@@ -535,6 +535,8 @@ def _build_lbl_index(self:XCLearner, dataset:Optional[Dataset]=None):
 def _get_lbl_representation(self:XCLearner, dataset:Optional[Dataset]=None, to_cpu:Optional[bool]=False):
     if dataset is not None:
         if self.args.use_centroid_label_representation:
+            dataset = dataset if self.train_dataset else self.train_dataset
+            
             if self.args.use_teacher_data_representation:
                 if not hasattr(self.model, 'm_teacher'): raise ValueError('Model does not contain `m_teacher`.')
                 data_rep = self.model.m_teacher.get_data_embeddings().data.cpu()
@@ -543,7 +545,7 @@ def _get_lbl_representation(self:XCLearner, dataset:Optional[Dataset]=None, to_c
                 dataloader = self.get_test_dataloader(dset)
                 data_rep = self.get_representation(dataloader, representation_attribute=self.args.centroid_data_attribute_representation)
             
-            lbl_data = self.train_dataset.data.data_lbl.T
+            lbl_data = dataset.data.data_lbl.T.tocsr()
             
             lbl_rep = None
             for i in tqdm(range(0, lbl_data.shape[0], self.args.centroid_data_batch_size)):
