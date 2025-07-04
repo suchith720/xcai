@@ -617,7 +617,7 @@ class SAW003(SAW002, DistilBertPreTrainedModel):
         self.distilbert = self.encoder.distilbert
         
 
-# %% ../../nbs/40_models.sandwich.ipynb 94
+# %% ../../nbs/40_models.sandwich.ipynb 95
 class Encoder004(BaseEncoder):
     
     config_class = SandwichConfig
@@ -687,7 +687,7 @@ class Encoder004(BaseEncoder):
         )
         
 
-# %% ../../nbs/40_models.sandwich.ipynb 95
+# %% ../../nbs/40_models.sandwich.ipynb 96
 class SAW004(SAW000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
