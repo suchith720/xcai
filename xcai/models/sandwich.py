@@ -529,8 +529,8 @@ class Encoder002(BaseEncoder):
 
     @torch.no_grad()
     def init_combiner_to_double_identity(self):
-        nn.init.eye_(self.combiner_head.weight[:, :config.dim])
-        nn.init.eye_(self.combiner_head.weight[:, config.dim:])
+        nn.init.eye_(self.combiner_head.weight[:, :self.config.dim])
+        nn.init.eye_(self.combiner_head.weight[:, self.config.dim:])
         if self.combiner_head.bias is not None:
             nn.init.zeros_(self.combiner_head.bias)
 
