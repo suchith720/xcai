@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['Parameters', 'SandwichConfig', 'CrossCombinerBlock', 'EncoderOutput', 'BaseEncoder', 'Encoder', 'SAWModelOutput',
-           'SAW000', 'SAW001', 'Encoder002', 'SAW002', 'SAW003', 'Encoder004', 'SAW004']
+           'SAW000', 'SAW001', 'Encoder002', 'SAW002', 'SAW003', 'Encoder004', 'SAW004', 'Encoder005', 'SAW005']
 
 # %% ../../nbs/40_models.sandwich.ipynb 3
 import torch, torch.nn as nn, torch.nn.functional as F, re
@@ -89,6 +89,8 @@ class SandwichConfig(DistilBertConfig):
         
         use_encoder_parallel:Optional[bool] = True,
         combiner_bias:Optional[bool] = True,
+
+        tie_vocabulary:Optional[bool] = False,
         
         **kwargs,
     ):
@@ -701,4 +703,93 @@ class SAW004(SAW000, DistilBertPreTrainedModel):
 
     def remap_post_init(self):
         self.distilbert = self.encoder.distilbert
+        
+
+# %% ../../nbs/40_models.sandwich.ipynb 112
+class Encoder005(BaseEncoder):
+    
+    config_class = SandwichConfig
+    
+    def __init__(
+        self, 
+        config:PretrainedConfig, 
+    ):
+        super().__init__(config)
+        self.combiner_head = nn.Linear(config.dim, config.dim)
+        self.post_init()
+
+    @torch.no_grad()
+    def init_heads_to_identity(self):
+        super().init_heads_to_identity()
+
+    @torch.no_grad()
+    def init_combiner_to_identity(self):
+        nn.init.eye_(self.combiner_head.weight)
+        nn.init.zeros_(self.combiner_head.bias)
+
+    @torch.no_grad()
+    def init_meta_distilbert(self):
+        super().init_meta_distilbert()
+
+    def encode_enriched_query(self, embed:torch.Tensor):
+        embed = self.enriched_query_head(embed)
+        return F.normalize(embed)
+
+    def enrich_query_representation(self, data_repr:torch.Tensor, data_meta_repr:torch.Tensor):
+        fused_repr = self.combiner_head(data_repr + data_meta_repr)
+        enriched_data_repr = self.encode_enriched_query(fused_repr)
+        return enriched_data_repr
+
+    def forward(
+        self, 
+        data_input_ids: torch.Tensor, 
+        data_attention_mask: torch.Tensor,
+        data_aug_meta_prefix: Optional[str]=None,
+        data_enrich: Optional[bool]=True,
+        **kwargs
+    ):
+        data_o = self.encode(data_input_ids, data_attention_mask)
+        data_repr = self.encode_query(data_o[0], data_attention_mask)
+
+        data_meta_o = self.encode_meta(data_input_ids, data_attention_mask)
+        data_meta_repr = self.encode_meta_query(data_meta_o[0], data_attention_mask)
+        
+        meta_kwargs = Parameters.from_data_aug_meta_prefix_for_encoder(data_aug_meta_prefix, **kwargs)
+        meta_kwargs = meta_kwargs.get(data_aug_meta_prefix, None)
+
+        meta_repr = torch.zeros(0, data_repr.shape[1], device=data_repr.device, dtype=data_repr.dtype)
+        if meta_kwargs is not None and len(meta_kwargs['idx']):
+            meta_o = self.encode_meta(meta_kwargs['input_ids'], meta_kwargs['attention_mask'])
+            meta_repr = self.encode_meta_query(meta_o[0], meta_kwargs['attention_mask'])
+
+        enriched_data_repr = (
+            self.enrich_query_representation(data_repr, data_meta_repr) 
+            if data_enrich else torch.zeros(0, data_repr.shape[1], device=data_repr.device, dtype=data_repr.dtype)
+        )
+        
+        return EncoderOutput(
+            data_repr=data_repr,
+            data_meta_repr=data_meta_repr,
+            enriched_data_repr=enriched_data_repr,
+            meta_repr=meta_repr,
+        )
+        
+
+# %% ../../nbs/40_models.sandwich.ipynb 113
+class SAW005(SAW000, DistilBertPreTrainedModel):
+    use_generation,use_representation = False,True
+    _tied_weights_keys = ["encoder.distilbert"]
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.encoder = Encoder005(config)
+        
+        self.post_init()
+        self.remap_post_init()
+
+    def remap_post_init(self):
+        self.distilbert = self.encoder.distilbert
+
+    def _share_vocab_weights(self):
+        self.encoder.meta_distilbert.embeddings.word_embeddings.weight = self.encoder.distilbert.embeddings.word_embeddings.weight
         
