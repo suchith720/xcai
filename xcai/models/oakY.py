@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['Encoder', 'OAK000', 'OAK001', 'Encoder002', 'OAK002', 'CrossAttention003', 'Encoder003', 'OAK003', 'Encoder004',
-           'OAK004', 'Encoder005', 'OAK005', 'Encoder006', 'OAK006', 'OAK007']
+           'OAK004', 'Encoder005', 'OAK005', 'Encoder006', 'OAK006', 'OAK007', 'Encoder008', 'OAK008']
 
 # %% ../../nbs/33_models.oakY.ipynb 2
 import torch, re, inspect, pickle, os, torch.nn as nn, math
@@ -1072,4 +1072,64 @@ class OAK007(OAK003, DistilBertPreTrainedModel):
             lbl2data_repr=lbl2data_o.rep,
             lbl2data_fused_repr=lbl2data_o.fused_rep,
         )
+        
+
+# %% ../../nbs/33_models.oakY.ipynb 127
+class Encoder008(Encoder005):
+    
+    def __init__(
+        self, 
+        config:PretrainedConfig, 
+    ):
+        super().__init__(config)
+
+    def fuse_meta_into_embeddings(self, embed:torch.Tensor, meta_kwargs:Dict):
+        meta_repr, bsz = {}, embed.size(0)
+        
+        for m_key, m_args in meta_kwargs.items():
+            n_meta = m_args['data2ptr'].max()
+            assert torch.all(m_args['data2ptr'] == n_meta), f'All datapoints should have same number of metadata.'
+            
+            m_input_ids, m_attention_mask = m_args['input_ids'], m_args['attention_mask']
+            m_embed = self.meta_encode(input_ids=m_input_ids, attention_mask=m_attention_mask)
+            m_embed = m_embed + m_args['meta_repr'] * self.alpha
+            
+            meta_repr[m_key] = m_embed
+                    
+            m_embed = m_embed.view(bsz, -1, self.config.dim)  
+            fused_embed = self.cross_head(embed, m_embed)
+            embed = embed + fused_embed
+               
+        return embed, meta_repr
+        
+
+# %% ../../nbs/33_models.oakY.ipynb 128
+class OAK008(OAK005, DistilBertPreTrainedModel):
+    use_generation,use_representation = False,True
+    _tied_weights_keys = ["encoder.dr_distilbert"]
+    _keys_to_ignore_on_load_missing = ["encoder.meta_distilbert"]
+
+    @delegates(OAK000.__init__)
+    def __init__(self, config, metadata_dropout:Optional[float]=0.5, **kwargs):
+        super().__init__(config, **kwargs)
+        store_attr('metadata_dropout')
+        self.post_init(); self.remap_post_init();
+
+    @staticmethod
+    def row_dropout(x:torch.Tensor, p:Optional[float]=0.5, mask:Optional[torch.Tensor]=None):
+        valid_row_idx = torch.where(mask)[0]
+        num_zeros = int(p * len(valid_row_idx))
+        idx = torch.randperm(len(valid_row_idx), device=x.device)[:num_zeros]
+        x[valid_row_idx[idx]] = 0
+        
+    def _get_encoder_meta_kwargs(self, feat:str, prefix:str, **kwargs):
+        meta_kwargs = Parameters.from_feat_meta_aug_prefix(feat, prefix, **kwargs)
+        if f'{prefix}_idx' in meta_kwargs:
+            m_idx = meta_kwargs[f'{prefix}_idx']
+            mask = meta_kwargs.get(f'{prefix}_dropout_mask', None)
+            if len(m_idx):
+                meta_repr = self.meta_embeddings(self.metadata_cluster_mapping[m_idx])
+                meta_repr = self.row_dropout(meta_repr, self.metadata_dropout, mask=mask) if self.training else meta_repr
+                meta_kwargs[f'{prefix}_meta_repr'] = meta_repr
+        return meta_kwargs
         
