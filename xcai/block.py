@@ -89,7 +89,7 @@ class SXCBlock:
     ):
         if isinstance(cfg, str):
             """ Selecting the configuration """
-            if cfg not in CFGS: raise ValueError(f'Invalid configuration ({dset})')
+            if cfg not in CFGS: raise ValueError(f'Invalid configuration ({cfg})')
             cfgs = CFGS[cfg](data_dir)
     
             """ Selecting the dataset type """

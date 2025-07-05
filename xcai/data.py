@@ -146,8 +146,7 @@ class BaseXCDataset(Dataset):
         indices, dropout_mask = list(), list()
         for idx in idxs:
             if dropout_remove is not None and np.random.rand() < dropout_remove:
-                indices.append([])
-                dropout_mask.append([0]*len(idx))
+                indices.append([]); dropout_mask.append([])
             else:
                 indices.append(idx)
                 if dropout_replace is not None:

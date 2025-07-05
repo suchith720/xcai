@@ -1117,10 +1117,15 @@ class OAK008(OAK005, DistilBertPreTrainedModel):
 
     @staticmethod
     def row_dropout(x:torch.Tensor, p:Optional[float]=0.5, mask:Optional[torch.Tensor]=None):
-        valid_row_idx = torch.where(mask)[0]
-        num_zeros = int(p * len(valid_row_idx))
-        idx = torch.randperm(len(valid_row_idx), device=x.device)[:num_zeros]
-        x[valid_row_idx[idx]] = 0
+        if mask is None: n_rows = x.size(0)
+        else:
+            valid_row_idx = torch.where(mask)[0]
+            n_rows = len(valid_row_idx)
+            
+        idx = torch.where(torch.rand(n_rows, device=x.device) < p)[0]
+
+        if mask is None: x[idx] = 0
+        else: x[valid_row_idx[idx]] = 0
         
     def _get_encoder_meta_kwargs(self, feat:str, prefix:str, **kwargs):
         meta_kwargs = Parameters.from_feat_meta_aug_prefix(feat, prefix, **kwargs)
@@ -1129,7 +1134,7 @@ class OAK008(OAK005, DistilBertPreTrainedModel):
             mask = meta_kwargs.get(f'{prefix}_dropout_mask', None)
             if len(m_idx):
                 meta_repr = self.meta_embeddings(self.metadata_cluster_mapping[m_idx])
-                meta_repr = self.row_dropout(meta_repr, self.metadata_dropout, mask=mask) if self.training else meta_repr
+                if self.training: self.row_dropout(meta_repr, self.metadata_dropout, mask=mask)
                 meta_kwargs[f'{prefix}_meta_repr'] = meta_repr
         return meta_kwargs
         

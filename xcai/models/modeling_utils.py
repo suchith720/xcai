@@ -166,7 +166,7 @@ class Parameters:
     
     @staticmethod
     def from_feat_meta_aug_prefix(feat:str, prefix:str, **kwargs):
-        keys = ['attention_mask', 'input_ids', 'meta_repr', 'idx']
+        keys = ['attention_mask', 'input_ids', 'meta_repr', 'idx', 'dropout_mask']
         
         inputs = {f'{prefix}_{k}': kwargs[f'{prefix}_{k}'] for k in keys if f'{prefix}_{k}' in kwargs}
         if prefix is not None and f'{prefix}_{feat}2ptr' in kwargs:

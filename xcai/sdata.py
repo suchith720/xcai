@@ -542,8 +542,10 @@ class SXCDataBlock:
         for o in ['train', 'valid', 'test']:
             if o in cfg['path']:
                 params = cfg['parameters'].copy()
-                if o != 'train': params['meta_dropout_remove'], params['meta_dropout_replace'] = None, None
-                blocks[o] = SBaseXCDataBlock.from_file(**cfg['path'][o], **params, collate_fn=collate_fn, **kwargs)
+                params.update(kwargs)
+                if o != 'train': 
+                    params['meta_dropout_remove'], params['meta_dropout_replace'] = None, None
+                blocks[o] = SBaseXCDataBlock.from_file(**cfg['path'][o], **params, collate_fn=collate_fn)
                 
         return cls(**blocks)
         
