@@ -142,7 +142,7 @@ class BaseXCDataset(Dataset):
         else:
             return [[o[i] for i in np.random.permutation(len(o))[:n_samples]] for o in indices]
 
-    def _dropout(self, idxs:List, dropout_remove:Optional[float]=0.3, dropout_replace:Optional[float]=0.5):
+    def _dropout(self, idxs:List, dropout_remove:Optional[float]=None, dropout_replace:Optional[float]=None):
         indices, dropout_mask = list(), list()
         for idx in idxs:
             if dropout_remove is not None and np.random.rand() < dropout_remove:
@@ -164,7 +164,7 @@ class BaseXCDataset(Dataset):
             x[f'p{prefix}_idx'] = [[o[i] for i in np.random.permutation(len(o))[:n_samples]] for o in x[f'p{prefix}_idx']]
         x[f'p{prefix}_{entity}2ptr'] = torch.tensor([len(o) for o in x[f'p{prefix}_idx']], dtype=torch.int64)
 
-        # sample
+        # collect labels
         probs = [data_lbl_scores[idx] for idx in idxs] if use_distribution else None
         x[f'{prefix}_idx'] = self._sample_idx(x[f'p{prefix}_idx'], probs, n_samples=n_s_samples, oversample=oversample, 
                                               use_distribution=use_distribution, data_lbl_scores=data_lbl_scores)
@@ -176,6 +176,7 @@ class BaseXCDataset(Dataset):
             x[f'{prefix}_dropout_mask'] = torch.tensor(list(chain(*x[f'{prefix}_dropout_mask'])), dtype=torch.bool)
             
         x[f'{prefix}_{entity}2ptr'] = torch.tensor([len(o) for o in x[f'{prefix}_idx']], dtype=torch.int64)
+        
         x[f'{prefix}_idx'] = torch.tensor(list(chain(*x[f'{prefix}_idx'])), dtype=torch.int64)
         x[f'p{prefix}_idx'] = torch.tensor(list(chain(*x[f'p{prefix}_idx'])), dtype=torch.int64)
         

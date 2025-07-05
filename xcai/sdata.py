@@ -19,10 +19,10 @@ from fastcore.utils import *
 from fastcore.meta import *
 from plum import dispatch
 
-# %% ../nbs/35_sdata.ipynb 10
+# %% ../nbs/35_sdata.ipynb 11
 def identity_collate_fn(batch): return BatchEncoding(batch)
 
-# %% ../nbs/35_sdata.ipynb 13
+# %% ../nbs/35_sdata.ipynb 14
 class SMainXCDataset(MainXCDataset):
 
     def __init__(
@@ -104,7 +104,7 @@ class SMainXCDataset(MainXCDataset):
         )
     
 
-# %% ../nbs/35_sdata.ipynb 26
+# %% ../nbs/35_sdata.ipynb 27
 class SMetaXCDataset(MetaXCDataset):
 
     def __init__(
@@ -113,10 +113,13 @@ class SMetaXCDataset(MetaXCDataset):
         n_slbl_meta_samples:Optional[int]=1,
         meta_oversample:Optional[bool]=False,
         use_meta_distribution:Optional[bool]=False,
+        meta_dropout_remove:Optional[float]=None,
+        meta_dropout_replace:Optional[float]=None,
         **kwargs
     ):
         super().__init__(**kwargs)
         store_attr('n_sdata_meta_samples,n_slbl_meta_samples,meta_oversample,use_meta_distribution')
+        store_attr('meta_dropout_remove,meta_dropout_replace')
 
         self.data_meta_scores, self.lbl_meta_scores = None, None
         if use_meta_distribution: self._store_scores()
@@ -137,7 +140,8 @@ class SMetaXCDataset(MetaXCDataset):
                               n_data_meta_samples=self.n_data_meta_samples, n_lbl_meta_samples=self.n_lbl_meta_samples, 
                               meta_info_keys=self.meta_info_keys, n_sdata_meta_samples=self.n_sdata_meta_samples, 
                               n_slbl_meta_samples=self.n_slbl_meta_samples, meta_oversample=self.meta_oversample, 
-                              use_meta_distribution=self.use_meta_distribution)
+                              use_meta_distribution=self.use_meta_distribution, meta_dropout_remove=self.meta_dropout_remove, 
+                              meta_dropout_replace=self.meta_dropout_replace)
 
     def _sample_meta_items(self, idxs:List):
         assert max(idxs) < self.n_meta, f"indices should be less than {self.n_meta}"
@@ -146,7 +150,8 @@ class SMetaXCDataset(MetaXCDataset):
                               n_data_meta_samples=self.n_data_meta_samples, n_lbl_meta_samples=self.n_lbl_meta_samples,
                               meta_info_keys=self.meta_info_keys, n_sdata_meta_samples=self.n_sdata_meta_samples, 
                               n_slbl_meta_samples=self.n_slbl_meta_samples, meta_oversample=self.meta_oversample, 
-                              use_meta_distribution=self.use_meta_distribution)
+                              use_meta_distribution=self.use_meta_distribution, meta_dropout_remove=self.meta_dropout_remove, 
+                              meta_dropout_replace=self.meta_dropout_replace)
         
     @classmethod
     @delegates(MetaXCData.from_file)
@@ -159,23 +164,28 @@ class SMetaXCDataset(MetaXCDataset):
         n_slbl_meta_samples:Optional[int]=1,
         meta_oversample:Optional[bool]=False,
         use_meta_distribution:Optional[bool]=False,
+        meta_dropout_remove:Optional[float]=None,
+        meta_dropout_replace:Optional[float]=None,
         **kwargs
     ):
         return cls(**MetaXCData.from_file(**kwargs), n_data_meta_samples=n_data_meta_samples, n_lbl_meta_samples=n_lbl_meta_samples, 
                    meta_info_keys=meta_info_keys, n_sdata_meta_samples=n_sdata_meta_samples, n_slbl_meta_samples=n_slbl_meta_samples,
-                   meta_oversample=meta_oversample, use_meta_distribution=use_meta_distribution)
+                   meta_oversample=meta_oversample, use_meta_distribution=use_meta_distribution, meta_dropout_remove=meta_dropout_remove, 
+                   meta_dropout_replace=meta_dropout_replace)
 
     def get_data_meta(self, idxs:List):
         x, prefix = dict(), f'{self.prefix}2data'
         o = self.extract_items(prefix, self.curr_data_meta, idxs, self.n_data_meta_samples, self.n_sdata_meta_samples, self.meta_oversample, 
-                               self.meta_info, self.meta_info_keys, self.use_meta_distribution, self.data_meta_scores)
+                               self.meta_info, self.meta_info_keys, self.use_meta_distribution, self.data_meta_scores, 
+                               dropout_remove=self.meta_dropout_remove, dropout_replace=self.meta_dropout_replace)
         x.update(o)
         return x
         
     def get_lbl_meta(self, idxs:List):
         x, prefix = dict(), f'{self.prefix}2lbl'
         o = self.extract_items(prefix, self.curr_lbl_meta, idxs, self.n_lbl_meta_samples, self.n_slbl_meta_samples, self.meta_oversample, 
-                               self.meta_info, self.meta_info_keys, self.use_meta_distribution, self.lbl_meta_scores)
+                               self.meta_info, self.meta_info_keys, self.use_meta_distribution, self.lbl_meta_scores, 
+                               dropout_remove=self.meta_dropout_remove, dropout_replace=self.meta_dropout_replace)
         x.update(o)
         return x
 
@@ -194,7 +204,7 @@ class SMetaXCDataset(MetaXCDataset):
             if cls.meta_info_keys is None: cls.meta_info_keys = list(cls.meta_info.keys())
         
 
-# %% ../nbs/35_sdata.ipynb 33
+# %% ../nbs/35_sdata.ipynb 34
 class SXCDataset(BaseXCDataset):
 
     def __init__(self, data:SMainXCDataset, **kwargs):
@@ -364,7 +374,7 @@ class SXCDataset(BaseXCDataset):
         
         
 
-# %% ../nbs/35_sdata.ipynb 41
+# %% ../nbs/35_sdata.ipynb 42
 class SBaseXCDataBlock(BaseXCDataBlock):
 
     @delegates(DataLoader.__init__)
@@ -444,7 +454,7 @@ class SBaseXCDataBlock(BaseXCDataBlock):
         return cls._getitems(rnd_idx[:cut])
         
 
-# %% ../nbs/35_sdata.ipynb 45
+# %% ../nbs/35_sdata.ipynb 46
 class SXCDataBlock:
 
     def __init__(self, train:SBaseXCDataBlock=None, valid:SBaseXCDataBlock=None, test:SBaseXCDataBlock=None):
@@ -527,6 +537,13 @@ class SXCDataBlock:
         **kwargs,
     ):
         if isinstance(cfg, str): cfg = cls.load_cfg(cfg)
-        blks = {o:SBaseXCDataBlock.from_file(**cfg['path'][o], **cfg['parameters'], collate_fn=collate_fn, **kwargs) for o in ['train', 'valid', 'test'] if o in cfg['path']}
-        return cls(**blks)
+
+        blocks = dict()
+        for o in ['train', 'valid', 'test']:
+            if o in cfg['path']:
+                params = cfg['parameters'].copy()
+                if o != 'train': params['meta_dropout_remove'], params['meta_dropout_replace'] = None, None
+                blocks[o] = SBaseXCDataBlock.from_file(**cfg['path'][o], **params, collate_fn=collate_fn, **kwargs)
+                
+        return cls(**blocks)
         
