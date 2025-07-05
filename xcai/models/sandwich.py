@@ -778,7 +778,7 @@ class Encoder005(BaseEncoder):
 # %% ../../nbs/40_models.sandwich.ipynb 113
 class SAW005(SAW000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
-    _tied_weights_keys = ["encoder.distilbert"]
+    _tied_weights_keys = ["encoder.distilbert", "encoder.meta_distilbert.embeddings.word_embeddings"]
 
     def __init__(self, config):
         super().__init__(config)
@@ -790,6 +790,6 @@ class SAW005(SAW000, DistilBertPreTrainedModel):
     def remap_post_init(self):
         self.distilbert = self.encoder.distilbert
 
-    def _share_vocab_weights(self):
+    def _tie_weights(self):
         self.encoder.meta_distilbert.embeddings.word_embeddings.weight = self.encoder.distilbert.embeddings.word_embeddings.weight
         
