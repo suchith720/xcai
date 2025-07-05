@@ -132,8 +132,31 @@ class BaseXCDataset(Dataset):
                     x[f'{prefix}_{k}'] = [v[idx] for idx in idxs]
         return x
 
+    def _sample_idx(self, indices:List, probs:List, n_samples:int, oversample:bool, use_distribution:Optional[bool]=False, 
+                    data_lbl_scores:Optional[List]=None):
+        if oversample:
+            if use_distribution:
+                return [np.random.choice(o, size=n_samples, p=p) if len(o) else [] for o,p in zip(indices, probs)]
+            else:
+                return [np.random.choice(o, size=n_samples) if len(o) else [] for o in indices]
+        else:
+            return [[o[i] for i in np.random.permutation(len(o))[:n_samples]] for o in indices]
+
+    def _dropout(self, idxs:List, dropout_remove:Optional[float]=0.3, dropout_replace:Optional[float]=0.5):
+        indices, dropout_mask = list(), list()
+        for idx in idxs:
+            if dropout_remove is not None and np.random.rand() < dropout_remove:
+                indices.append([])
+                dropout_mask.append([0]*len(idx))
+            else:
+                indices.append(idx)
+                if dropout_replace is not None:
+                    dropout_mask.append([1]*len(idx) if np.random.rand() < dropout_replace else [0]*len(idx))
+        return indices, dropout_mask
+        
     def extract_items(self, prefix:str, data_lbl:List, idxs:List, n_samples:int, n_s_samples:int, oversample:bool, 
-                      info:Dict, info_keys:List, use_distribution:Optional[bool]=False, data_lbl_scores:Optional[List]=None):
+                      info:Dict, info_keys:List, use_distribution:Optional[bool]=False, data_lbl_scores:Optional[List]=None, 
+                      dropout_remove:Optional[float]=None, dropout_replace:Optional[float]=None):
         x, entity = dict(), prefix.split('2')[-1]
         
         x[f'p{prefix}_idx'] = [data_lbl[idx] for idx in idxs]
@@ -141,16 +164,18 @@ class BaseXCDataset(Dataset):
             x[f'p{prefix}_idx'] = [[o[i] for i in np.random.permutation(len(o))[:n_samples]] for o in x[f'p{prefix}_idx']]
         x[f'p{prefix}_{entity}2ptr'] = torch.tensor([len(o) for o in x[f'p{prefix}_idx']], dtype=torch.int64)
 
-        if oversample:
-            if use_distribution:
-                probs = [data_lbl_scores[idx] for idx in idxs]
-                x[f'{prefix}_idx'] = [np.random.choice(o, size=n_s_samples, p=p) if len(o) else [] for o,p in zip(x[f'p{prefix}_idx'],probs)]
-            else:
-                x[f'{prefix}_idx'] = [np.random.choice(o, size=n_s_samples) if len(o) else [] for o in x[f'p{prefix}_idx']]
-        else:
-            x[f'{prefix}_idx'] = [[o[i] for i in np.random.permutation(len(o))[:n_s_samples]] for o in x[f'p{prefix}_idx']]
+        # sample
+        probs = [data_lbl_scores[idx] for idx in idxs] if use_distribution else None
+        x[f'{prefix}_idx'] = self._sample_idx(x[f'p{prefix}_idx'], probs, n_samples=n_s_samples, oversample=oversample, 
+                                              use_distribution=use_distribution, data_lbl_scores=data_lbl_scores)
+
+        # dropout
+        if dropout_remove is not None and dropout_replace is not None:
+            x[f'{prefix}_idx'], x[f'{prefix}_dropout_mask'] = self._dropout(x[f'{prefix}_idx'], dropout_remove=dropout_remove, 
+                                                                            dropout_replace=dropout_replace)
+            x[f'{prefix}_dropout_mask'] = torch.tensor(list(chain(*x[f'{prefix}_dropout_mask'])), dtype=torch.bool)
+            
         x[f'{prefix}_{entity}2ptr'] = torch.tensor([len(o) for o in x[f'{prefix}_idx']], dtype=torch.int64)
-        
         x[f'{prefix}_idx'] = torch.tensor(list(chain(*x[f'{prefix}_idx'])), dtype=torch.int64)
         x[f'p{prefix}_idx'] = torch.tensor(list(chain(*x[f'p{prefix}_idx'])), dtype=torch.int64)
         
