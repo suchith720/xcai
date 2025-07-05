@@ -66,9 +66,12 @@ PARAM = {
 
     'use_meta_distribution': False,
     'use_main_distribution': False,
+
+    'meta_dropout_remove': None,
+    'meta_dropout_replace': None,
 }
 
-# %% ../nbs/25_config.ipynb 7
+# %% ../nbs/25_config.ipynb 8
 DATASETS = {
     'wikiseealsotitles': '(mapped)LF-WikiSeeAlsoTitles-320K',
     'wikiseealso': 'LF-WikiSeeAlso-320K',
@@ -80,7 +83,7 @@ DATASETS = {
     'amazontitles': 'LF-AmazonTitles-1.3M',
 }
 
-# %% ../nbs/25_config.ipynb 9
+# %% ../nbs/25_config.ipynb 10
 def WIKISEEALSOTITLES(data_dir):
     return {
         'data' : {
@@ -288,7 +291,7 @@ def WIKISEEALSOTITLES(data_dir):
         }, 
     }
 
-# %% ../nbs/25_config.ipynb 12
+# %% ../nbs/25_config.ipynb 13
 def WIKITITLES(data_dir):
     return {
         'train' : {
@@ -466,7 +469,7 @@ def WIKITITLES(data_dir):
         },
     }
 
-# %% ../nbs/25_config.ipynb 15
+# %% ../nbs/25_config.ipynb 16
 def WIKISEEALSO(data_dir):
     return {
         'data' : {
@@ -646,7 +649,7 @@ def WIKISEEALSO(data_dir):
     }
 
 
-# %% ../nbs/25_config.ipynb 18
+# %% ../nbs/25_config.ipynb 19
 def WIKIPEDIA(data_dir):
     return {
         'train' : {
@@ -824,7 +827,7 @@ def WIKIPEDIA(data_dir):
         },
     }
 
-# %% ../nbs/25_config.ipynb 20
+# %% ../nbs/25_config.ipynb 21
 def ORCAS(data_dir):
     return {
         'train' : {
@@ -963,7 +966,7 @@ def ORCAS(data_dir):
         },
     }
 
-# %% ../nbs/25_config.ipynb 22
+# %% ../nbs/25_config.ipynb 23
 def AMAZONTITLES131(data_dir):
     return {
         'data' : {
@@ -1130,7 +1133,7 @@ def AMAZONTITLES131(data_dir):
         },
     }
 
-# %% ../nbs/25_config.ipynb 24
+# %% ../nbs/25_config.ipynb 25
 def AMAZON131(data_dir):
     return {
         'data' : {
@@ -1268,7 +1271,7 @@ def AMAZON131(data_dir):
         },
     }
 
-# %% ../nbs/25_config.ipynb 26
+# %% ../nbs/25_config.ipynb 27
 def AMAZONTITLES(data_dir):
     return {
         'data' : {
