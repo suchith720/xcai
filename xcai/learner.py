@@ -465,7 +465,7 @@ def _get_dataset(self:XCLearner, dataset:Dataset, dset_type:str='lbl', use_metad
     dset = get_attr(dataset, f'{dset_type}_dset')
 
     data_aug_prefix = self.args.data_aug_meta_name if self.args.data_aug_prefix is None else self.args.data_aug_prefix
-    meta_name = f'{data_aug_prefix}_meta' if data_aug_prefix is not None else None
+    meta_name = data_aug_prefix if data_aug_prefix is not None else None
     
     if meta_name is not None and dataset.meta is not None and meta_name in dataset.meta and use_metadata:
         if dset_type == 'data': meta_dset = dataset.data_meta_dset(meta_name)            
