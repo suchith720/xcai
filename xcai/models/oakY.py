@@ -496,12 +496,12 @@ class Encoder003(DistilBertPreTrainedModel):
     def dr(self, embed:torch.Tensor):
         return F.normalize(self.dr_head(embed), dim=1)
 
+    @torch.no_grad()
     def init_meta_encoder(self):
         sd_meta, sd_dr = self.meta_distilbert.state_dict(), self.dr_distilbert.state_dict()
         for k in sd_dr:
             assert sd_meta[k].shape == sd_dr[k].shape
-            with torch.no_grad():
-                sd_meta[k].copy_(sd_dr[k])
+            sd_meta[k].copy_(sd_dr[k])
 
     def fuse_meta_into_embeddings(self, embed:torch.Tensor, meta_kwargs:Dict):
         meta_repr, bsz = {}, embed.size(0)
@@ -552,7 +552,6 @@ class Encoder003(DistilBertPreTrainedModel):
 class OAK003(OAK000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.dr_distilbert"]
-    _keys_to_ignore_on_load_missing = ["encoder.meta_distilbert"]
 
     @delegates(OAK000.__init__)
     def __init__(self, config, **kwargs):
@@ -769,7 +768,6 @@ class Encoder005(Encoder003):
 class OAK005(OAK000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.dr_distilbert"]
-    _keys_to_ignore_on_load_missing = ["encoder.meta_distilbert"]
 
     @delegates(OAK000.__init__)
     def __init__(self, config, num_metadata:int, num_metadata_clusters:int, do_meta_embed_sparse:Optional[bool]=True, **kwargs):
@@ -781,18 +779,19 @@ class OAK005(OAK000, DistilBertPreTrainedModel):
         
         self.post_init(); self.remap_post_init();
 
+    @torch.no_grad()
     def init_meta_embeddings(self):
         torch.nn.init.zeros_(self.meta_embeddings.weight)
 
+    @torch.no_grad()
     def set_meta_embeddings(self, embed:torch.Tensor):
-        with torch.no_grad():
-            self.meta_embeddings.weight.copy_(embed)
+        self.meta_embeddings.weight.copy_(embed)
 
+    @torch.no_grad()
     def set_metadata_cluster_mapping(self, metadata_cluster_mapping:torch.Tensor):
         if metadata_cluster_mapping.shape[0] != self.metadata_cluster_mapping.shape[0]:
             raise ValueError(f'Shape mismatch, `metadata_cluster_mapping` should have {self.metadata_cluster_mapping.shape[0]} elements.')
-        with torch.no_grad():
-            self.metadata_cluster_mapping.copy_(metadata_cluster_mapping)
+        self.metadata_cluster_mapping.copy_(metadata_cluster_mapping)
 
     def init_retrieval_head(self):
         self.encoder.dr_head.post_init()
@@ -1107,7 +1106,6 @@ class Encoder008(Encoder005):
 class OAK008(OAK005, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.dr_distilbert"]
-    _keys_to_ignore_on_load_missing = ["encoder.meta_distilbert"]
 
     @delegates(OAK000.__init__)
     def __init__(self, config, metadata_dropout:Optional[float]=0.5, **kwargs):
