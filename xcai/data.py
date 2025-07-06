@@ -143,15 +143,19 @@ class BaseXCDataset(Dataset):
             return [[o[i] for i in np.random.permutation(len(o))[:n_samples]] for o in indices]
 
     def _dropout(self, idxs:List, dropout_remove:Optional[float]=None, dropout_replace:Optional[float]=None):
-        indices, dropout_mask = list(), list()
+        indices, dropout_remove_mask, dropout_replace_mask = list(), list(), list()
         for idx in idxs:
-            if dropout_remove is not None and np.random.rand() < dropout_remove:
-                indices.append([]); dropout_mask.append([])
-            else:
-                indices.append(idx)
-                if dropout_replace is not None:
-                    dropout_mask.append([1]*len(idx) if np.random.rand() < dropout_replace else [0]*len(idx))
-        return indices, dropout_mask
+            indices.append(idx)
+            if dropout_remove is not None:
+                if np.random.rand() < dropout_remove:
+                    dropout_remove_mask.append([1]*len(idx))
+                    if dropout_replace is not None: dropout_replace_mask.append([0]*len(idx))
+                else:
+                    dropout_remove_mask.append([0]*len(idx))
+                    if dropout_replace is not None: dropout_replace_mask.append([1]*len(idx) if np.random.rand() < dropout_replace else [0]*len(idx))
+            elif dropout_replace is not None:
+                dropout_replace_mask.append([1]*len(idx) if np.random.rand() < dropout_replace else [0]*len(idx))
+        return indices, dropout_remove_mask, dropout_replace_mask
         
     def extract_items(self, prefix:str, data_lbl:List, idxs:List, n_samples:int, n_s_samples:int, oversample:bool, 
                       info:Dict, info_keys:List, use_distribution:Optional[bool]=False, data_lbl_scores:Optional[List]=None, 
@@ -170,9 +174,11 @@ class BaseXCDataset(Dataset):
 
         # dropout
         if dropout_remove is not None and dropout_replace is not None:
-            x[f'{prefix}_idx'], x[f'{prefix}_dropout_mask'] = self._dropout(x[f'{prefix}_idx'], dropout_remove=dropout_remove, 
-                                                                            dropout_replace=dropout_replace)
-            x[f'{prefix}_dropout_mask'] = torch.tensor(list(chain(*x[f'{prefix}_dropout_mask'])), dtype=torch.bool)
+            x[f'{prefix}_idx'], x[f'{prefix}_dropout_remove_mask'], x[f'{prefix}_dropout_replace_mask'] = self._dropout(x[f'{prefix}_idx'], 
+                                                                                                                        dropout_remove=dropout_remove,
+                                                                                                                        dropout_replace=dropout_replace)
+            x[f'{prefix}_dropout_remove_mask'] = torch.tensor(list(chain(*x[f'{prefix}_dropout_remove_mask'])), dtype=torch.bool)
+            x[f'{prefix}_dropout_replace_mask'] = torch.tensor(list(chain(*x[f'{prefix}_dropout_replace_mask'])), dtype=torch.bool)
             
         x[f'{prefix}_{entity}2ptr'] = torch.tensor([len(o) for o in x[f'{prefix}_idx']], dtype=torch.int64)
         

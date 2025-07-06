@@ -1129,10 +1129,13 @@ class OAK008(OAK005, DistilBertPreTrainedModel):
         meta_kwargs = Parameters.from_feat_meta_aug_prefix(feat, prefix, **kwargs)
         if f'{prefix}_idx' in meta_kwargs:
             m_idx = meta_kwargs[f'{prefix}_idx']
-            mask = meta_kwargs.get(f'{prefix}_dropout_mask', None)
+            remove_mask = meta_kwargs.get(f'{prefix}_dropout_remove_mask', None)
+            replace_mask = meta_kwargs.get(f'{prefix}_dropout_replace_mask', None)
             if len(m_idx):
                 meta_repr = self.meta_embeddings(self.metadata_cluster_mapping[m_idx])
-                if self.training: self.row_dropout(meta_repr, self.metadata_dropout, mask=mask)
+                if self.training: 
+                    self.row_dropout(meta_repr, 1.0, mask=remove_mask)
+                    self.row_dropout(meta_repr, self.metadata_dropout, mask=replace_mask)
                 meta_kwargs[f'{prefix}_meta_repr'] = meta_repr
         return meta_kwargs
         
