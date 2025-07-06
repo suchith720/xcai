@@ -173,7 +173,7 @@ class BaseXCDataset(Dataset):
                                               use_distribution=use_distribution, data_lbl_scores=data_lbl_scores)
 
         # dropout
-        if dropout_remove is not None and dropout_replace is not None:
+        if dropout_remove is not None or dropout_replace is not None:
             x[f'{prefix}_idx'], x[f'{prefix}_dropout_remove_mask'], x[f'{prefix}_dropout_replace_mask'] = self._dropout(x[f'{prefix}_idx'], 
                                                                                                                         dropout_remove=dropout_remove,
                                                                                                                         dropout_replace=dropout_replace)

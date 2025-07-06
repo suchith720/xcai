@@ -165,8 +165,9 @@ class Parameters:
         return inputs
     
     @staticmethod
-    def from_feat_meta_aug_prefix(feat:str, prefix:str, **kwargs):
-        keys = ['attention_mask', 'input_ids', 'meta_repr', 'idx', 'dropout_mask']
+    def from_feat_meta_aug_prefix(feat:str, prefix:str, additional_keys:Optional[List]=None, **kwargs):
+        keys = ['attention_mask', 'input_ids', 'meta_repr', 'idx']
+        if additional_keys is not None: keys.extend(additional_keys)
         
         inputs = {f'{prefix}_{k}': kwargs[f'{prefix}_{k}'] for k in keys if f'{prefix}_{k}' in kwargs}
         if prefix is not None and f'{prefix}_{feat}2ptr' in kwargs:

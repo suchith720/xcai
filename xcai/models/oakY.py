@@ -1114,9 +1114,10 @@ class OAK008(OAK005, DistilBertPreTrainedModel):
         self.post_init(); self.remap_post_init();
 
     @staticmethod
-    def row_dropout(x:torch.Tensor, p:Optional[float]=0.5, mask:Optional[torch.Tensor]=None):
+    def replace_dropout(x:torch.Tensor, p:Optional[float]=0.5, mask:Optional[torch.Tensor]=None):
         if mask is None: n_rows = x.size(0)
         else:
+            assert x.shape[0] == mask.shape[0]
             valid_row_idx = torch.where(mask)[0]
             n_rows = len(valid_row_idx)
             
@@ -1124,18 +1125,23 @@ class OAK008(OAK005, DistilBertPreTrainedModel):
 
         if mask is None: x[idx] = 0
         else: x[valid_row_idx[idx]] = 0
+
+    @staticmethod
+    def remove_dropout(x:torch.Tensor, mask:torch.Tensor):
+        assert x.shape[0] == mask.shape[0]
+        x[mask] = 0
         
     def _get_encoder_meta_kwargs(self, feat:str, prefix:str, **kwargs):
-        meta_kwargs = Parameters.from_feat_meta_aug_prefix(feat, prefix, **kwargs)
+        meta_kwargs = Parameters.from_feat_meta_aug_prefix(feat, prefix, additional_keys=['dropout_remove_mask', 'dropout_replace_mask'], **kwargs)
         if f'{prefix}_idx' in meta_kwargs:
             m_idx = meta_kwargs[f'{prefix}_idx']
-            remove_mask = meta_kwargs.get(f'{prefix}_dropout_remove_mask', None)
-            replace_mask = meta_kwargs.get(f'{prefix}_dropout_replace_mask', None)
+            remove_mask = meta_kwargs.pop(f'{prefix}_dropout_remove_mask', None)
+            replace_mask = meta_kwargs.pop(f'{prefix}_dropout_replace_mask', None)
             if len(m_idx):
                 meta_repr = self.meta_embeddings(self.metadata_cluster_mapping[m_idx])
                 if self.training: 
-                    self.row_dropout(meta_repr, 1.0, mask=remove_mask)
-                    self.row_dropout(meta_repr, self.metadata_dropout, mask=replace_mask)
+                    self.remove_dropout(meta_repr, remove_mask)
+                    self.replace_dropout(meta_repr, self.metadata_dropout, mask=replace_mask)
                 meta_kwargs[f'{prefix}_meta_repr'] = meta_repr
         return meta_kwargs
         
