@@ -253,14 +253,32 @@ class SXCDataset(BaseXCDataset):
     def lbl_info(self): return self.data.lbl_info
 
     @property
-    def lbl_dset(self): return SMainXCDataset(data_info=self.data.lbl_info)
-
+    def lbl_dset(self): return SMainXCDataset(data_info=self.data.lbl_info, n_lbl_samples=self.data.n_lbl_samples, 
+                                               data_info_keys=self.data.data_info_keys, lbl_info_keys=self.data.lbl_info_keys, 
+                                               n_slbl_samples=self.data.n_slbl_samples, main_oversample=self.data.main_oversample, 
+                                               use_main_distribution=self.data.use_main_distribution)
+        
+    def lbl_meta_dset(self, meta_name):
+        m = self.meta[f'{meta_name}_meta']
+        return SMetaXCDataset(prefix=m.prefix, data_meta=m.lbl_meta, lbl_meta=m.lbl_meta, meta_info=m.meta_info, 
+                              n_data_meta_samples=m.n_data_meta_samples, n_lbl_meta_samples=m.n_lbl_meta_samples, 
+                              meta_info_keys=m.meta_info_keys, n_sdata_meta_samples=m.n_sdata_meta_samples, 
+                              n_slbl_meta_samples=m.n_slbl_meta_samples, meta_oversample=m.meta_oversample, 
+                              use_meta_distribution=m.use_meta_distribution, meta_dropout_remove=m.meta_dropout_remove, 
+                              meta_dropout_replace=m.meta_dropout_replace)
+        
     @property
     def data_info(self): return self.data.data_info
 
     @property
-    def data_dset(self): return SMainXCDataset(data_info=self.data.data_info) 
-
+    def data_dset(self): return SMainXCDataset(data_info=self.data.data_info, n_lbl_samples=self.data.n_lbl_samples, 
+                                               data_info_keys=self.data.data_info_keys, lbl_info_keys=self.data.lbl_info_keys, 
+                                               n_slbl_samples=self.data.n_slbl_samples, main_oversample=self.data.main_oversample, 
+                                               use_main_distribution=self.data.use_main_distribution)
+        
+    def data_meta_dset(self, meta_name):
+        return self.meta[f'{meta_name}_meta']
+        
     def one_batch(self, bsz:Optional[int]=10, seed:Optional[int]=None):
         if seed is not None: torch.manual_seed(seed)
         idxs = list(torch.randperm(len(self)).numpy())[:bsz]

@@ -467,31 +467,12 @@ def _get_dataset(self:XCLearner, dataset:Dataset, dset_type:str='lbl', use_metad
     data_aug_prefix = self.args.data_aug_meta_name if self.args.data_aug_prefix is None else self.args.data_aug_prefix
     meta_name = f'{data_aug_prefix}_meta' if data_aug_prefix is not None else None
     
-    if (
-        meta_name is not None and 
-        dataset.meta is not None and 
-        meta_name in dataset.meta and 
-        use_metadata
-    ):    
-        meta_dset= dataset.meta[meta_name]
-        prefix,meta,meta_info  = meta_dset.prefix, get_attr(meta_dset, f'{dset_type}_meta'), meta_dset.meta_info
-
-        if dset_type == 'data':
-            metadata = type(meta_dset)(prefix=prefix, data_meta=meta, lbl_meta=sparse.csr_matrix((dataset.n_lbl, meta_dset.n_meta)), meta_info=meta_info)            
-        elif dset_type == 'lbl':
-            metadata = type(meta_dset)(prefix=prefix, data_meta=meta, lbl_meta=sparse.csr_matrix((dataset.n_data, meta_dset.n_meta)), meta_info=meta_info)
+    if meta_name is not None and dataset.meta is not None and meta_name in dataset.meta and use_metadata:
+        if dset_type == 'data': meta_dset = dataset.data_meta_dset(meta_name)            
+        elif dset_type == 'lbl': meta_dset = dataset.lbl_meta_dset(meta_name) 
         else: raise ValueError(f'Invalid `dset_type`, should be one of ["data", "lbl"].')
-
-        if isinstance(metadata, SMetaXCDataset):
-            metadata.n_data_meta_samples = meta_dset.n_data_meta_samples
-            metadata.n_sdata_meta_samples = meta_dset.n_sdata_meta_samples
-            metadata.meta_oversample = meta_dset.meta_oversample
-        elif isinstance(metadata, MetaXCDataset):
-            metadata.n_data_meta_samples = self.args.augmentation_num_beams
-        else: raise ValueError('Invalid meta dataset.')
-
-        meta_kwargs = {meta_name: metadata}
-        dset = type(dataset)(dset, **meta_kwargs)
+            
+        dset = type(dataset)(dset, **{f'{meta_name}_meta': meta_dset})
         
     return dset
 
