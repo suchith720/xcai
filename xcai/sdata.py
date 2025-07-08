@@ -74,7 +74,7 @@ class SMainXCDataset(MainXCDataset):
             prefix = 'lbl2data'
             o = self.extract_items(prefix, self.curr_data_lbl, idxs, self.n_lbl_samples, self.n_slbl_samples, self.main_oversample, 
                                    self.lbl_info, self.lbl_info_keys, self.use_main_distribution, self.data_lbl_scores, 
-                                   return_scores=return_scores)
+                                   return_scores=self.return_scores)
             x.update(o)
         return x
 
