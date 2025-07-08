@@ -157,9 +157,24 @@ class BaseXCDataset(Dataset):
                 dropout_replace_mask.append([1]*len(idx) if np.random.rand() < dropout_replace else [0]*len(idx))
         return indices, dropout_remove_mask, dropout_replace_mask
         
-    def extract_items(self, prefix:str, data_lbl:List, idxs:List, n_samples:int, n_s_samples:int, oversample:bool, 
-                      info:Dict, info_keys:List, use_distribution:Optional[bool]=False, data_lbl_scores:Optional[List]=None, 
-                      dropout_remove:Optional[float]=None, dropout_replace:Optional[float]=None):
+    def extract_items(
+        self, 
+        prefix:str, 
+        data_lbl:List, 
+        idxs:List, 
+        n_samples:int, 
+        n_s_samples:int, 
+        oversample:bool, 
+                      
+        info:Dict, 
+        info_keys:List, 
+        use_distribution:Optional[bool]=False, 
+        data_lbl_scores:Optional[List]=None, 
+                      
+        dropout_remove:Optional[float]=None, 
+        dropout_replace:Optional[float]=None, 
+        return_scores:Optional[bool]=False
+    ):
         x, entity = dict(), prefix.split('2')[-1]
         
         x[f'p{prefix}_idx'] = [data_lbl[idx] for idx in idxs]
@@ -171,12 +186,13 @@ class BaseXCDataset(Dataset):
         probs = [data_lbl_scores[idx] for idx in idxs] if use_distribution else None
         x[f'{prefix}_idx'] = self._sample_idx(x[f'p{prefix}_idx'], probs, n_samples=n_s_samples, oversample=oversample, 
                                               use_distribution=use_distribution, data_lbl_scores=data_lbl_scores)
+        # gather scores
+        if return_scores:
+            x[f'{prefix}_scores'] = [data_lbl_scores[idx] for idx in idxs]
 
         # dropout
         if dropout_remove is not None or dropout_replace is not None:
-            x[f'{prefix}_idx'], x[f'{prefix}_dropout_remove_mask'], x[f'{prefix}_dropout_replace_mask'] = self._dropout(x[f'{prefix}_idx'], 
-                                                                                                                        dropout_remove=dropout_remove,
-                                                                                                                        dropout_replace=dropout_replace)
+            x[f'{prefix}_idx'], x[f'{prefix}_dropout_remove_mask'], x[f'{prefix}_dropout_replace_mask'] = self._dropout(x[f'{prefix}_idx'], dropout_remove=dropout_remove, dropout_replace=dropout_replace)
             x[f'{prefix}_dropout_remove_mask'] = torch.tensor(list(chain(*x[f'{prefix}_dropout_remove_mask'])), dtype=torch.bool)
             x[f'{prefix}_dropout_replace_mask'] = torch.tensor(list(chain(*x[f'{prefix}_dropout_replace_mask'])), dtype=torch.bool)
             

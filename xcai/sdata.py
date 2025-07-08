@@ -30,13 +30,14 @@ class SMainXCDataset(MainXCDataset):
         n_slbl_samples:Optional[int]=1,
         main_oversample:Optional[bool]=False,
         use_main_distribution:Optional[bool]=False,
+        return_scores:Optional[bool]=False,
         **kwargs
     ):
         super().__init__(**kwargs)
-        store_attr('n_slbl_samples,main_oversample,use_main_distribution')
+        store_attr('n_slbl_samples,main_oversample,use_main_distribution,return_scores')
         
         self.data_lbl_scores = None
-        if use_main_distribution: self._store_scores()
+        if use_main_distribution or return_scores: self._store_scores()
 
     def _get_dataset(
         self, 
@@ -52,15 +53,18 @@ class SMainXCDataset(MainXCDataset):
         n_slbl_samples = kwargs.get('n_slbl_samples') if 'n_slbl_samples' in kwargs else self.n_slbl_samples
         main_oversample = kwargs.get('main_oversample') if 'main_oversample' in kwargs else self.main_oversample
         use_main_distribution = kwargs.get('use_main_distribution') if 'use_main_distribution' in kwargs else self.use_main_distribution
+        return_scores = kwargs.get('return_scores') if 'return_scores' in kwargs else self.return_scores
         
         return SMainXCDataset(data_info=data_info, data_lbl=data_lbl, lbl_info=lbl_info, data_lbl_filterer=data_lbl_filterer, 
                               n_lbl_samples=n_lbl_samples, data_info_keys=data_info_keys, lbl_info_keys=lbl_info_keys, 
-                              n_slbl_samples=n_slbl_samples, main_oversample=main_oversample, use_main_distribution=use_main_distribution)
+                              n_slbl_samples=n_slbl_samples, main_oversample=main_oversample, use_main_distribution=use_main_distribution, 
+                              return_scores=return_scores)
         
     def _store_scores(self):
         if self.data_lbl is not None:
-            data_lbl = self.data_lbl / (self.data_lbl.sum(axis=1) + 1e-9)
-            data_lbl = data_lbl.tocsr()
+            if self.use_main_distribution:
+                data_lbl = self.data_lbl / (self.data_lbl.sum(axis=1) + 1e-9)
+                data_lbl = data_lbl.tocsr()
             self.data_lbl_scores = [o.data.tolist() for o in data_lbl]
             
     def __getitems__(self, idxs:List):
@@ -69,7 +73,8 @@ class SMainXCDataset(MainXCDataset):
         if self.data_lbl is not None:
             prefix = 'lbl2data'
             o = self.extract_items(prefix, self.curr_data_lbl, idxs, self.n_lbl_samples, self.n_slbl_samples, self.main_oversample, 
-                                   self.lbl_info, self.lbl_info_keys, self.use_main_distribution, self.data_lbl_scores)
+                                   self.lbl_info, self.lbl_info_keys, self.use_main_distribution, self.data_lbl_scores, 
+                                   return_scores=return_scores)
             x.update(o)
         return x
 
@@ -83,11 +88,12 @@ class SMainXCDataset(MainXCDataset):
         n_slbl_samples:Optional[int]=1,
         main_oversample:Optional[bool]=False,
         use_main_distribution:Optional[bool]=False,
+        return_scores:Optional[bool]=False,
         **kwargs
     ):
         return cls(**MainXCData.from_file(**kwargs), n_lbl_samples=n_lbl_samples, data_info_keys=data_info_keys, 
                    lbl_info_keys=lbl_info_keys, n_slbl_samples=n_slbl_samples, main_oversample=main_oversample, 
-                   use_main_distribution=use_main_distribution)
+                   use_main_distribution=use_main_distribution, return_scores=return_scores)
 
     def _getitems(cls, idxs:List):
         return SMainXCDataset(
@@ -101,6 +107,7 @@ class SMainXCDataset(MainXCDataset):
             n_slbl_samples=cls.n_slbl_samples,
             main_oversample=cls.main_oversample,
             use_main_distribution=cls.use_main_distribution,
+            return_scores=cls.return_scores,
         )
     
 
@@ -115,24 +122,27 @@ class SMetaXCDataset(MetaXCDataset):
         use_meta_distribution:Optional[bool]=False,
         meta_dropout_remove:Optional[float]=None,
         meta_dropout_replace:Optional[float]=None,
+        return_scores:Optional[bool]=False,
         **kwargs
     ):
         super().__init__(**kwargs)
         store_attr('n_sdata_meta_samples,n_slbl_meta_samples,meta_oversample,use_meta_distribution')
-        store_attr('meta_dropout_remove,meta_dropout_replace')
+        store_attr('meta_dropout_remove,meta_dropout_replace,return_scores')
 
         self.data_meta_scores, self.lbl_meta_scores = None, None
-        if use_meta_distribution: self._store_scores()
+        if use_meta_distribution or return_scores: self._store_scores()
 
     def _store_scores(self):
         if self.data_meta is not None:
-            data_meta = self.data_meta / (self.data_meta.sum(axis=1) + 1e-9)
-            data_meta = data_meta.tocsr()
+            if self.use_meta_distribution:
+                data_meta = self.data_meta / (self.data_meta.sum(axis=1) + 1e-9)
+                data_meta = data_meta.tocsr()
             self.data_meta_scores = [o.data.tolist() for o in data_meta]
             
         if self.lbl_meta is not None:
-            lbl_meta = self.lbl_meta / (self.lbl_meta.sum(axis=1) + 1e-9)
-            lbl_meta = lbl_meta.tocsr()
+            if self.use_meta_distribution:
+                lbl_meta = self.lbl_meta / (self.lbl_meta.sum(axis=1) + 1e-9)
+                lbl_meta = lbl_meta.tocsr()
             self.lbl_meta_scores = [o.data.tolist() for o in lbl_meta]
 
     def _getitems(self, idxs:List):
@@ -141,7 +151,7 @@ class SMetaXCDataset(MetaXCDataset):
                               meta_info_keys=self.meta_info_keys, n_sdata_meta_samples=self.n_sdata_meta_samples, 
                               n_slbl_meta_samples=self.n_slbl_meta_samples, meta_oversample=self.meta_oversample, 
                               use_meta_distribution=self.use_meta_distribution, meta_dropout_remove=self.meta_dropout_remove, 
-                              meta_dropout_replace=self.meta_dropout_replace)
+                              meta_dropout_replace=self.meta_dropout_replace, return_scores=self.return_scores)
 
     def _sample_meta_items(self, idxs:List):
         assert max(idxs) < self.n_meta, f"indices should be less than {self.n_meta}"
@@ -151,7 +161,7 @@ class SMetaXCDataset(MetaXCDataset):
                               meta_info_keys=self.meta_info_keys, n_sdata_meta_samples=self.n_sdata_meta_samples, 
                               n_slbl_meta_samples=self.n_slbl_meta_samples, meta_oversample=self.meta_oversample, 
                               use_meta_distribution=self.use_meta_distribution, meta_dropout_remove=self.meta_dropout_remove, 
-                              meta_dropout_replace=self.meta_dropout_replace)
+                              meta_dropout_replace=self.meta_dropout_replace, return_scores=self.return_scores)
         
     @classmethod
     @delegates(MetaXCData.from_file)
@@ -166,18 +176,20 @@ class SMetaXCDataset(MetaXCDataset):
         use_meta_distribution:Optional[bool]=False,
         meta_dropout_remove:Optional[float]=None,
         meta_dropout_replace:Optional[float]=None,
+        return_scores:Optional[bool]=False,
         **kwargs
     ):
         return cls(**MetaXCData.from_file(**kwargs), n_data_meta_samples=n_data_meta_samples, n_lbl_meta_samples=n_lbl_meta_samples, 
                    meta_info_keys=meta_info_keys, n_sdata_meta_samples=n_sdata_meta_samples, n_slbl_meta_samples=n_slbl_meta_samples,
                    meta_oversample=meta_oversample, use_meta_distribution=use_meta_distribution, meta_dropout_remove=meta_dropout_remove, 
-                   meta_dropout_replace=meta_dropout_replace)
+                   meta_dropout_replace=meta_dropout_replace, return_scores=return_scores)
 
     def get_data_meta(self, idxs:List):
         x, prefix = dict(), f'{self.prefix}2data'
         o = self.extract_items(prefix, self.curr_data_meta, idxs, self.n_data_meta_samples, self.n_sdata_meta_samples, self.meta_oversample, 
                                self.meta_info, self.meta_info_keys, self.use_meta_distribution, self.data_meta_scores, 
-                               dropout_remove=self.meta_dropout_remove, dropout_replace=self.meta_dropout_replace)
+                               dropout_remove=self.meta_dropout_remove, dropout_replace=self.meta_dropout_replace, 
+                               return_scores=self.return_scores)
         x.update(o)
         return x
         
@@ -185,7 +197,8 @@ class SMetaXCDataset(MetaXCDataset):
         x, prefix = dict(), f'{self.prefix}2lbl'
         o = self.extract_items(prefix, self.curr_lbl_meta, idxs, self.n_lbl_meta_samples, self.n_slbl_meta_samples, self.meta_oversample, 
                                self.meta_info, self.meta_info_keys, self.use_meta_distribution, self.lbl_meta_scores, 
-                               dropout_remove=self.meta_dropout_remove, dropout_replace=self.meta_dropout_replace)
+                               dropout_remove=self.meta_dropout_remove, dropout_replace=self.meta_dropout_replace, 
+                               return_scores=self.return_scores)
         x.update(o)
         return x
 
@@ -256,7 +269,7 @@ class SXCDataset(BaseXCDataset):
     def lbl_dset(self): return SMainXCDataset(data_info=self.data.lbl_info, n_lbl_samples=self.data.n_lbl_samples, 
                                                data_info_keys=self.data.data_info_keys, lbl_info_keys=self.data.lbl_info_keys, 
                                                n_slbl_samples=self.data.n_slbl_samples, main_oversample=self.data.main_oversample, 
-                                               use_main_distribution=self.data.use_main_distribution)
+                                               use_main_distribution=self.data.use_main_distribution, return_scores=self.data.return_scores)
         
     def lbl_meta_dset(self, meta_name):
         m = self.meta[f'{meta_name}_meta']
@@ -265,7 +278,7 @@ class SXCDataset(BaseXCDataset):
                               meta_info_keys=m.meta_info_keys, n_sdata_meta_samples=m.n_sdata_meta_samples, 
                               n_slbl_meta_samples=m.n_slbl_meta_samples, meta_oversample=m.meta_oversample, 
                               use_meta_distribution=m.use_meta_distribution, meta_dropout_remove=m.meta_dropout_remove, 
-                              meta_dropout_replace=m.meta_dropout_replace)
+                              meta_dropout_replace=m.meta_dropout_replace, return_scores=m.return_scores)
         
     @property
     def data_info(self): return self.data.data_info
@@ -274,7 +287,7 @@ class SXCDataset(BaseXCDataset):
     def data_dset(self): return SMainXCDataset(data_info=self.data.data_info, n_lbl_samples=self.data.n_lbl_samples, 
                                                data_info_keys=self.data.data_info_keys, lbl_info_keys=self.data.lbl_info_keys, 
                                                n_slbl_samples=self.data.n_slbl_samples, main_oversample=self.data.main_oversample, 
-                                               use_main_distribution=self.data.use_main_distribution)
+                                               use_main_distribution=self.data.use_main_distribution, return_scores=self.data.return_scores)
         
     def data_meta_dset(self, meta_name):
         return self.meta[f'{meta_name}_meta']
