@@ -2,8 +2,8 @@
 
 # %% auto 0
 __all__ = ['get_sparse_matrix', 'BaseLoss', 'MultiCrossEntropy', 'Calibration', 'BaseMultiTriplet', 'MultiTriplet',
-           'MultiTripletFromInBatchScores', 'MultiTripletFromScores', 'MultiTripletWithNegatives', 'Cosine', 'Entropy',
-           'Triplet', 'SoupCon']
+           'MultiTripletFromInBatchScores', 'MultiTripletFromScores', 'MultiTripletWithNegatives',
+           'MarginMSEWithNegatives', 'Cosine', 'Entropy', 'Triplet', 'SoupCon']
 
 # %% ../nbs/04_losses.ipynb 3
 import functools, torch, torch.nn as nn, torch.nn.functional as F, pickle
@@ -15,7 +15,7 @@ from fastcore.meta import *
 from .torch_core import *
 from .core import *
 
-# %% ../nbs/04_losses.ipynb 13
+# %% ../nbs/04_losses.ipynb 15
 def get_sparse_matrix(data_idx:torch.Tensor, n_data:torch.Tensor, scores:Optional[torch.Tensor]=None):
     data_ptr = torch.cat([torch.zeros(1, device=n_data.device, dtype=n_data.dtype), n_data.cumsum(0)])
     if scores is None: scores = torch.ones_like(data_idx)
@@ -23,7 +23,7 @@ def get_sparse_matrix(data_idx:torch.Tensor, n_data:torch.Tensor, scores:Optiona
     return torch.sparse_csr_tensor(data_ptr, data_idx, scores, device=data_ptr.device)
     
 
-# %% ../nbs/04_losses.ipynb 15
+# %% ../nbs/04_losses.ipynb 17
 class BaseLoss(nn.Module):
 
     def __init__(self, 
@@ -41,7 +41,7 @@ class BaseLoss(nn.Module):
         self.reduce = v
         
 
-# %% ../nbs/04_losses.ipynb 17
+# %% ../nbs/04_losses.ipynb 19
 class MultiCrossEntropy(BaseLoss):
 
     def __init__(self,
@@ -54,7 +54,7 @@ class MultiCrossEntropy(BaseLoss):
         self.o = torch.ones(tn_targ, dtype=torch.int64) if tn_targ is not None else None
         
 
-# %% ../nbs/04_losses.ipynb 19
+# %% ../nbs/04_losses.ipynb 21
 @patch
 def forward(cls:MultiCrossEntropy,
             inp:torch.FloatTensor,
@@ -104,7 +104,7 @@ def forward(cls:MultiCrossEntropy,
     else: raise ValueError(f'`reduction` cannot be `{cls.reduction}`')
 
 
-# %% ../nbs/04_losses.ipynb 34
+# %% ../nbs/04_losses.ipynb 36
 class Calibration(BaseLoss):
 
     def __init__(self,
@@ -117,7 +117,7 @@ class Calibration(BaseLoss):
         store_attr('margin,tau,n_negatives,apply_softmax')
         
 
-# %% ../nbs/04_losses.ipynb 35
+# %% ../nbs/04_losses.ipynb 37
 @patch
 def forward(cls:Calibration,
             einp:torch.FloatTensor,
@@ -159,7 +159,7 @@ def forward(cls:Calibration,
     else: raise ValueError(f'`reduction` cannot be `{cls.reduction}`')
         
 
-# %% ../nbs/04_losses.ipynb 54
+# %% ../nbs/04_losses.ipynb 56
 class BaseMultiTriplet(BaseLoss):
 
     def __init__(
@@ -284,7 +284,7 @@ class BaseMultiTriplet(BaseLoss):
         else: raise ValueError(f'`reduction` cannot be `{self.reduction}`')
     
 
-# %% ../nbs/04_losses.ipynb 56
+# %% ../nbs/04_losses.ipynb 58
 class MultiTriplet(BaseMultiTriplet):
 
     def forward(
@@ -305,7 +305,7 @@ class MultiTriplet(BaseMultiTriplet):
                                apply_softmax=apply_softmax, n_negatives=n_negatives, **kwargs)
         
 
-# %% ../nbs/04_losses.ipynb 57
+# %% ../nbs/04_losses.ipynb 59
 class MultiTripletFromInBatchScores(BaseMultiTriplet):
 
     def forward(
@@ -325,7 +325,7 @@ class MultiTripletFromInBatchScores(BaseMultiTriplet):
                                apply_softmax=apply_softmax, n_negatives=n_negatives, **kwargs)
         
 
-# %% ../nbs/04_losses.ipynb 70
+# %% ../nbs/04_losses.ipynb 72
 class MultiTripletFromScores(BaseMultiTriplet):
 
     @staticmethod
@@ -353,6 +353,7 @@ class MultiTripletFromScores(BaseMultiTriplet):
         self, 
         scores:torch.FloatTensor,  
         inp2targ_idx:torch.LongTensor,
+        
         n_inp2targ:torch.LongTensor,
         
         n_pinp2targ:torch.LongTensor,
@@ -402,63 +403,38 @@ class MultiTripletFromScores(BaseMultiTriplet):
         else: raise ValueError(f'`reduction` cannot be `{self.reduction}`')
         
 
-# %% ../nbs/04_losses.ipynb 72
+# %% ../nbs/04_losses.ipynb 74
 class MultiTripletWithNegatives(MultiTripletFromScores):
 
-    def get_scores(self, inp:torch.Tensor, targ:torch.Tensor, ntarg:Optional[torch.Tensor]=None, n_inp2ntarg:Optional[int]=None):
-        scores = inp @ targ.T
-        if ntarg is not None:
-            nscores = inp.unsqueeze(1) @ ntarg.view(len(inp), n_inp2ntarg, -1).transpose(1, 2)
-            nscores = nscores.squeeze(1)
-            scores = torch.hstack([scores, nscores])
+    def get_scores(self, inp:torch.Tensor, pos_targ:torch.Tensor, neg_targ:Optional[torch.Tensor]=None, n_neg:Optional[int]=None):
+        scores = inp @ pos_targ.T
+        if neg_targ is not None:
+            neg_scores = inp.unsqueeze(1) @ neg_targ.view(len(inp), n_neg, -1).transpose(1, 2)
+            neg_scores = neg_scores.squeeze(1)
+            scores = torch.hstack([scores, neg_scores])
         return scores
 
-    def get_indices(self, inp2targ_idx:torch.Tensor, bsz:int, inp2ntarg_idx:Optional[torch.Tensor]=None, n_inp2ntarg:Optional[int]=None):
-        inp2targ_idx = torch.repeat_interleave(inp2targ_idx.unsqueeze(0), bsz, 0)
-        if inp2ntarg_idx is not None:
-            inp2ntarg_idx = inp2ntarg_idx.view(bsz, n_inp2ntarg)
-            inp2targ_idx = torch.hstack([inp2targ_idx, inp2ntarg_idx])
-        return inp2targ_idx
+    def get_indices(self, pos_idx:torch.Tensor, bsz:int, neg_idx:Optional[torch.Tensor]=None, n_neg:Optional[int]=None):
+        indices = torch.repeat_interleave(pos_idx.unsqueeze(0), bsz, 0)
+        if neg_idx is not None:
+            neg_idx = neg_idx.view(bsz, n_neg)
+            indices = torch.hstack([indices, neg_idx])
+        return indices
 
     def forward(
         self, 
         inp:torch.FloatTensor,
         
-        targ:torch.FloatTensor,
-        n_inp2targ:torch.LongTensor,
-        inp2targ_idx:torch.LongTensor,
+        pos_targ:torch.FloatTensor,
+        n_pos:torch.LongTensor,
+        pos_idx:torch.LongTensor,
 
-        ntarg:torch.FloatTensor,
-        n_inp2ntarg:torch.LongTensor,
-        inp2ntarg_idx:torch.LongTensor,
+        neg_targ:torch.FloatTensor,
+        n_neg:torch.LongTensor,
+        neg_idx:torch.LongTensor,
         
-        n_pinp2targ:torch.LongTensor,
-        pinp2targ_idx:torch.LongTensor,
-        
-        margin:Optional[float]=None,
-        tau:Optional[float]=None,
-        apply_softmax:Optional[bool]=None,
-        n_negatives:Optional[int]=None,
-        **kwargs
-    ):
-        assert torch.all(n_inp2ntarg == n_inp2ntarg.max()), "All datapoints should same number of negatives"
-        scores = self.get_scores(inp, targ, ntarg, n_inp2ntarg.max())
-        inp2targ_idx = self.get_indices(inp2targ_idx, len(inp), inp2ntarg_idx, n_inp2ntarg.max())
-        return super().forward(scores, inp2targ_idx, n_inp2targ, n_pinp2targ=n_pinp2targ, pinp2targ_idx=pinp2targ_idx)
-    
-
-# %% ../nbs/04_losses.ipynb 74
-class MultiTripletWithNegatives(BaseLoss):
-
-    def forward(
-        self, 
-        inp:torch.FloatTensor,
-        
-        targ:torch.FloatTensor,
-        inp2targ_scores:torch.FloatTensor,
-
-        ntarg:torch.FloatTensor,
-        inp2ntarg_scores:torch.FloatTensor,
+        n_ppos:torch.LongTensor,
+        ppos_idx:torch.LongTensor,
         
         margin:Optional[float]=None,
         tau:Optional[float]=None,
@@ -466,30 +442,50 @@ class MultiTripletWithNegatives(BaseLoss):
         n_negatives:Optional[int]=None,
         **kwargs
     ):  
+        assert torch.all(n_neg == n_neg.max()), "All datapoints should same number of negatives"
+        scores = self.get_scores(inp, pos_targ, neg_targ, n_neg.max())
+        indices = self.get_indices(pos_idx, len(inp), neg_idx, n_neg.max())
+        return super().forward(scores, indices, n_pos, n_pinp2targ=n_ppos, pinp2targ_idx=ppos_idx)
+    
+
+# %% ../nbs/04_losses.ipynb 89
+class MarginMSEWithNegatives(BaseLoss):
+
+    def forward(
+        self, 
+        inp:torch.FloatTensor,
+        
+        pos_targ:torch.FloatTensor,
+        pos_scores:torch.FloatTensor,
+
+        neg_targ:torch.FloatTensor,
+        neg_scores:torch.FloatTensor,
+        **kwargs
+    ):  
         bsz = len(inp)
         
-        assert len(inp2targ_scores) % bsz == 0, "Number of elements in `inp2targ_scores` should be divisible by batch size."
-        assert len(inp2ntarg_scores) % bsz == 0, "Number of elements in `inp2ntarg_scores` should be divisible by batch size."
+        assert len(pos_scores) % bsz == 0, "Number of elements in `pos_scores` should be divisible by batch size."
+        assert len(neg_scores) % bsz == 0, "Number of elements in `neg_scores` should be divisible by batch size."
         
-        assert len(targ) == len(inp2targ_scores), "`targ` and `inp2targ_scores` should have same number of elements."
-        assert len(ntarg) == len(inp2ntarg_scores), "`ntarg` and `inp2ntarg_scores` should have same number of elements."
+        assert len(pos_targ) == len(pos_scores), "`pos_targ` and `pos_scores` should have same number of elements."
+        assert len(neg_targ) == len(neg_scores), "`neg_targ` and `neg_scores` should have same number of elements."
         
-        n = len(targ) // bsz
-        targ, inp2targ_scores = targ.view(bsz, n, -1), inp2targ_scores.view(bsz, n, 1)
-        n = len(ntarg) // bsz
-        ntarg, inp2ntarg_scores = ntarg.view(bsz, n, -1), inp2ntarg_scores.view(bsz, 1, n)
+        n = len(pos_targ) // bsz
+        pos_targ, pos_scores = pos_targ.view(bsz, n, -1), pos_scores.view(bsz, n, 1)
+        n = len(neg_targ) // bsz
+        neg_targ, neg_scores = neg_targ.view(bsz, n, -1), neg_scores.view(bsz, 1, n)
 
-        labels = inp2targ_scores - inp2ntarg_scores
+        labels = pos_scores - neg_scores
         
         inp = inp.unsqueeze(1)
-        pos_scores = inp @ targ.transpose(1, 2)
-        neg_scores = inp @ ntarg.transpose(1, 2)
+        pos_scores = inp @ pos_targ.transpose(1, 2)
+        neg_scores = inp @ neg_targ.transpose(1, 2)
         margins = pos_scores.transpose(1, 2) - neg_scores
 
         return F.mse_loss(margins.flatten(), labels.flatten())
         
 
-# %% ../nbs/04_losses.ipynb 76
+# %% ../nbs/04_losses.ipynb 104
 class Cosine(BaseLoss):
 
     def __init__(self, 
@@ -497,7 +493,7 @@ class Cosine(BaseLoss):
         super().__init__(**kwargs)
         
 
-# %% ../nbs/04_losses.ipynb 77
+# %% ../nbs/04_losses.ipynb 105
 @patch
 def forward(cls:Cosine, 
             inp:torch.FloatTensor,
@@ -522,7 +518,7 @@ def forward(cls:Cosine,
     else: raise ValueError(f'`reduction` cannot be `{cls.reduction}`')
         
 
-# %% ../nbs/04_losses.ipynb 83
+# %% ../nbs/04_losses.ipynb 111
 class Entropy(BaseLoss):
 
     def __init__(self, 
@@ -535,7 +531,7 @@ class Entropy(BaseLoss):
         store_attr('margin,tau,apply_softmax,n_negatives')
         
 
-# %% ../nbs/04_losses.ipynb 84
+# %% ../nbs/04_losses.ipynb 112
 @patch
 def forward(cls:Entropy, 
             inp:torch.FloatTensor,
@@ -570,7 +566,7 @@ def forward(cls:Entropy,
     else: raise ValueError(f'`reduction` cannot be `{cls.reduction}`')
         
 
-# %% ../nbs/04_losses.ipynb 90
+# %% ../nbs/04_losses.ipynb 118
 class Triplet(BaseLoss):
 
     def __init__(self, 
@@ -583,7 +579,7 @@ class Triplet(BaseLoss):
         store_attr('margin,tau,apply_softmax,n_negatives')
 
 
-# %% ../nbs/04_losses.ipynb 91
+# %% ../nbs/04_losses.ipynb 119
 @patch
 def forward(cls:Triplet, 
             inp:torch.FloatTensor, 
@@ -617,7 +613,7 @@ def forward(cls:Triplet,
     else: raise ValueError(f'`reduction` cannot be `{cls.reduction}`')
         
 
-# %% ../nbs/04_losses.ipynb 96
+# %% ../nbs/04_losses.ipynb 124
 class SoupCon(BaseLoss):
 
     @delegates(BaseLoss.__init__)
@@ -628,7 +624,7 @@ class SoupCon(BaseLoss):
         self.tau = nn.Parameter(torch.tensor(tau, dtype=torch.float32))
         
 
-# %% ../nbs/04_losses.ipynb 98
+# %% ../nbs/04_losses.ipynb 126
 @patch
 def forward(cls:SoupCon,
             inp:torch.FloatTensor,
