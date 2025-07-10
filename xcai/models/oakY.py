@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['Encoder', 'OAK000', 'OAK001', 'Encoder002', 'OAK002', 'CrossAttention003', 'Encoder003', 'OAK003', 'Encoder004',
-           'OAK004', 'Encoder005', 'OAK005', 'Encoder006', 'OAK006', 'OAK007', 'Encoder008', 'OAK008']
+           'OAK004', 'Encoder005', 'OAK005', 'Encoder006', 'OAK006', 'OAK007', 'OAK008', 'Encoder009', 'OAK009']
 
 # %% ../../nbs/33_models.oakY.ipynb 2
 import torch, re, inspect, pickle, os, torch.nn as nn, math
@@ -744,6 +744,10 @@ class Encoder005(Encoder003):
         super().__init__(config)
         self.alpha = nn.Parameter(torch.ones(1))
 
+    @torch.no_grad()
+    def init_alpha(self):
+        torch.nn.init.ones_(self.alpha)
+
     def fuse_meta_into_embeddings(self, embed:torch.Tensor, meta_kwargs:Dict):
         meta_repr, bsz = {}, embed.size(0)
         
@@ -798,6 +802,9 @@ class OAK005(OAK000, DistilBertPreTrainedModel):
 
     def init_meta_encoder(self):
         self.encoder.init_meta_encoder()
+
+    def init_alpha(self):
+        self.encoder.init_alpha()
 
     def remap_post_init(self):
         self.distilbert = self.encoder.dr_distilbert
@@ -1074,35 +1081,6 @@ class OAK007(OAK003, DistilBertPreTrainedModel):
         
 
 # %% ../../nbs/33_models.oakY.ipynb 127
-class Encoder008(Encoder005):
-    
-    def __init__(
-        self, 
-        config:PretrainedConfig, 
-    ):
-        super().__init__(config)
-
-    def fuse_meta_into_embeddings(self, embed:torch.Tensor, meta_kwargs:Dict):
-        meta_repr, bsz = {}, embed.size(0)
-        
-        for m_key, m_args in meta_kwargs.items():
-            n_meta = m_args['data2ptr'].max()
-            assert torch.all(m_args['data2ptr'] == n_meta), f'All datapoints should have same number of metadata.'
-            
-            m_input_ids, m_attention_mask = m_args['input_ids'], m_args['attention_mask']
-            m_embed = self.meta_encode(input_ids=m_input_ids, attention_mask=m_attention_mask)
-            m_embed = m_embed + m_args['meta_repr'] * self.alpha
-            
-            meta_repr[m_key] = m_embed
-                    
-            m_embed = m_embed.view(bsz, -1, self.config.dim)  
-            fused_embed = self.cross_head(embed, m_embed)
-            embed = embed + fused_embed
-               
-        return embed, meta_repr
-        
-
-# %% ../../nbs/33_models.oakY.ipynb 128
 class OAK008(OAK005, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.dr_distilbert"]
@@ -1145,3 +1123,55 @@ class OAK008(OAK005, DistilBertPreTrainedModel):
                 meta_kwargs[f'{prefix}_meta_repr'] = meta_repr
         return meta_kwargs
         
+
+# %% ../../nbs/33_models.oakY.ipynb 144
+class Encoder009(Encoder005):
+
+    def __init__(
+        self, 
+        config:PretrainedConfig,
+        normalize:Optional[bool]=True,
+        meta_op:Optional[str]='sum',
+    ):
+        super().__init__(config)
+        store_attr('normalize,meta_op')
+
+    def fuse_meta_into_embeddings(self, embed:torch.Tensor, meta_kwargs:Dict):
+        meta_repr, bsz = {}, embed.size(0)
+        
+        for m_key, m_args in meta_kwargs.items():
+            n_meta = m_args['data2ptr'].max()
+            assert torch.all(m_args['data2ptr'] == n_meta), f'All datapoints should have same number of metadata.'
+            
+            m_input_ids, m_attention_mask = m_args['input_ids'], m_args['attention_mask']
+            m_embed = self.meta_encode(input_ids=m_input_ids, attention_mask=m_attention_mask)
+
+            if self.normalize:
+                m_embed, m_args['meta_repr'] = F.normalize(m_embed, dim=1), F.normalize(m_args['meta_repr'])
+            m_embed = m_embed + m_args['meta_repr'] if self.meta_op == 'sum' else (m_embed + m_args['meta_repr'])/2
+            meta_repr[m_key] = m_embed
+                    
+            m_embed = m_embed.view(bsz, -1, self.config.dim)  
+            fused_embed = self.cross_head(embed, m_embed)
+            embed = embed + fused_embed
+               
+        return embed, meta_repr
+        
+
+# %% ../../nbs/33_models.oakY.ipynb 145
+class OAK009(OAK008, DistilBertPreTrainedModel):
+    use_generation,use_representation = False,True
+    _tied_weights_keys = ["encoder.dr_distilbert"]
+
+    @delegates(OAK008.__init__)
+    def __init__(
+        self, 
+        config:PretrainedConfig,
+        normalize:Optional[bool]=True,
+        meta_op:Optional[str]='sum',
+        **kwargs
+    ):
+        super().__init__(config, **kwargs)
+        self.encoder = Encoder009(config, normalize=normalize, meta_op=meta_op)
+        self.post_init(); self.remap_post_init();
+

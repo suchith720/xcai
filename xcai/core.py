@@ -298,10 +298,11 @@ def load_config(fname, key):
         
 
 # %% ../nbs/00_core.ipynb 36
-def get_pkl_file(pkl_dir:str, fname:str, use_sxc_sampler:bool, use_exact:Optional[bool]=False):
+def get_pkl_file(pkl_dir:str, fname:str, use_sxc_sampler:bool, use_exact:Optional[bool]=False, use_only_test:Optional[bool]=False):
     pkl_file = f'{pkl_dir}/{fname}'
     pkl_file = f'{pkl_file}_sxc' if use_sxc_sampler else f'{pkl_file}_xcs'
     if use_exact: pkl_file = f'{pkl_file}_exact'
+    if use_only_test: pkl_file = f'{pkl_file}_only-test'
     return f'{pkl_file}.joblib'
     
 
