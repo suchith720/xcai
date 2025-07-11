@@ -1118,8 +1118,10 @@ class OAK008(OAK005, DistilBertPreTrainedModel):
             if len(m_idx):
                 meta_repr = self.meta_embeddings(self.metadata_cluster_mapping[m_idx])
                 if self.training: 
-                    self.remove_dropout(meta_repr, remove_mask)
-                    self.replace_dropout(meta_repr, self.metadata_dropout, mask=replace_mask)
+                    if remove_mask is not None and len(remove_mask): 
+                        self.remove_dropout(meta_repr, remove_mask)
+                    if replace_mask is not None and len(replace_mask): 
+                        self.replace_dropout(meta_repr, self.metadata_dropout, mask=replace_mask)
                 meta_kwargs[f'{prefix}_meta_repr'] = meta_repr
         return meta_kwargs
         
