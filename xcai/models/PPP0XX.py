@@ -3,7 +3,7 @@
 # %% auto 0
 __all__ = ['XCModelOutput', 'Pooling', 'DBT007Encoder', 'DBT007', 'DBT009Encoder', 'DBT009', 'DBT010Encoder', 'DBT010', 'DBT011',
            'DBT012Encoder', 'DBT012', 'DBT022', 'DBT013Encoder', 'DBT013', 'DBT014Encoder', 'DBT014', 'DBT017',
-           'DBT021Encoder', 'DBT021', 'Fuser', 'DBT018Encoder', 'DBT018', 'DBT020']
+           'DBT021Encoder', 'DBT021', 'Fuser', 'DBT018Encoder', 'DBT018', 'DBT020', 'DBT023Encoder', 'DBT023', 'DBT024']
 
 # %% ../../nbs/14_models.PPP0XX.ipynb 2
 import torch, re, inspect, pickle, os, torch.nn as nn
@@ -23,6 +23,7 @@ from transformers import (
     DistilBertPreTrainedModel,
 )
 from transformers.utils.generic import ModelOutput
+from transformers.activations import get_activation
 
 from fastcore.meta import *
 
@@ -30,7 +31,7 @@ from ..losses import *
 from ..core import store_attr
 from ..learner import XCDataParallel
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 14
+# %% ../../nbs/14_models.PPP0XX.ipynb 16
 @dataclass
 class XCModelOutput(ModelOutput):
     loss: Optional[torch.FloatTensor] = None
@@ -49,7 +50,7 @@ class XCModelOutput(ModelOutput):
     lbl2data_cross_attentions: Optional[Tuple[torch.FloatTensor, ...]] = None
     
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 16
+# %% ../../nbs/14_models.PPP0XX.ipynb 18
 class Pooling:
 
     @staticmethod
@@ -58,7 +59,7 @@ class Pooling:
         return torch.sum(data_embeds * data_attention_mask, 1) / torch.clamp(data_attention_mask.sum(1), min=1e-6)
 
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 18
+# %% ../../nbs/14_models.PPP0XX.ipynb 20
 class DBT007Encoder(DistilBertForMaskedLM):
     
     def __init__(self, config):
@@ -89,7 +90,7 @@ class DBT007Encoder(DistilBertForMaskedLM):
         return data_o, data_logits
 
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 19
+# %% ../../nbs/14_models.PPP0XX.ipynb 21
 class DBT007(DistilBertForMaskedLM):
     use_generation,use_representation = True,False
     _tied_weights_keys = ["encoder.module.distilbert", "encoder.module.activation", "encoder.module.vocab_transform",
@@ -149,7 +150,7 @@ class DBT007(DistilBertForMaskedLM):
         )
 
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 25
+# %% ../../nbs/14_models.PPP0XX.ipynb 27
 class DBT009Encoder(DistilBertPreTrainedModel):
     
     def __init__(self, config, *args, **kwargs):
@@ -182,7 +183,7 @@ class DBT009Encoder(DistilBertPreTrainedModel):
         return o, F.normalize(Pooling.mean_pooling(rep, attention_mask), dim=1)
     
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 26
+# %% ../../nbs/14_models.PPP0XX.ipynb 28
 class DBT009(DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -256,7 +257,7 @@ class DBT009(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 34
+# %% ../../nbs/14_models.PPP0XX.ipynb 36
 class DBT010Encoder(DBT009Encoder):
     
     def __init__(self, config, repr_type:Optional[str]='pool', *args, **kwargs):
@@ -291,7 +292,7 @@ class DBT010Encoder(DBT009Encoder):
         return o, F.normalize(Pooling.mean_pooling(rep, attention_mask), dim=1)
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 35
+# %% ../../nbs/14_models.PPP0XX.ipynb 37
 class DBT010(DBT009):
     
     def __init__(self, config, repr_type:Optional['str']='pool', *args, **kwargs):
@@ -349,7 +350,7 @@ class DBT010(DBT009):
         )
             
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 43
+# %% ../../nbs/14_models.PPP0XX.ipynb 45
 class DBT011(DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -422,7 +423,7 @@ class DBT011(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 49
+# %% ../../nbs/14_models.PPP0XX.ipynb 51
 class DBT012Encoder(DBT009Encoder):
 
     @delegates(BertModel.__call__)
@@ -443,7 +444,7 @@ class DBT012Encoder(DBT009Encoder):
         return o, F.log_softmax(Pooling.mean_pooling(rep, attention_mask), dim=-1)
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 50
+# %% ../../nbs/14_models.PPP0XX.ipynb 52
 class DBT012(DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -516,7 +517,7 @@ class DBT012(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 56
+# %% ../../nbs/14_models.PPP0XX.ipynb 58
 class DBT022(DBT009):
     
     def __init__(self, config, c_lw:Optional[float]=0.1, *args, **kwargs):
@@ -570,7 +571,7 @@ class DBT022(DBT009):
             lbl2data_repr=lbl2data_repr,
         )
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 64
+# %% ../../nbs/14_models.PPP0XX.ipynb 66
 class DBT013Encoder(DistilBertForMaskedLM):
     
     def __init__(self, config):
@@ -609,7 +610,7 @@ class DBT013Encoder(DistilBertForMaskedLM):
         return o,logits,rep
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 65
+# %% ../../nbs/14_models.PPP0XX.ipynb 67
 class DBT013(DistilBertForMaskedLM):
     use_generation,use_representation = True,True
     _tied_weights_keys = ["encoder.distilbert", "encoder.vocab_transform", "encoder.vocab_layer_norm", "encoder.vocab_projector"]
@@ -692,7 +693,7 @@ class DBT013(DistilBertForMaskedLM):
         )
     
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 71
+# %% ../../nbs/14_models.PPP0XX.ipynb 73
 class DBT014Encoder(DBT013Encoder):
     
     def __init__(self, config, *args, **kwargs):
@@ -722,7 +723,7 @@ class DBT014Encoder(DBT013Encoder):
         return o,logits,rep
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 72
+# %% ../../nbs/14_models.PPP0XX.ipynb 74
 class DBT014(DBT013):
     
     def __init__(self, config, *args, **kwargs):
@@ -779,7 +780,7 @@ class DBT014(DBT013):
         )
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 78
+# %% ../../nbs/14_models.PPP0XX.ipynb 80
 class DBT017(DBT013):
     
     @delegates(DBT013.__init__)
@@ -872,7 +873,7 @@ class DBT017(DBT013):
         )
     
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 85
+# %% ../../nbs/14_models.PPP0XX.ipynb 87
 class DBT021Encoder(DistilBertPreTrainedModel):
     
     def __init__(self, 
@@ -942,7 +943,7 @@ class DBT021Encoder(DistilBertPreTrainedModel):
         return o, F.normalize(Pooling.mean_pooling(rep, attention_mask), dim=1)
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 86
+# %% ../../nbs/14_models.PPP0XX.ipynb 88
 class DBT021(DBT010):
 
     @delegates(DBT010.__init__)
@@ -1058,10 +1059,10 @@ class DBT021(DBT010):
         )
     
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 92
+# %% ../../nbs/14_models.PPP0XX.ipynb 94
 import math
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 93
+# %% ../../nbs/14_models.PPP0XX.ipynb 95
 class Fuser(nn.Module):
     
     def __init__(self, config: PretrainedConfig):
@@ -1117,10 +1118,10 @@ class Fuser(nn.Module):
         else: return (o,)
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 102
+# %% ../../nbs/14_models.PPP0XX.ipynb 104
 from fastcore.utils import *
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 103
+# %% ../../nbs/14_models.PPP0XX.ipynb 105
 class DBT018Encoder(DBT013Encoder):
     
     def __init__(self, config, tn_meta:Optional[int]=None):
@@ -1215,7 +1216,7 @@ class DBT018Encoder(DBT013Encoder):
         return o,logits,rep
     
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 104
+# %% ../../nbs/14_models.PPP0XX.ipynb 106
 class DBT018(DBT013):
     
     @delegates(DBT013.__init__)
@@ -1291,7 +1292,7 @@ class DBT018(DBT013):
         )
     
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 112
+# %% ../../nbs/14_models.PPP0XX.ipynb 114
 class DBT020(DBT018):
     
     @delegates(DBT018.__init__)
@@ -1395,3 +1396,220 @@ class DBT020(DBT018):
             data_hidden_states=data_o[0],
         )
     
+
+# %% ../../nbs/14_models.PPP0XX.ipynb 123
+class DBT023Encoder(DistilBertPreTrainedModel):
+    
+    def __init__(
+        self, 
+        config,
+        normalize:Optional[bool]=False,
+        *args, 
+        **kwargs
+    ):
+        super().__init__(config, *args, **kwargs)
+        store_attr('normalize')
+        self.distilbert = DistilBertModel(config)
+        
+        self.transform = nn.Linear(config.dim, config.dim)
+        self.projector = nn.Linear(config.dim, config.dim)
+        self.layer_norm = nn.LayerNorm(config.dim, eps=1e-6)
+        self.activation = get_activation(config.activation)
+
+    @torch.no_grad()
+    def init_dr_head(self):
+        torch.nn.init.eye_(self.transform.weight)
+        torch.nn.init.eye_(self.projector.weight)
+        
+    @delegates(BertModel.__call__)
+    def forward(
+        self, 
+        input_ids:Optional[torch.Tensor]=None, 
+        attention_mask:Optional[torch.Tensor]=None,
+        **kwargs
+    ):
+        o = self.distilbert(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            **kwargs
+        )
+        rep = self.transform(o[0])
+        rep = self.layer_norm(rep)
+        rep = self.projector(rep)
+        rep = Pooling.mean_pooling(rep, attention_mask)
+        
+        return o, F.normalize(rep, dim=1) if self.normalize else rep
+        
+
+# %% ../../nbs/14_models.PPP0XX.ipynb 124
+class DBT023(DistilBertPreTrainedModel):
+    use_generation,use_representation = False,True
+    _tied_weights_keys = ["encoder.distilbert"]
+    
+    def __init__(
+        self,
+        config,
+        normalize:Optional[bool]=False,
+        use_encoder_parallel:Optional[bool]=True,
+        *args, **kwargs
+    ):
+        super().__init__(config, *args, **kwargs)
+        store_attr('use_encoder_parallel')
+        self.encoder = DBT023Encoder(config, normalize=normalize)
+        self.loss_fn = MarginMSEWithNegatives()
+        self.post_init(); self.remap_post_init()
+        
+    def init_dr_head(self):
+        self.encoder.init_dr_head()
+        
+    def remap_post_init(self):
+        self.distilbert = self.encoder.distilbert
+
+    def forward(
+        self,
+        data_input_ids:Optional[torch.Tensor]=None,
+        data_attention_mask:Optional[torch.Tensor]=None,
+        
+        lbl2data_input_ids:Optional[torch.Tensor]=None,
+        lbl2data_attention_mask:Optional[torch.Tensor]=None,
+        lbl2data_scores:Optional[torch.Tensor]=None,
+
+        neg2data_input_ids:Optional[torch.Tensor]=None,
+        neg2data_attention_mask:Optional[torch.Tensor]=None,
+        neg2data_scores:Optional[torch.Tensor]=None,
+        
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+        **kwargs
+    ):
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        
+        if self.use_encoder_parallel: 
+            encoder = nn.DataParallel(module=self.encoder)
+        else: encoder = self.encoder
+        
+        data_o, data_repr = encoder(data_input_ids, data_attention_mask, 
+                                    output_attentions=output_attentions, 
+                                    output_hidden_states=output_hidden_states,
+                                    return_dict=return_dict)
+        
+        loss, lbl2data_repr = None, None
+        if (
+            lbl2data_input_ids is not None and 
+            neg2data_input_ids is not None
+        ):
+            lbl2data_o, lbl2data_repr = encoder(lbl2data_input_ids, lbl2data_attention_mask,  
+                                                output_attentions=output_attentions, 
+                                                output_hidden_states=output_hidden_states,
+                                                return_dict=return_dict)
+            
+            neg2data_o, neg2data_repr = encoder(neg2data_input_ids, neg2data_attention_mask,  
+                                                output_attentions=output_attentions, 
+                                                output_hidden_states=output_hidden_states,
+                                                return_dict=return_dict)
+
+            loss = self.loss_fn(data_repr, lbl2data_repr, lbl2data_scores, neg2data_repr, neg2data_scores, **kwargs)
+
+        if not return_dict:
+            o = (data_repr, lbl2data_repr)
+            return ((loss,) + o) if loss is not None else o
+
+        return XCModelOutput(
+            loss=loss,
+            data_repr=data_repr,
+            lbl2data_repr=lbl2data_repr,
+        )
+        
+
+# %% ../../nbs/14_models.PPP0XX.ipynb 130
+class DBT024(DistilBertPreTrainedModel):
+    use_generation,use_representation = False,True
+    _tied_weights_keys = ["encoder.distilbert"]
+    
+    def __init__(
+        self,
+        config,
+        margin:Optional[float]=0.3,
+        tau:Optional[float]=0.1,
+        apply_softmax:Optional[bool]=False,
+        n_negatives:Optional[int]=10,
+        normalize:Optional[bool]=False,
+        use_encoder_parallel:Optional[bool]=True,
+        *args, **kwargs
+    ):
+        super().__init__(config, *args, **kwargs)
+        store_attr('use_encoder_parallel')
+        self.encoder = DBT023Encoder(config, normalize=normalize)
+        self.loss_fn = MultiTripletWithNegatives(margin=margin, n_negatives=n_negatives, tau=tau, apply_softmax=apply_softmax, reduce='mean')
+        self.post_init(); self.remap_post_init()
+        
+    def init_dr_head(self):
+        self.encoder.init_dr_head()
+        
+    def remap_post_init(self):
+        self.distilbert = self.encoder.distilbert
+
+    def forward(
+        self,
+        data_input_ids:Optional[torch.Tensor]=None,
+        data_attention_mask:Optional[torch.Tensor]=None,
+        
+        lbl2data_input_ids:Optional[torch.Tensor]=None,
+        lbl2data_attention_mask:Optional[torch.Tensor]=None,
+        lbl2data_data2ptr:Optional[torch.Tensor]=None,
+        lbl2data_idx:Optional[torch.Tensor]=None,
+
+        neg2data_input_ids:Optional[torch.Tensor]=None,
+        neg2data_attention_mask:Optional[torch.Tensor]=None,
+        neg2data_data2ptr:Optional[torch.Tensor]=None,
+        neg2data_idx:Optional[torch.Tensor]=None,
+
+        plbl2data_data2ptr:Optional[torch.Tensor]=None,
+        plbl2data_idx:Optional[torch.Tensor]=None,
+        
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+        **kwargs
+    ):
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        
+        if self.use_encoder_parallel: 
+            encoder = nn.DataParallel(module=self.encoder)
+        else: encoder = self.encoder
+        
+        data_o, data_repr = encoder(data_input_ids, data_attention_mask, 
+                                    output_attentions=output_attentions, 
+                                    output_hidden_states=output_hidden_states,
+                                    return_dict=return_dict)
+        
+        loss, lbl2data_repr = None, None
+        if (
+            lbl2data_input_ids is not None and 
+            neg2data_input_ids is not None
+        ):
+            lbl2data_o, lbl2data_repr = encoder(lbl2data_input_ids, lbl2data_attention_mask,  
+                                                output_attentions=output_attentions, 
+                                                output_hidden_states=output_hidden_states,
+                                                return_dict=return_dict)
+            
+            neg2data_o, neg2data_repr = encoder(neg2data_input_ids, neg2data_attention_mask,  
+                                                output_attentions=output_attentions, 
+                                                output_hidden_states=output_hidden_states,
+                                                return_dict=return_dict)
+
+            loss = self.loss_fn(data_repr, pos_targ=lbl2data_repr, n_pos=lbl2data_data2ptr, pos_idx=lbl2data_idx, 
+                                neg_targ=neg2data_repr, n_neg=neg2data_data2ptr, neg_idx=neg2data_idx, 
+                                n_ppos=plbl2data_data2ptr, ppos_idx=plbl2data_idx, **kwargs)
+            
+        if not return_dict:
+            o = (data_repr, lbl2data_repr)
+            return ((loss,) + o) if loss is not None else o
+
+        return XCModelOutput(
+            loss=loss,
+            data_repr=data_repr,
+            lbl2data_repr=lbl2data_repr,
+        )
+        

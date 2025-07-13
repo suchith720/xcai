@@ -188,6 +188,7 @@ class BaseXCDataset(Dataset):
                                               use_distribution=use_distribution, data_lbl_scores=data_lbl_scores)
         # gather scores
         if return_scores:
+            if data_lbl_scores is None: raise ValueError(f"`data_lbl_scores` is None.")
             x[f'{prefix}_scores'] = [data_lbl_scores[idx] for idx in idxs]
 
         # dropout

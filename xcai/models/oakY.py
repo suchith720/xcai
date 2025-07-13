@@ -2,7 +2,8 @@
 
 # %% auto 0
 __all__ = ['Encoder', 'OAK000', 'OAK001', 'Encoder002', 'OAK002', 'CrossAttention003', 'Encoder003', 'OAK003', 'Encoder004',
-           'OAK004', 'Encoder005', 'OAK005', 'Encoder006', 'OAK006', 'OAK007', 'OAK008', 'Encoder009', 'OAK009']
+           'OAK004', 'Encoder005', 'OAK005', 'Encoder006', 'OAK006', 'OAK007', 'OAK008', 'Encoder009', 'OAK009',
+           'Encoder010', 'OAK010']
 
 # %% ../../nbs/33_models.oakY.ipynb 2
 import torch, re, inspect, pickle, os, torch.nn as nn, math
@@ -27,7 +28,7 @@ from ..core import store_attr
 from ..learner import XCDataParallel
 from .modeling_utils import *
 
-# %% ../../nbs/33_models.oakY.ipynb 16
+# %% ../../nbs/33_models.oakY.ipynb 17
 class Encoder(DistilBertPreTrainedModel):
     
     def __init__(
@@ -146,7 +147,7 @@ class Encoder(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/33_models.oakY.ipynb 18
+# %% ../../nbs/33_models.oakY.ipynb 19
 class OAK000(nn.Module):
     
     def __init__(
@@ -351,7 +352,7 @@ class OAK000(nn.Module):
         )
         
 
-# %% ../../nbs/33_models.oakY.ipynb 20
+# %% ../../nbs/33_models.oakY.ipynb 21
 class OAK001(OAK000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -366,7 +367,7 @@ class OAK001(OAK000, DistilBertPreTrainedModel):
         self.distilbert = self.encoder.distilbert
         
 
-# %% ../../nbs/33_models.oakY.ipynb 32
+# %% ../../nbs/33_models.oakY.ipynb 33
 class Encoder002(Encoder):
     
     def __init__(
@@ -402,7 +403,7 @@ class Encoder002(Encoder):
         return embed, meta_repr
         
 
-# %% ../../nbs/33_models.oakY.ipynb 33
+# %% ../../nbs/33_models.oakY.ipynb 34
 class OAK002(OAK000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -417,7 +418,7 @@ class OAK002(OAK000, DistilBertPreTrainedModel):
         self.distilbert = self.encoder.distilbert
         
 
-# %% ../../nbs/33_models.oakY.ipynb 46
+# %% ../../nbs/33_models.oakY.ipynb 47
 class CrossAttention003(nn.Module):
     
     def __init__(self, config: PretrainedConfig):
@@ -461,7 +462,7 @@ class CrossAttention003(nn.Module):
         return o.squeeze(1)
         
 
-# %% ../../nbs/33_models.oakY.ipynb 47
+# %% ../../nbs/33_models.oakY.ipynb 48
 class Encoder003(DistilBertPreTrainedModel):
     
     def __init__(
@@ -548,7 +549,7 @@ class Encoder003(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/33_models.oakY.ipynb 48
+# %% ../../nbs/33_models.oakY.ipynb 49
 class OAK003(OAK000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.dr_distilbert"]
@@ -569,7 +570,7 @@ class OAK003(OAK000, DistilBertPreTrainedModel):
         self.distilbert = self.encoder.dr_distilbert
         
 
-# %% ../../nbs/33_models.oakY.ipynb 63
+# %% ../../nbs/33_models.oakY.ipynb 64
 class Encoder004(DistilBertPreTrainedModel):
     
     def __init__(
@@ -636,7 +637,7 @@ class Encoder004(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/33_models.oakY.ipynb 64
+# %% ../../nbs/33_models.oakY.ipynb 65
 class OAK004(OAK000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -734,7 +735,7 @@ class OAK004(OAK000, DistilBertPreTrainedModel):
         
         
 
-# %% ../../nbs/33_models.oakY.ipynb 77
+# %% ../../nbs/33_models.oakY.ipynb 78
 class Encoder005(Encoder003):
     
     def __init__(
@@ -768,7 +769,7 @@ class Encoder005(Encoder003):
         return embed, meta_repr
         
 
-# %% ../../nbs/33_models.oakY.ipynb 78
+# %% ../../nbs/33_models.oakY.ipynb 79
 class OAK005(OAK000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.dr_distilbert"]
@@ -875,7 +876,7 @@ class OAK005(OAK000, DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/33_models.oakY.ipynb 101
+# %% ../../nbs/33_models.oakY.ipynb 102
 class Encoder006(Encoder003):
     
     def __init__(
@@ -954,7 +955,7 @@ class Encoder006(Encoder003):
         )
         
 
-# %% ../../nbs/33_models.oakY.ipynb 102
+# %% ../../nbs/33_models.oakY.ipynb 103
 class OAK006(OAK005, DistilBertPreTrainedModel):
     
     @delegates(OAK005.__init__)
@@ -975,7 +976,7 @@ class OAK006(OAK005, DistilBertPreTrainedModel):
         return meta_kwargs
 
 
-# %% ../../nbs/33_models.oakY.ipynb 119
+# %% ../../nbs/33_models.oakY.ipynb 120
 class OAK007(OAK003, DistilBertPreTrainedModel):
     
     @delegates(OAK003.__init__)
@@ -1080,7 +1081,7 @@ class OAK007(OAK003, DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/33_models.oakY.ipynb 127
+# %% ../../nbs/33_models.oakY.ipynb 128
 class OAK008(OAK005, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.dr_distilbert"]
@@ -1126,7 +1127,7 @@ class OAK008(OAK005, DistilBertPreTrainedModel):
         return meta_kwargs
         
 
-# %% ../../nbs/33_models.oakY.ipynb 144
+# %% ../../nbs/33_models.oakY.ipynb 145
 class Encoder009(Encoder005):
 
     def __init__(
@@ -1160,7 +1161,7 @@ class Encoder009(Encoder005):
         return embed, meta_repr
         
 
-# %% ../../nbs/33_models.oakY.ipynb 145
+# %% ../../nbs/33_models.oakY.ipynb 146
 class OAK009(OAK008, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.dr_distilbert"]
@@ -1177,3 +1178,52 @@ class OAK009(OAK008, DistilBertPreTrainedModel):
         self.encoder = Encoder009(config, normalize=normalize, meta_op=meta_op)
         self.post_init(); self.remap_post_init();
 
+
+# %% ../../nbs/33_models.oakY.ipynb 163
+class Encoder010(Encoder009):
+
+    def __init__(
+        self, 
+        config:PretrainedConfig,
+        **kwargs
+    ):
+        super().__init__(config, **kwargs)
+        self.meta_combiner = nn.Linear(2 * config.dim, config.dim)
+
+    def fuse_meta_into_embeddings(self, embed:torch.Tensor, meta_kwargs:Dict):
+        meta_repr, bsz = {}, embed.size(0)
+        
+        for m_key, m_args in meta_kwargs.items():
+            n_meta = m_args['data2ptr'].max()
+            assert torch.all(m_args['data2ptr'] == n_meta), f'All datapoints should have same number of metadata.'
+            
+            m_input_ids, m_attention_mask = m_args['input_ids'], m_args['attention_mask']
+            m_embed = self.meta_encode(input_ids=m_input_ids, attention_mask=m_attention_mask)
+
+            if self.normalize:
+                m_embed, m_args['meta_repr'] = F.normalize(m_embed, dim=1), F.normalize(m_args['meta_repr'])
+            m_embed = self.meta_combiner(torch.cat([m_embed, m_args['meta_repr']], dim=1))
+            meta_repr[m_key] = m_embed
+                    
+            m_embed = m_embed.view(bsz, -1, self.config.dim)  
+            fused_embed = self.cross_head(embed, m_embed)
+            embed = embed + fused_embed
+               
+        return embed, meta_repr
+        
+
+# %% ../../nbs/33_models.oakY.ipynb 164
+class OAK010(OAK009, DistilBertPreTrainedModel):
+    use_generation,use_representation = False,True
+    _tied_weights_keys = ["encoder.dr_distilbert"]
+
+    @delegates(OAK009.__init__)
+    def __init__(
+        self, 
+        config:PretrainedConfig,
+        **kwargs
+    ):
+        super().__init__(config, **kwargs)
+        self.encoder = Encoder010(config, normalize=kwargs['normalize'])
+        self.post_init(); self.remap_post_init();
+        

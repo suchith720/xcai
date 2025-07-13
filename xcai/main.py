@@ -112,30 +112,54 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
                 if block.test is not None: block.test.dset.data.main_oversample = kwargs['main_oversample']
 
             if 'use_main_distribution' in kwargs: 
-                if block.train is not None: block.train.dset.data.use_main_distribution = kwargs['use_main_distribution']
-                if block.test is not None: block.test.dset.data.use_main_distribution = kwargs['use_main_distribution']
+                if block.train is not None: 
+                    block.train.dset.data.use_main_distribution = kwargs['use_main_distribution']
+                    if block.train.dset.data.data_lbl_scores is None and kwargs['use_main_distribution']: 
+                        block.train.dset.data._store_scores()
+                if block.test is not None: 
+                    block.test.dset.data.use_main_distribution = kwargs['use_main_distribution']
+                    if block.test.dset.data.data_lbl_scores is None and kwargs['use_main_distribution']: 
+                        block.test.dset.data._store_scores()
 
             if 'return_scores' in kwargs:
-                if block.train is not None: block.train.dset.data.return_scores = kwargs['return_scores']
-                if block.test is not None: block.test.dset.data.return_scores = kwargs['return_scores']
+                if block.train is not None: 
+                    block.train.dset.data.return_scores = kwargs['return_scores']
+                    if block.train.dset.data.data_lbl_scores is None and kwargs['return_scores']: 
+                        block.train.dset.data._store_scores()
+                if block.test is not None: 
+                    block.test.dset.data.return_scores = kwargs['return_scores']
+                    if block.test.dset.data.data_lbl_scores is None and kwargs['return_scores']: 
+                        block.test.dset.data._store_scores()
 
             if block.test is not None:
                 for k in block.test.dset.meta:
                     if 'n_sdata_meta_samples' in kwargs: block.test.dset.meta[k].n_sdata_meta_samples = kwargs['n_sdata_meta_samples']
                     if 'n_slbl_meta_samples' in kwargs: block.test.dset.meta[k].n_slbl_meta_samples = kwargs['n_slbl_meta_samples']
                     if 'meta_oversample' in kwargs: block.test.dset.meta[k].meta_oversample = kwargs['meta_oversample']
-                    if 'use_meta_distribution' in kwargs: block.test.dset.meta[k].use_meta_distribution = kwargs['use_meta_distribution']
-                    if 'return_scores' in kwargs: block.test.dset.meta[k].return_scores = kwargs['return_scores']
+                    if 'use_meta_distribution' in kwargs: 
+                        block.test.dset.meta[k].use_meta_distribution = kwargs['use_meta_distribution']
+                        if block.test.dset.meta[k].data_meta_scores is None and kwargs['use_meta_distribution']: 
+                            block.test.dset.meta[k]._store_scores()
+                    if 'return_scores' in kwargs: 
+                        block.test.dset.meta[k].return_scores = kwargs['return_scores']
+                        if block.test.dset.meta[k].data_meta_scores is None and kwargs['return_scores']: 
+                            block.test.dset.meta[k]._store_scores()
 
             if block.train is not None:
                 for k in block.train.dset.meta:
                     if 'n_sdata_meta_samples' in kwargs: block.train.dset.meta[k].n_sdata_meta_samples = kwargs['n_sdata_meta_samples']
                     if 'n_slbl_meta_samples' in kwargs: block.train.dset.meta[k].n_slbl_meta_samples = kwargs['n_slbl_meta_samples']
                     if 'meta_oversample' in kwargs: block.train.dset.meta[k].meta_oversample = kwargs['meta_oversample']    
-                    if 'use_meta_distribution' in kwargs: block.train.dset.meta[k].use_meta_distribution = kwargs['use_meta_distribution']
+                    if 'use_meta_distribution' in kwargs: 
+                        block.train.dset.meta[k].use_meta_distribution = kwargs['use_meta_distribution']
+                        if block.train.dset.meta[k].data_meta_scores is None and kwargs['use_meta_distribution']: 
+                            block.train.dset.meta[k]._store_scores()
                     if 'meta_dropout_remove' in kwargs: block.train.dset.meta[k].meta_dropout_remove = kwargs['meta_dropout_remove']
                     if 'meta_dropout_replace' in kwargs: block.train.dset.meta[k].meta_dropout_replace = kwargs['meta_dropout_replace']
-                    if 'return_scores' in kwargs: block.train.dset.meta[k].return_scores = kwargs['return_scores']
+                    if 'return_scores' in kwargs: 
+                        block.train.dset.meta[k].return_scores = kwargs['return_scores']
+                        if block.train.dset.meta[k].data_meta_scores is None and kwargs['return_scores']: 
+                            block.train.dset.meta[k]._store_scores()
                         
     if remove_empty_datapoints: block = type(block)(train=get_valid_dset(block.train), test=get_valid_dset(block.test))
 

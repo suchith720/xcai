@@ -3,7 +3,7 @@
 # %% auto 0
 __all__ = ['identity_collate_fn', 'SMainXCDataset', 'SMetaXCDataset', 'SXCDataset', 'SBaseXCDataBlock', 'SXCDataBlock']
 
-# %% ../nbs/35_sdata.ipynb 4
+# %% ../nbs/35_sdata.ipynb 3
 import torch, inspect, numpy as np, scipy.sparse as sp
 from typing import Callable, Optional, Union, Dict
 from torch.utils.data import DataLoader
@@ -19,10 +19,10 @@ from fastcore.utils import *
 from fastcore.meta import *
 from plum import dispatch
 
-# %% ../nbs/35_sdata.ipynb 11
+# %% ../nbs/35_sdata.ipynb 10
 def identity_collate_fn(batch): return BatchEncoding(batch)
 
-# %% ../nbs/35_sdata.ipynb 14
+# %% ../nbs/35_sdata.ipynb 13
 class SMainXCDataset(MainXCDataset):
 
     def __init__(
@@ -111,7 +111,7 @@ class SMainXCDataset(MainXCDataset):
         )
     
 
-# %% ../nbs/35_sdata.ipynb 27
+# %% ../nbs/35_sdata.ipynb 26
 class SMetaXCDataset(MetaXCDataset):
 
     def __init__(
@@ -217,7 +217,7 @@ class SMetaXCDataset(MetaXCDataset):
             if cls.meta_info_keys is None: cls.meta_info_keys = list(cls.meta_info.keys())
         
 
-# %% ../nbs/35_sdata.ipynb 34
+# %% ../nbs/35_sdata.ipynb 33
 class SXCDataset(BaseXCDataset):
 
     def __init__(self, data:SMainXCDataset, **kwargs):
@@ -405,7 +405,7 @@ class SXCDataset(BaseXCDataset):
         
         
 
-# %% ../nbs/35_sdata.ipynb 42
+# %% ../nbs/35_sdata.ipynb 41
 class SBaseXCDataBlock(BaseXCDataBlock):
 
     @delegates(DataLoader.__init__)
@@ -485,7 +485,7 @@ class SBaseXCDataBlock(BaseXCDataBlock):
         return cls._getitems(rnd_idx[:cut])
         
 
-# %% ../nbs/35_sdata.ipynb 46
+# %% ../nbs/35_sdata.ipynb 45
 class SXCDataBlock:
 
     def __init__(self, train:SBaseXCDataBlock=None, valid:SBaseXCDataBlock=None, test:SBaseXCDataBlock=None):
