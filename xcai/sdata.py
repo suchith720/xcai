@@ -65,6 +65,8 @@ class SMainXCDataset(MainXCDataset):
             if self.use_main_distribution:
                 data_lbl = self.data_lbl / (self.data_lbl.sum(axis=1) + 1e-9)
                 data_lbl = data_lbl.tocsr()
+            else:
+                data_lbl = self.data_lbl
             self.data_lbl_scores = [o.data.tolist() for o in data_lbl]
             
     def __getitems__(self, idxs:List):
@@ -137,12 +139,16 @@ class SMetaXCDataset(MetaXCDataset):
             if self.use_meta_distribution:
                 data_meta = self.data_meta / (self.data_meta.sum(axis=1) + 1e-9)
                 data_meta = data_meta.tocsr()
+            else:
+                data_meta = self.data_meta
             self.data_meta_scores = [o.data.tolist() for o in data_meta]
             
         if self.lbl_meta is not None:
             if self.use_meta_distribution:
                 lbl_meta = self.lbl_meta / (self.lbl_meta.sum(axis=1) + 1e-9)
                 lbl_meta = lbl_meta.tocsr()
+            else:
+                lbl_meta = self.lbl_meta
             self.lbl_meta_scores = [o.data.tolist() for o in lbl_meta]
 
     def _getitems(self, idxs:List):
