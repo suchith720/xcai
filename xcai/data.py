@@ -131,21 +131,31 @@ class BaseXCDataset(Dataset):
                 else:
                     x[f'{prefix}_{k}'] = [v[idx] for idx in idxs]
         return x
+        
+    @staticmethod
+    def _sample_indices_and_scores(indices:List, scores:Optional[List]=None, n_samples:Optional[int]=1, oversample:Optional[bool]=False, 
+                                   use_distribution:Optional[bool]=False, return_scores:Optional[bool]=False):
+        if use_distribution and scores is None:
+            raise ValueError(f'`scores` cannot be empty when `use_distribution` is set.')
+        
+        s_indices, s_scores = [], []
+        for k in range(len(indices)):
+            probs = scores[k] if use_distribution else None
+            size = n_samples if oversample else min(n_samples, len(indices[k]))
+            rnd_idx = np.random.choice(len(indices[k]), size=size, p=probs, replace=oversample) if len(indices[k]) else []
 
-    def _sample_idx(self, indices:List, probs:List, n_samples:int, oversample:bool, use_distribution:Optional[bool]=False, 
-                    data_lbl_scores:Optional[List]=None):
-        if oversample:
-            if use_distribution:
-                return [np.random.choice(o, size=n_samples, p=p) if len(o) else [] for o,p in zip(indices, probs)]
-            else:
-                return [np.random.choice(o, size=n_samples) if len(o) else [] for o in indices]
-        else:
-            return [[o[i] for i in np.random.permutation(len(o))[:n_samples]] for o in indices]
+            s_indices.append([indices[k][i] for i in rnd_idx])
 
+            if return_scores:
+                assert len(indices[k]) == len(scores[k]), f'Length of indices({len(indices[k])}) and scores({(len(scores[k]))}) should be equal.'
+                s_scores.append([scores[k][i] for i in rnd_idx])
+
+        return s_indices, s_scores
+        
+    @staticmethod
     def _dropout(self, idxs:List, dropout_remove:Optional[float]=None, dropout_replace:Optional[float]=None):
-        indices, dropout_remove_mask, dropout_replace_mask = list(), list(), list()
+        dropout_remove_mask, dropout_replace_mask = list(), list()
         for idx in idxs:
-            indices.append(idx)
             if dropout_remove is not None:
                 if np.random.rand() < dropout_remove:
                     dropout_remove_mask.append([1]*len(idx))
@@ -155,7 +165,7 @@ class BaseXCDataset(Dataset):
                     if dropout_replace is not None: dropout_replace_mask.append([1]*len(idx) if np.random.rand() < dropout_replace else [0]*len(idx))
             elif dropout_replace is not None:
                 dropout_replace_mask.append([1]*len(idx) if np.random.rand() < dropout_replace else [0]*len(idx))
-        return indices, dropout_remove_mask, dropout_replace_mask
+        return dropout_remove_mask, dropout_replace_mask
         
     def extract_items(
         self, 
@@ -183,17 +193,17 @@ class BaseXCDataset(Dataset):
         x[f'p{prefix}_{entity}2ptr'] = torch.tensor([len(o) for o in x[f'p{prefix}_idx']], dtype=torch.int64)
 
         # collect labels
-        probs = [data_lbl_scores[idx] for idx in idxs] if use_distribution else None
-        x[f'{prefix}_idx'] = self._sample_idx(x[f'p{prefix}_idx'], probs, n_samples=n_s_samples, oversample=oversample, 
-                                              use_distribution=use_distribution, data_lbl_scores=data_lbl_scores)
-        # gather scores
-        if return_scores:
-            if data_lbl_scores is None: raise ValueError(f"`data_lbl_scores` is None.")
-            x[f'{prefix}_scores'] = [data_lbl_scores[idx] for idx in idxs]
-
-        # dropout
+        scores = [data_lbl_scores[idx] for idx in idxs] if use_distribution or return_scores else None
+        x[f'{prefix}_idx'], scores = self._sample_indices_and_scores(x[f'p{prefix}_idx'], scores, n_samples=n_s_samples, 
+                                                                     oversample=oversample, use_distribution=use_distribution, 
+                                                                     return_scores=return_scores)
+        if return_scores: x[f'{prefix}_scores'] = torch.tensor(list(chain(*scores)), dtype=torch.float32)
+        
+        # generate dropout masks
         if dropout_remove is not None or dropout_replace is not None:
-            x[f'{prefix}_idx'], x[f'{prefix}_dropout_remove_mask'], x[f'{prefix}_dropout_replace_mask'] = self._dropout(x[f'{prefix}_idx'], dropout_remove=dropout_remove, dropout_replace=dropout_replace)
+            x[f'{prefix}_dropout_remove_mask'], x[f'{prefix}_dropout_replace_mask'] = self._dropout(x[f'{prefix}_idx'],
+                                                                                                    dropout_remove=dropout_remove,
+                                                                                                    dropout_replace=dropout_replace)
             x[f'{prefix}_dropout_remove_mask'] = torch.tensor(list(chain(*x[f'{prefix}_dropout_remove_mask'])), dtype=torch.bool)
             x[f'{prefix}_dropout_replace_mask'] = torch.tensor(list(chain(*x[f'{prefix}_dropout_replace_mask'])), dtype=torch.bool)
             

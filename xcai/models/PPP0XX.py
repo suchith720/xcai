@@ -31,7 +31,7 @@ from ..losses import *
 from ..core import store_attr
 from ..learner import XCDataParallel
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 16
+# %% ../../nbs/14_models.PPP0XX.ipynb 22
 @dataclass
 class XCModelOutput(ModelOutput):
     loss: Optional[torch.FloatTensor] = None
@@ -50,7 +50,7 @@ class XCModelOutput(ModelOutput):
     lbl2data_cross_attentions: Optional[Tuple[torch.FloatTensor, ...]] = None
     
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 18
+# %% ../../nbs/14_models.PPP0XX.ipynb 24
 class Pooling:
 
     @staticmethod
@@ -59,7 +59,7 @@ class Pooling:
         return torch.sum(data_embeds * data_attention_mask, 1) / torch.clamp(data_attention_mask.sum(1), min=1e-6)
 
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 20
+# %% ../../nbs/14_models.PPP0XX.ipynb 26
 class DBT007Encoder(DistilBertForMaskedLM):
     
     def __init__(self, config):
@@ -90,7 +90,7 @@ class DBT007Encoder(DistilBertForMaskedLM):
         return data_o, data_logits
 
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 21
+# %% ../../nbs/14_models.PPP0XX.ipynb 27
 class DBT007(DistilBertForMaskedLM):
     use_generation,use_representation = True,False
     _tied_weights_keys = ["encoder.module.distilbert", "encoder.module.activation", "encoder.module.vocab_transform",
@@ -150,7 +150,7 @@ class DBT007(DistilBertForMaskedLM):
         )
 
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 27
+# %% ../../nbs/14_models.PPP0XX.ipynb 33
 class DBT009Encoder(DistilBertPreTrainedModel):
     
     def __init__(self, config, *args, **kwargs):
@@ -183,7 +183,7 @@ class DBT009Encoder(DistilBertPreTrainedModel):
         return o, F.normalize(Pooling.mean_pooling(rep, attention_mask), dim=1)
     
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 28
+# %% ../../nbs/14_models.PPP0XX.ipynb 34
 class DBT009(DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -257,7 +257,7 @@ class DBT009(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 36
+# %% ../../nbs/14_models.PPP0XX.ipynb 42
 class DBT010Encoder(DBT009Encoder):
     
     def __init__(self, config, repr_type:Optional[str]='pool', *args, **kwargs):
@@ -292,7 +292,7 @@ class DBT010Encoder(DBT009Encoder):
         return o, F.normalize(Pooling.mean_pooling(rep, attention_mask), dim=1)
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 37
+# %% ../../nbs/14_models.PPP0XX.ipynb 43
 class DBT010(DBT009):
     
     def __init__(self, config, repr_type:Optional['str']='pool', *args, **kwargs):
@@ -350,7 +350,7 @@ class DBT010(DBT009):
         )
             
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 45
+# %% ../../nbs/14_models.PPP0XX.ipynb 51
 class DBT011(DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -423,7 +423,7 @@ class DBT011(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 51
+# %% ../../nbs/14_models.PPP0XX.ipynb 57
 class DBT012Encoder(DBT009Encoder):
 
     @delegates(BertModel.__call__)
@@ -444,7 +444,7 @@ class DBT012Encoder(DBT009Encoder):
         return o, F.log_softmax(Pooling.mean_pooling(rep, attention_mask), dim=-1)
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 52
+# %% ../../nbs/14_models.PPP0XX.ipynb 58
 class DBT012(DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -517,7 +517,7 @@ class DBT012(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 58
+# %% ../../nbs/14_models.PPP0XX.ipynb 64
 class DBT022(DBT009):
     
     def __init__(self, config, c_lw:Optional[float]=0.1, *args, **kwargs):
@@ -571,7 +571,7 @@ class DBT022(DBT009):
             lbl2data_repr=lbl2data_repr,
         )
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 66
+# %% ../../nbs/14_models.PPP0XX.ipynb 72
 class DBT013Encoder(DistilBertForMaskedLM):
     
     def __init__(self, config):
@@ -610,7 +610,7 @@ class DBT013Encoder(DistilBertForMaskedLM):
         return o,logits,rep
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 67
+# %% ../../nbs/14_models.PPP0XX.ipynb 73
 class DBT013(DistilBertForMaskedLM):
     use_generation,use_representation = True,True
     _tied_weights_keys = ["encoder.distilbert", "encoder.vocab_transform", "encoder.vocab_layer_norm", "encoder.vocab_projector"]
@@ -693,7 +693,7 @@ class DBT013(DistilBertForMaskedLM):
         )
     
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 73
+# %% ../../nbs/14_models.PPP0XX.ipynb 79
 class DBT014Encoder(DBT013Encoder):
     
     def __init__(self, config, *args, **kwargs):
@@ -723,7 +723,7 @@ class DBT014Encoder(DBT013Encoder):
         return o,logits,rep
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 74
+# %% ../../nbs/14_models.PPP0XX.ipynb 80
 class DBT014(DBT013):
     
     def __init__(self, config, *args, **kwargs):
@@ -780,7 +780,7 @@ class DBT014(DBT013):
         )
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 80
+# %% ../../nbs/14_models.PPP0XX.ipynb 86
 class DBT017(DBT013):
     
     @delegates(DBT013.__init__)
@@ -873,7 +873,7 @@ class DBT017(DBT013):
         )
     
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 87
+# %% ../../nbs/14_models.PPP0XX.ipynb 93
 class DBT021Encoder(DistilBertPreTrainedModel):
     
     def __init__(self, 
@@ -943,7 +943,7 @@ class DBT021Encoder(DistilBertPreTrainedModel):
         return o, F.normalize(Pooling.mean_pooling(rep, attention_mask), dim=1)
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 88
+# %% ../../nbs/14_models.PPP0XX.ipynb 94
 class DBT021(DBT010):
 
     @delegates(DBT010.__init__)
@@ -1059,10 +1059,10 @@ class DBT021(DBT010):
         )
     
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 94
+# %% ../../nbs/14_models.PPP0XX.ipynb 100
 import math
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 95
+# %% ../../nbs/14_models.PPP0XX.ipynb 101
 class Fuser(nn.Module):
     
     def __init__(self, config: PretrainedConfig):
@@ -1118,10 +1118,10 @@ class Fuser(nn.Module):
         else: return (o,)
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 104
+# %% ../../nbs/14_models.PPP0XX.ipynb 110
 from fastcore.utils import *
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 105
+# %% ../../nbs/14_models.PPP0XX.ipynb 111
 class DBT018Encoder(DBT013Encoder):
     
     def __init__(self, config, tn_meta:Optional[int]=None):
@@ -1216,7 +1216,7 @@ class DBT018Encoder(DBT013Encoder):
         return o,logits,rep
     
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 106
+# %% ../../nbs/14_models.PPP0XX.ipynb 112
 class DBT018(DBT013):
     
     @delegates(DBT013.__init__)
@@ -1292,7 +1292,7 @@ class DBT018(DBT013):
         )
     
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 114
+# %% ../../nbs/14_models.PPP0XX.ipynb 120
 class DBT020(DBT018):
     
     @delegates(DBT018.__init__)
@@ -1397,7 +1397,7 @@ class DBT020(DBT018):
         )
     
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 123
+# %% ../../nbs/14_models.PPP0XX.ipynb 129
 class DBT023Encoder(DistilBertPreTrainedModel):
     
     def __init__(
@@ -1441,7 +1441,7 @@ class DBT023Encoder(DistilBertPreTrainedModel):
         return o, F.normalize(rep, dim=1) if self.normalize else rep
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 124
+# %% ../../nbs/14_models.PPP0XX.ipynb 130
 class DBT023(DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -1522,7 +1522,7 @@ class DBT023(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 130
+# %% ../../nbs/14_models.PPP0XX.ipynb 142
 class DBT024(DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
