@@ -48,26 +48,33 @@ def parse_args():
 
 # %% ../nbs/36_main.ipynb 7
 def retain_topk_metadata(block, train_k:int=5, test_k:int=3):
-    if train_k is not None and block.train is not None:
-        for meta_name in block.train.dset.meta.keys():
+    for meta_name in block.test.dset.meta.keys():
+        if train_k is not None and block.train is not None:
             data_meta = retain_topk(block.train.dset.meta[meta_name].data_meta, k=train_k)
             lbl_meta = block.train.dset.meta[meta_name].lbl_meta
             block.train.dset.meta[meta_name].update_meta_matrix(data_meta, lbl_meta)
+            if block.train.dset.meta[meta_name].use_main_distribution or block.train.dset.meta[meta_name].return_scores: 
+                block.train.dset.meta[meta_name]._store_scores()
 
-    if test_k is not None and block.test is not None:
-        for meta_name in block.test.dset.meta.keys():
+        if test_k is not None and block.test is not None:
             data_meta = retain_topk(block.test.dset.meta[meta_name].data_meta, k=test_k)
             lbl_meta = block.test.dset.meta[meta_name].lbl_meta
             block.test.dset.meta[meta_name].update_meta_matrix(data_meta, lbl_meta)
+            if block.test.dset.meta[meta_name].use_main_distribution or block.test.meta[meta_name].return_scores: 
+                block.test.dset.meta[meta_name]._store_scores()
 
 def retrain_topk_labels(block, train_k:int=5, test_k:int=3):
     if train_k is not None and block.train is not None:
         block.train.dset.data.data_lbl = retain_topk(block.train.dset.data.data_lbl, k=train_k)
         block.train.dset.data._store_indices()
-
+        if block.train.dset.data.use_main_distribution or block.train.dset.data.return_scores: 
+            block.train.dset.data._store_scores()
+            
     if test_k is not None and block.test is not None:
         block.test.dset.data.data_lbl = retain_topk(block.test.dset.data.data_lbl, k=test_k)
         block.test.dset.data._store_indices()
+        if block.test.dset.data.use_main_distribution or block.test.dset.data.return_scores:
+            block.test.dset.data._store_scores()
     
 
 # %% ../nbs/36_main.ipynb 8
