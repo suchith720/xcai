@@ -48,13 +48,14 @@ def parse_args():
 
 # %% ../nbs/36_main.ipynb 7
 def retain_topk_metadata(block, train_k:int=5, test_k:int=3):
-    for meta_name in block.test.dset.meta.keys():
-        if train_k is not None and block.train is not None:
+    if train_k is not None and block.train is not None:
+        for meta_name in block.train.dset.meta.keys():
             data_meta = retain_topk(block.train.dset.meta[meta_name].data_meta, k=train_k)
             lbl_meta = block.train.dset.meta[meta_name].lbl_meta
             block.train.dset.meta[meta_name].update_meta_matrix(data_meta, lbl_meta)
 
-        if test_k is not None and block.test is not None:
+    if test_k is not None and block.test is not None:
+        for meta_name in block.test.dset.meta.keys():
             data_meta = retain_topk(block.test.dset.meta[meta_name].data_meta, k=test_k)
             lbl_meta = block.test.dset.meta[meta_name].lbl_meta
             block.test.dset.meta[meta_name].update_meta_matrix(data_meta, lbl_meta)
