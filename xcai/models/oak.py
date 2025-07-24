@@ -429,8 +429,6 @@ class OAK000(nn.Module):
             data_repr=data_o.rep,
             data_fused_repr=data_o.fused_rep,
         )
-
-    
         
     def forward(
         self,
