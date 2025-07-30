@@ -240,7 +240,15 @@ class SXCDataset(BaseXCDataset):
     def from_file(cls, **kwargs):
         data = SMainXCDataset.from_file(**kwargs)
         meta_kwargs = {o:kwargs.pop(o) for o in cls.get_meta_args(**kwargs)}
-        meta = {k:SMetaXCDataset.from_file(**v, **kwargs) for k,v in meta_kwargs.items()}
+
+        meta = dict()
+        for k,v in meta_kwargs.items():
+            input_kwargs = kwargs.copy()
+            for o in v:
+                if o in input_kwargs: input_kwargs[o] = v.pop(o)
+            meta[k] = SMetaXCDataset.from_file(**v, **input_kwargs)  
+        # meta = {k:SMetaXCDataset.from_file(**v, **kwargs) for k,v in meta_kwargs.items()}
+        
         return cls(data, **meta)
 
     @staticmethod
