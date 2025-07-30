@@ -156,7 +156,6 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
                         block.test.dset.data._store_scores()
 
             def get_args(kwargs, meta_name, key):
-                meta_name = meta_name.split('_')[0]
                 return kwargs[key][meta_name] if isinstance(kwargs[key], dict) and meta_name in kwargs[key] else kwargs[key]
                 
             if block.test is not None:
