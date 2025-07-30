@@ -34,6 +34,7 @@ def parse_args():
     parser.add_argument('--save_representation', action='store_true')
     
     parser.add_argument('--use_sxc_sampler', action='store_true')
+    parser.add_argument('--use_nxc_sampler', action='store_true')
     parser.add_argument('--only_test', action='store_true')
 
     parser.add_argument('--pickle_dir', type=str, required=True)
