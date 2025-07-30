@@ -85,12 +85,12 @@ def get_valid_dset(block):
     
 
 # %% ../nbs/36_main.ipynb 9
-def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=True, use_nxc:Optional[bool]=False, config_key:Optional[str]=None, 
+def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=True, config_key:Optional[str]=None, 
                 do_build:Optional[bool]=False, only_test:Optional[bool]=False, remove_empty_datapoints:Optional[bool]=False, 
                 train_label_topk:Optional[int]=None, test_label_topk:Optional[int]=None, train_meta_topk:Optional[int]=None, 
                 test_meta_topk:Optional[int]=None, meta_name:Optional[str]=None, data_seq_length:Optional[int]=128, 
                 lbl_seq_length:Optional[int]=128, exclude_sep:Optional[bool]=False, do_data_meta_aug:Optional[bool]=False,
-                do_lbl_meta_aug:Optional[bool]=False, **kwargs):
+                do_lbl_meta_aug:Optional[bool]=False, use_nxc:Optional[bool]=False, **kwargs):
 
     if not os.path.exists(pkl_file): do_build = True
 
