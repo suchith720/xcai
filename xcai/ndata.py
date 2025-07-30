@@ -40,9 +40,12 @@ class NMainXCDataset(SMainXCDataset):
     def __init__(
         self,
         data_neg:Optional[sp.csr_matrix]=None,
+        n_neg_samples:Optional[int]=None,
+        n_sneg_samples:Optional[int]=1,
+        neg_oversample:Optional[int]=False,
         **kwargs
     ):
-        store_attr('data_neg')
+        store_attr('data_neg,n_neg_samples,n_sneg_samples,neg_oversample')
         self.curr_data_neg, self.data_neg_scores = None, None
         super().__init__(**kwargs)
 
@@ -78,7 +81,7 @@ class NMainXCDataset(SMainXCDataset):
             
         if self.data_neg is not None:
             prefix = 'neg2data'
-            o = self.extract_items(prefix, self.curr_data_neg, idxs, self.n_lbl_samples, self.n_slbl_samples, self.main_oversample, 
+            o = self.extract_items(prefix, self.curr_data_neg, idxs, self.n_neg_samples, self.n_sneg_samples, self.neg_oversample, 
                                    self.lbl_info, self.lbl_info_keys, self.use_main_distribution, self.data_neg_scores, 
                                    return_scores=self.return_scores)
             x.update(o)
@@ -94,13 +97,19 @@ class NMainXCDataset(SMainXCDataset):
         lbl_info_keys:Optional[List]=None,
         n_slbl_samples:Optional[int]=1,
         main_oversample:Optional[bool]=False,
+
+        n_neg_samples:Optional[int]=None,
+        n_sneg_samples:Optional[int]=1,
+        neg_oversample:Optional[int]=False,
+        
         use_main_distribution:Optional[bool]=False,
         return_scores:Optional[bool]=False,
         **kwargs
     ):
         return cls(**NMainXCData.from_file(**kwargs), n_lbl_samples=n_lbl_samples, data_info_keys=data_info_keys,
                    lbl_info_keys=lbl_info_keys, n_slbl_samples=n_slbl_samples, main_oversample=main_oversample, 
-                   use_main_distribution=use_main_distribution, return_scores=return_scores)
+                   use_main_distribution=use_main_distribution, return_scores=return_scores, n_neg_samples=n_neg_samples,
+                   n_sneg_samples=n_sneg_samples, neg_oversample=neg_oversample)
 
     def _getitems(cls, idxs:List):
         raise NotImplementedError('Function should be implemented in the subclass.')

@@ -123,6 +123,18 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
                 if block.train is not None: block.train.dset.data.main_oversample = kwargs['main_oversample']
                 if block.test is not None: block.test.dset.data.main_oversample = kwargs['main_oversample']
 
+            if 'n_neg_samples' in kwargs:
+                if block.train is not None: block.train.dset.data.main_oversample = kwargs['n_neg_samples']
+                if block.test is not None: block.test.dset.data.main_oversample = kwargs['n_neg_samples']
+
+            if 'n_sneg_samples' in kwargs:
+                if block.train is not None: block.train.dset.data.main_oversample = kwargs['n_sneg_samples']
+                if block.test is not None: block.test.dset.data.main_oversample = kwargs['n_sneg_samples']
+
+            if 'neg_oversample' in kwargs:
+                if block.train is not None: block.train.dset.data.main_oversample = kwargs['neg_oversample']
+                if block.test is not None: block.test.dset.data.main_oversample = kwargs['neg_oversample']
+
             if 'use_main_distribution' in kwargs: 
                 if block.train is not None: 
                     block.train.dset.data.use_main_distribution = kwargs['use_main_distribution']
