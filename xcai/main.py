@@ -12,7 +12,7 @@ from transformers import DistilBertConfig
 
 from .sdata import SXCDataBlock
 from .data import XCDataBlock
-from .block import SXCBlock, XCBlock
+from .block import NXCBlock, SXCBlock, XCBlock
 from .core import get_best_model, load_config
 from .transform import AugmentMetaInputIdsTfm
 
@@ -85,7 +85,7 @@ def get_valid_dset(block):
     
 
 # %% ../nbs/36_main.ipynb 9
-def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=True, config_key:Optional[str]=None, 
+def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=True, use_nxc:Optional[bool]=False, config_key:Optional[str]=None, 
                 do_build:Optional[bool]=False, only_test:Optional[bool]=False, remove_empty_datapoints:Optional[bool]=False, 
                 train_label_topk:Optional[int]=None, test_label_topk:Optional[int]=None, train_meta_topk:Optional[int]=None, 
                 test_meta_topk:Optional[int]=None, meta_name:Optional[str]=None, data_seq_length:Optional[int]=128, 
@@ -101,6 +101,8 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
     
         if use_sxc: 
             block = SXCBlock.from_cfg(config, config_key, padding=True, return_tensors='pt', **kwargs)
+        elif use_nxc:
+            block = NXCBlock.from_cfg(config, config_key, padding=True, return_tensors='pt', **kwargs)
         else: 
             block = XCBlock.from_cfg(config, config_key, transform_type='xcs', **kwargs)
 

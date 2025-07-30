@@ -9,20 +9,21 @@ from typing import Callable, Optional, Union, Dict
 from torch.utils.data import DataLoader
 from transformers import BatchEncoding
 
-from .core import Filterer
+from .core import Filterer, Info
 from .data import MainXCData, MetaXCData
 from .data import BaseXCDataset, MainXCDataset, MetaXCDataset, MetaXCDatasets
 from .data import BaseXCDataBlock
+from .data import _read_sparse_file
 from .graph.operations import *
 
 from fastcore.utils import *
 from fastcore.meta import *
 from plum import dispatch
 
-# %% ../nbs/35_sdata.ipynb 10
+# %% ../nbs/35_sdata.ipynb 11
 def identity_collate_fn(batch): return BatchEncoding(batch)
 
-# %% ../nbs/35_sdata.ipynb 13
+# %% ../nbs/35_sdata.ipynb 14
 class SMainXCDataset(MainXCDataset):
 
     def __init__(
@@ -113,7 +114,7 @@ class SMainXCDataset(MainXCDataset):
         )
     
 
-# %% ../nbs/35_sdata.ipynb 26
+# %% ../nbs/35_sdata.ipynb 27
 class SMetaXCDataset(MetaXCDataset):
 
     def __init__(
@@ -223,7 +224,7 @@ class SMetaXCDataset(MetaXCDataset):
             if cls.meta_info_keys is None: cls.meta_info_keys = list(cls.meta_info.keys())
         
 
-# %% ../nbs/35_sdata.ipynb 33
+# %% ../nbs/35_sdata.ipynb 34
 class SXCDataset(BaseXCDataset):
 
     def __init__(self, data:SMainXCDataset, **kwargs):
@@ -411,7 +412,7 @@ class SXCDataset(BaseXCDataset):
         
         
 
-# %% ../nbs/35_sdata.ipynb 41
+# %% ../nbs/35_sdata.ipynb 42
 class SBaseXCDataBlock(BaseXCDataBlock):
 
     @delegates(DataLoader.__init__)
@@ -431,7 +432,7 @@ class SBaseXCDataBlock(BaseXCDataBlock):
     @classmethod
     @delegates(SXCDataset.from_file)
     def from_file(cls, collate_fn:Callable=identity_collate_fn, **kwargs):
-        return BaseXCDataBlock(SXCDataset.from_file(**kwargs), collate_fn, **kwargs)
+        return SBaseXCDataBlock(SXCDataset.from_file(**kwargs), collate_fn, **kwargs)
 
     def __len__(self):
         return len(self.dset)    
@@ -491,7 +492,7 @@ class SBaseXCDataBlock(BaseXCDataBlock):
         return cls._getitems(rnd_idx[:cut])
         
 
-# %% ../nbs/35_sdata.ipynb 45
+# %% ../nbs/35_sdata.ipynb 46
 class SXCDataBlock:
 
     def __init__(self, train:SBaseXCDataBlock=None, valid:SBaseXCDataBlock=None, test:SBaseXCDataBlock=None):
