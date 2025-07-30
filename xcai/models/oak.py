@@ -252,7 +252,8 @@ class Encoder(DistilBertPreTrainedModel):
             
             if len(idx):
                 m_idx,m_repr_mask = self.resize(m_args['idx'], m_args['data2ptr'][idx])
-                m_repr = F.normalize(self.meta_embeddings(m_idx), dim=1)
+                m_repr = self.meta_embeddings(m_idx)
+                m_repr = F.normalize(m_repr, dim=1) if self.normalize else m_repr
                 
                 m_repr, m_repr_mask = m_repr.view(len(idx), -1, self.config.dim), m_repr_mask.bool().view(len(idx), -1)
                 meta_repr[m_key] = m_repr[m_repr_mask]
@@ -601,7 +602,8 @@ class Encoder003(Encoder):
             
             if len(idx):
                 m_idx,m_repr_mask = self.resize(m_args['idx'], m_args['data2ptr'][idx])
-                m_repr = F.normalize(self.meta_embeddings(m_idx) + self.pretrained_meta_embeddings(m_idx), dim=1)
+                m_repr = self.meta_embeddings(m_idx) + self.pretrained_meta_embeddings(m_idx)
+                m_repr = F.normalize(m_repr, dim=1) if self.normalize else m_repr
                 
                 m_repr, m_repr_mask = m_repr.view(len(idx), -1, self.config.dim), m_repr_mask.bool().view(len(idx), -1)
                 meta_repr[m_key] = m_repr[m_repr_mask]
