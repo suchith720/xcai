@@ -66,7 +66,7 @@ def retain_topk_metadata(block, train_k:Union[int,Dict]=5, test_k:Union[int,Dict
                 data_meta = retain_topk(block.test.dset.meta[meta_name].data_meta, k=k)
                 lbl_meta = block.test.dset.meta[meta_name].lbl_meta
                 block.test.dset.meta[meta_name].update_meta_matrix(data_meta, lbl_meta)
-                if block.test.dset.meta[meta_name].use_meta_distribution or block.test.meta[meta_name].return_scores: 
+                if block.test.dset.meta[meta_name].use_meta_distribution or block.test.dset.meta[meta_name].return_scores: 
                     block.test.dset.meta[meta_name]._store_scores()
 
 def retrain_topk_labels(block, train_k:int=5, test_k:int=3):
