@@ -19,7 +19,7 @@ from fastcore.utils import *
 from fastcore.meta import *
 from plum import dispatch
 
-# %% ../nbs/41_ndata.ipynb 10
+# %% ../nbs/41_ndata.ipynb 13
 class NMainXCData:
     
     @classmethod
@@ -34,7 +34,7 @@ class NMainXCData:
             'data_lbl_filterer': Filterer.load_filter(data_lbl_filterer),
         }
 
-# %% ../nbs/41_ndata.ipynb 13
+# %% ../nbs/41_ndata.ipynb 16
 class NMainXCDataset(SMainXCDataset):
 
     def __init__(
@@ -106,14 +106,12 @@ class NMainXCDataset(SMainXCDataset):
         raise NotImplementedError('Function should be implemented in the subclass.')
     
 
-# %% ../nbs/41_ndata.ipynb 15
+# %% ../nbs/41_ndata.ipynb 21
 class NXCDataset(SXCDataset):
 
     def __init__(self, data:NMainXCDataset, **kwargs):
-        super().__init__()
-        self.data, self.meta = data, MetaXCDatasets({k:kwargs[k] for k in self.get_meta_args(**kwargs) if isinstance(kwargs[k], SMetaXCDataset)})
-        self._verify_inputs()
-
+        super().__init__(data, **kwargs)
+        
     @classmethod
     @delegates(SMainXCDataset.from_file)
     def from_file(cls, **kwargs):
@@ -123,7 +121,7 @@ class NXCDataset(SXCDataset):
         return cls(data, **meta)
         
 
-# %% ../nbs/41_ndata.ipynb 17
+# %% ../nbs/41_ndata.ipynb 27
 class NBaseXCDataBlock(SBaseXCDataBlock):
 
     @delegates(DataLoader.__init__)
@@ -142,7 +140,7 @@ class NBaseXCDataBlock(SBaseXCDataBlock):
         return NBaseXCDataBlock(NXCDataset.from_file(**kwargs), collate_fn, **kwargs)
         
 
-# %% ../nbs/41_ndata.ipynb 19
+# %% ../nbs/41_ndata.ipynb 31
 class NXCDataBlock(SXCDataBlock):
 
     @classmethod
