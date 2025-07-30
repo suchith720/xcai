@@ -155,34 +155,42 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
                     if block.test.dset.data.data_lbl_scores is None and kwargs['return_scores']: 
                         block.test.dset.data._store_scores()
 
+            def get_args(kwargs, meta_name, key):
+                meta_name = meta_name.split('_')[0]
+                return kwargs[key][meta_name] if isinstance(kwargs[key], dict) and meta_name in kwargs[key] else kwargs[key]
+                
             if block.test is not None:
                 for k in block.test.dset.meta:
-                    if 'n_sdata_meta_samples' in kwargs: block.test.dset.meta[k].n_sdata_meta_samples = kwargs['n_sdata_meta_samples']
-                    if 'n_slbl_meta_samples' in kwargs: block.test.dset.meta[k].n_slbl_meta_samples = kwargs['n_slbl_meta_samples']
-                    if 'meta_oversample' in kwargs: block.test.dset.meta[k].meta_oversample = kwargs['meta_oversample']
-                    if 'use_meta_distribution' in kwargs: 
-                        block.test.dset.meta[k].use_meta_distribution = kwargs['use_meta_distribution']
-                        if block.test.dset.meta[k].data_meta_scores is None and kwargs['use_meta_distribution']: 
+                    if 'n_sdata_meta_samples' in kwargs: block.test.dset.meta[k].n_sdata_meta_samples = get_args(kwargs, k, 'n_sdata_meta_samples')
+                    if 'n_slbl_meta_samples' in kwargs: block.test.dset.meta[k].n_slbl_meta_samples = get_args(kwargs, k, 'n_slbl_meta_samples')
+                    if 'meta_oversample' in kwargs: block.test.dset.meta[k].meta_oversample = get_args(kwargs, k, 'meta_oversample')
+                    if 'use_meta_distribution' in kwargs:
+                        use_meta_distribution = get_args(kwargs, k, 'use_meta_distribution')
+                        block.test.dset.meta[k].use_meta_distribution = use_meta_distribution
+                        if block.test.dset.meta[k].data_meta_scores is None and use_meta_distribution: 
                             block.test.dset.meta[k]._store_scores()
                     if 'return_scores' in kwargs: 
-                        block.test.dset.meta[k].return_scores = kwargs['return_scores']
-                        if block.test.dset.meta[k].data_meta_scores is None and kwargs['return_scores']: 
+                        return_scores = get_args(kwargs, k, 'return_scores')
+                        block.test.dset.meta[k].return_scores = return_scores
+                        if block.test.dset.meta[k].data_meta_scores is None and return_scores: 
                             block.test.dset.meta[k]._store_scores()
 
             if block.train is not None:
                 for k in block.train.dset.meta:
-                    if 'n_sdata_meta_samples' in kwargs: block.train.dset.meta[k].n_sdata_meta_samples = kwargs['n_sdata_meta_samples']
-                    if 'n_slbl_meta_samples' in kwargs: block.train.dset.meta[k].n_slbl_meta_samples = kwargs['n_slbl_meta_samples']
-                    if 'meta_oversample' in kwargs: block.train.dset.meta[k].meta_oversample = kwargs['meta_oversample']    
-                    if 'use_meta_distribution' in kwargs: 
-                        block.train.dset.meta[k].use_meta_distribution = kwargs['use_meta_distribution']
-                        if block.train.dset.meta[k].data_meta_scores is None and kwargs['use_meta_distribution']: 
+                    if 'n_sdata_meta_samples' in kwargs: block.train.dset.meta[k].n_sdata_meta_samples = get_args(kwargs, k, 'n_sdata_meta_samples')
+                    if 'n_slbl_meta_samples' in kwargs: block.train.dset.meta[k].n_slbl_meta_samples = get_args(kwargs, k, 'n_slbl_meta_samples')
+                    if 'meta_oversample' in kwargs: block.train.dset.meta[k].meta_oversample = get_args(kwargs, k, 'meta_oversample')
+                    if 'use_meta_distribution' in kwargs:
+                        use_meta_distribution = get_args(kwargs, k, 'use_meta_distribution')
+                        block.train.dset.meta[k].use_meta_distribution = use_meta_distribution
+                        if block.train.dset.meta[k].data_meta_scores is None and use_meta_distribution: 
                             block.train.dset.meta[k]._store_scores()
-                    if 'meta_dropout_remove' in kwargs: block.train.dset.meta[k].meta_dropout_remove = kwargs['meta_dropout_remove']
-                    if 'meta_dropout_replace' in kwargs: block.train.dset.meta[k].meta_dropout_replace = kwargs['meta_dropout_replace']
-                    if 'return_scores' in kwargs: 
-                        block.train.dset.meta[k].return_scores = kwargs['return_scores']
-                        if block.train.dset.meta[k].data_meta_scores is None and kwargs['return_scores']: 
+                    if 'meta_dropout_remove' in kwargs: block.train.dset.meta[k].meta_dropout_remove = get_args(kwargs, k, 'meta_dropout_remove')
+                    if 'meta_dropout_replace' in kwargs: block.train.dset.meta[k].meta_dropout_replace = get_args(kwargs, k, 'meta_dropout_replace')
+                    if 'return_scores' in kwargs:
+                        return_scores = get_args(kwargs, k, 'return_scores')
+                        block.train.dset.meta[k].return_scores = return_scores
+                        if block.train.dset.meta[k].data_meta_scores is None and return_scores: 
                             block.train.dset.meta[k]._store_scores()
                         
     if remove_empty_datapoints: block = type(block)(train=get_valid_dset(block.train), test=get_valid_dset(block.test))
