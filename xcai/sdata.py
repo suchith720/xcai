@@ -244,8 +244,7 @@ class SXCDataset(BaseXCDataset):
         meta = dict()
         for k,v in meta_kwargs.items():
             input_kwargs = kwargs.copy()
-            for o in v:
-                if o in input_kwargs: input_kwargs[o] = v.pop(o)
+            for o in v: input_kwargs.pop(o, None)
             meta[k] = SMetaXCDataset.from_file(**v, **input_kwargs)  
         # meta = {k:SMetaXCDataset.from_file(**v, **kwargs) for k,v in meta_kwargs.items()}
         
