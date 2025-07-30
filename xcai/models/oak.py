@@ -4,7 +4,7 @@
 __all__ = ['CrossAttention', 'NormCrossAttention', 'Encoder', 'OAK000', 'OAK001', 'Encoder002', 'OAK002', 'Encoder003', 'OAK003',
            'Encoder004', 'OAK004', 'Encoder005', 'OAK005', 'Encoder006', 'OAK006', 'OAK007', 'OAK008', 'OAK009',
            'Encoder010', 'OAK010', 'Encoder011', 'OAK011', 'Encoder012', 'OAK012', 'Encoder013', 'OAK013', 'Encoder014',
-           'OAK014']
+           'OAK014', 'OAK015', 'OAK016']
 
 # %% ../../nbs/20_models.oak.ipynb 2
 import torch, re, inspect, pickle, os, torch.nn as nn, math
@@ -29,7 +29,7 @@ from ..core import store_attr
 from ..learner import XCDataParallel
 from .modeling_utils import *
 
-# %% ../../nbs/20_models.oak.ipynb 15
+# %% ../../nbs/20_models.oak.ipynb 17
 class CrossAttention(nn.Module):
     
     def __init__(self, config: PretrainedConfig):
@@ -45,6 +45,7 @@ class CrossAttention(nn.Module):
         self.v = nn.Linear(in_features=config.dim, out_features=config.dim)
         self.o = nn.Linear(in_features=config.dim, out_features=config.dim)
 
+    @torch.no_grad()
     def post_init(self):
         nn.init.eye_(self.q.weight.data)
         nn.init.eye_(self.k.weight.data)
@@ -89,7 +90,7 @@ class CrossAttention(nn.Module):
         else: return (o,)
         
 
-# %% ../../nbs/20_models.oak.ipynb 22
+# %% ../../nbs/20_models.oak.ipynb 24
 class NormCrossAttention(nn.Module):
     
     def __init__(self, config: PretrainedConfig, tau:Optional[float]=0.1, dropout:Optional[float]=0.1):
@@ -152,7 +153,7 @@ class NormCrossAttention(nn.Module):
         else: return (o,)
         
 
-# %% ../../nbs/20_models.oak.ipynb 29
+# %% ../../nbs/20_models.oak.ipynb 31
 class Encoder(DistilBertPreTrainedModel):
     
     def __init__(
@@ -160,14 +161,19 @@ class Encoder(DistilBertPreTrainedModel):
         config:PretrainedConfig, 
         num_metadata:int,
         resize_length:Optional[int]=None,
+        normalize:Optional[bool]=True,
     ):
         super().__init__(config)
+        store_attr('normalize')
         self.distilbert = DistilBertModel(config)
         
         self.dr_head = RepresentationHead(config)
         self.dr_fused_head = RepresentationHead(config)
+        
         self.meta_head = RepresentationHead(config)
+        
         self.cross_head = CrossAttention(config)
+        
         self.meta_embeddings = nn.Embedding(num_metadata, config.dim)
 
         self.ones = torch.ones(resize_length, dtype=torch.long, device=self.device) if resize_length is not None else None
@@ -179,9 +185,9 @@ class Encoder(DistilBertPreTrainedModel):
     def unfreeze_meta_embeddings(self):
         self.meta_embeddings.requires_grad_(True)
 
+    @torch.no_grad()
     def set_meta_embeddings(self, embed:torch.Tensor):
-        with torch.no_grad():
-            self.meta_embeddings.weight.data.copy_(embed)
+        self.meta_embeddings.weight.data.copy_(embed)
         
     def get_position_embeddings(self) -> nn.Embedding:
         return self.distilbert.get_position_embeddings()
@@ -198,19 +204,17 @@ class Encoder(DistilBertPreTrainedModel):
     
     def dr(self, embed:torch.Tensor, attention_mask:torch.Tensor):
         embed = self.dr_head(embed)
-        return F.normalize(Pooling.mean_pooling(embed, attention_mask), dim=1)
+        embed = Pooling.mean_pooling(embed, attention_mask)
+        return F.normalize(embed, dim=1) if self.normalize else embed
 
     def dr_fused(self, embed:torch.Tensor):
         embed = self.dr_fused_head(embed)
-        return F.normalize(embed, dim=1)
+        return F.normalize(embed, dim=1) if self.normalize else embed
 
-    def meta(self, embed:torch.Tensor, attention_mask:torch.Tensor):
+    def meta(self, embed:torch.Tensor, attention_mask:torch.Tensor, normalize:Optional[bool]=True):
         embed = self.meta_head(embed)
-        return F.normalize(Pooling.mean_pooling(embed, attention_mask), dim=1)
-    
-    def meta_unnormalized(self, embed:torch.Tensor, attention_mask:torch.Tensor):
-        embed = self.meta_head(embed)
-        return Pooling.mean_pooling(embed, attention_mask)
+        embed = Pooling.mean_pooling(embed, attention_mask)
+        return F.normalize(embed, dim=1) if normalize else embed
 
     def resize(self, idx:torch.Tensor, num_inputs:torch.Tensor):
         if torch.any(num_inputs == 0): raise ValueError("`num_inputs` should be non-zero positive integer.")
@@ -270,7 +274,7 @@ class Encoder(DistilBertPreTrainedModel):
         data_o = self.encode(data_input_ids, data_attention_mask)
         
         if data_type is not None and data_type == "meta":
-            data_repr = self.meta_unnormalized(data_o[0], data_attention_mask) if data_unnormalized else self.meta(data_o[0], data_attention_mask)
+            data_repr = self.meta(data_o[0], data_attention_mask, not data_unnormalized)
         else: 
             data_repr = self.dr(data_o[0], data_attention_mask)
         
@@ -290,7 +294,7 @@ class Encoder(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/20_models.oak.ipynb 31
+# %% ../../nbs/20_models.oak.ipynb 33
 class OAK000(nn.Module):
     
     def __init__(
@@ -302,8 +306,6 @@ class OAK000(nn.Module):
         data_pred_meta_prefix:Optional[str]=None,
         lbl2data_pred_meta_prefix:Optional[str]=None,
         
-        num_batch_labels:Optional[int]=None, 
-        batch_size:Optional[int]=None,
         margin:Optional[float]=0.3,
         num_negatives:Optional[int]=5,
         tau:Optional[float]=0.1,
@@ -324,29 +326,33 @@ class OAK000(nn.Module):
         use_query_loss:Optional[float]=True,
         
         use_encoder_parallel:Optional[bool]=True,
+        
+        normalize:Optional[bool]=True,
     ):
         super().__init__(config)
         store_attr('meta_loss_weight,fusion_loss_weight,calib_loss_weight')
         store_attr('data_pred_meta_prefix,lbl2data_pred_meta_prefix')
         store_attr('data_aug_meta_prefix,lbl2data_aug_meta_prefix')
         store_attr('use_fusion_loss,use_query_loss,use_calib_loss,use_encoder_parallel')
+        store_attr('normalize')
         
         self.encoder = None
-        self.rep_loss_fn = MultiTriplet(bsz=batch_size, tn_targ=num_batch_labels, margin=margin, n_negatives=num_negatives, 
-                                        tau=tau, apply_softmax=apply_softmax, reduce='mean')
+        self.rep_loss_fn = MultiTriplet(margin=margin, n_negatives=num_negatives, tau=tau, 
+                                        apply_softmax=apply_softmax, reduce='mean')
         self.cab_loss_fn = Calibration(margin=calib_margin, tau=calib_tau, n_negatives=calib_num_negatives, 
                                        apply_softmax=calib_apply_softmax, reduce='mean')
         
+    @torch.no_grad()
     def init_retrieval_head(self):
-        if self.encoder is None: raise ValueError('`self.encoder` is not initialized.')
+        assert self.encoder is not None, "`self.encoder` is not initialized."
         self.encoder.dr_head.post_init()
         self.encoder.meta_head.post_init()
         self.encoder.dr_fused_head.post_init()
 
+    @torch.no_grad()
     def init_cross_head(self):
-        if self.encoder is None: raise ValueError('`self.encoder` is not initialized.')
+        assert self.encoder is not None, "`self.encoder` is not initialized."
         self.encoder.cross_head.post_init()
-        
 
     def compute_loss(self, inp_repr, targ_repr, targ_ptr, targ_idx, ptarg_ptr, ptarg_idx):
         return self.rep_loss_fn(inp_repr, targ_repr, targ_ptr, targ_idx, ptarg_ptr, ptarg_idx)
@@ -496,7 +502,7 @@ class OAK000(nn.Module):
         )
         
 
-# %% ../../nbs/20_models.oak.ipynb 33
+# %% ../../nbs/20_models.oak.ipynb 35
 class OAK001(OAK000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -517,7 +523,7 @@ class OAK001(OAK000, DistilBertPreTrainedModel):
         self.distilbert = self.encoder.distilbert
         
 
-# %% ../../nbs/20_models.oak.ipynb 44
+# %% ../../nbs/20_models.oak.ipynb 46
 class Encoder002(Encoder):
 
     def __init__(
@@ -532,7 +538,7 @@ class Encoder002(Encoder):
         self.post_init()
     
 
-# %% ../../nbs/20_models.oak.ipynb 45
+# %% ../../nbs/20_models.oak.ipynb 47
 class OAK002(OAK000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -558,7 +564,7 @@ class OAK002(OAK000, DistilBertPreTrainedModel):
         self.distilbert = self.encoder.distilbert
         
 
-# %% ../../nbs/20_models.oak.ipynb 54
+# %% ../../nbs/20_models.oak.ipynb 56
 class Encoder003(Encoder):
 
     def __init__(
@@ -577,10 +583,11 @@ class Encoder003(Encoder):
     def unfreeze_pretrained_meta_embeddings(self):
         self.pretrained_meta_embeddings.requires_grad_(True)
 
+    @torch.no_grad()
     def set_pretrained_meta_embeddings(self, embed:torch.Tensor):
-        with torch.no_grad():
-            self.pretrained_meta_embeddings.weight.data.copy_(embed)
+        self.pretrained_meta_embeddings.weight.data.copy_(embed)
 
+    @torch.no_grad()
     def init_meta_embeddings(self):
         nn.init.zeros_(self.meta_embeddings.weight.data)
 
@@ -605,7 +612,7 @@ class Encoder003(Encoder):
         return data_fused_repr.squeeze(), meta_repr
     
 
-# %% ../../nbs/20_models.oak.ipynb 55
+# %% ../../nbs/20_models.oak.ipynb 57
 class OAK003(OAK000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -622,6 +629,7 @@ class OAK003(OAK000, DistilBertPreTrainedModel):
         self.encoder = Encoder003(config, num_metadata=num_metadata, resize_length=resize_length)
         self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head()
 
+    @torch.no_grad()
     def init_meta_embeddings(self):
         self.encoder.init_meta_embeddings()
 
@@ -629,7 +637,7 @@ class OAK003(OAK000, DistilBertPreTrainedModel):
         self.distilbert = self.encoder.distilbert
         
 
-# %% ../../nbs/20_models.oak.ipynb 66
+# %% ../../nbs/20_models.oak.ipynb 68
 class Encoder004(Encoder003):
 
     def __init__(
@@ -644,7 +652,7 @@ class Encoder004(Encoder003):
         self.post_init()
     
 
-# %% ../../nbs/20_models.oak.ipynb 67
+# %% ../../nbs/20_models.oak.ipynb 69
 class OAK004(OAK003, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -669,7 +677,7 @@ class OAK004(OAK003, DistilBertPreTrainedModel):
     def remap_post_init(self):
         self.distilbert = self.encoder.distilbert
 
-# %% ../../nbs/20_models.oak.ipynb 77
+# %% ../../nbs/20_models.oak.ipynb 79
 class Encoder005(Encoder003):
 
     def __init__(
@@ -728,7 +736,7 @@ class Encoder005(Encoder003):
         )
     
 
-# %% ../../nbs/20_models.oak.ipynb 78
+# %% ../../nbs/20_models.oak.ipynb 80
 class OAK005(OAK003, DistilBertPreTrainedModel):
     use_generation,use_representation = True,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -857,7 +865,7 @@ class OAK005(OAK003, DistilBertPreTrainedModel):
         )
     
 
-# %% ../../nbs/20_models.oak.ipynb 91
+# %% ../../nbs/20_models.oak.ipynb 93
 class Encoder006(DistilBertPreTrainedModel):
     
     def __init__(
@@ -1006,7 +1014,7 @@ class Encoder006(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/20_models.oak.ipynb 92
+# %% ../../nbs/20_models.oak.ipynb 94
 class OAK006(OAK000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -1030,7 +1038,7 @@ class OAK006(OAK000, DistilBertPreTrainedModel):
         self.distilbert = self.encoder.distilbert
         
 
-# %% ../../nbs/20_models.oak.ipynb 101
+# %% ../../nbs/20_models.oak.ipynb 103
 class OAK007(OAK003, DistilBertPreTrainedModel):
     
     @delegates(OAK003.__init__)
@@ -1130,7 +1138,7 @@ class OAK007(OAK003, DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/20_models.oak.ipynb 110
+# %% ../../nbs/20_models.oak.ipynb 112
 class OAK008(OAK003, DistilBertPreTrainedModel):
     
     @delegates(OAK003.__init__)
@@ -1240,7 +1248,7 @@ class OAK008(OAK003, DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/20_models.oak.ipynb 119
+# %% ../../nbs/20_models.oak.ipynb 121
 class OAK009(OAK008, DistilBertPreTrainedModel):
     
     @delegates(OAK008.__init__)
@@ -1351,7 +1359,7 @@ class OAK009(OAK008, DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/20_models.oak.ipynb 130
+# %% ../../nbs/20_models.oak.ipynb 132
 class Encoder010(Encoder003):
 
     def __init__(
@@ -1392,7 +1400,7 @@ class Encoder010(Encoder003):
         return data_fused_repr.squeeze(), meta_repr
     
 
-# %% ../../nbs/20_models.oak.ipynb 131
+# %% ../../nbs/20_models.oak.ipynb 133
 class OAK010(OAK000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -1417,7 +1425,7 @@ class OAK010(OAK000, DistilBertPreTrainedModel):
         self.distilbert = self.encoder.distilbert
         
 
-# %% ../../nbs/20_models.oak.ipynb 141
+# %% ../../nbs/20_models.oak.ipynb 143
 class Encoder011(Encoder003):
     
     def __init__(
@@ -1459,7 +1467,7 @@ class Encoder011(Encoder003):
 
     
 
-# %% ../../nbs/20_models.oak.ipynb 142
+# %% ../../nbs/20_models.oak.ipynb 144
 class OAK011(OAK000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -1483,7 +1491,7 @@ class OAK011(OAK000, DistilBertPreTrainedModel):
     def remap_post_init(self):
         self.distilbert = self.encoder.distilbert
 
-# %% ../../nbs/20_models.oak.ipynb 150
+# %% ../../nbs/20_models.oak.ipynb 152
 class Encoder012(Encoder):
 
     def __init__(self, config, **kwargs):
@@ -1512,7 +1520,7 @@ class Encoder012(Encoder):
         return data_fused_repr.squeeze(), meta_repr
     
 
-# %% ../../nbs/20_models.oak.ipynb 151
+# %% ../../nbs/20_models.oak.ipynb 153
 class OAK012(OAK000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -1533,7 +1541,7 @@ class OAK012(OAK000, DistilBertPreTrainedModel):
         self.distilbert = self.encoder.distilbert
         
 
-# %% ../../nbs/20_models.oak.ipynb 162
+# %% ../../nbs/20_models.oak.ipynb 164
 class Encoder013(Encoder003):
 
     def __init__(
@@ -1583,7 +1591,7 @@ class Encoder013(Encoder003):
         return data_fused_repr.squeeze(), meta_repr
     
 
-# %% ../../nbs/20_models.oak.ipynb 163
+# %% ../../nbs/20_models.oak.ipynb 165
 class OAK013(OAK008, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -1608,7 +1616,7 @@ class OAK013(OAK008, DistilBertPreTrainedModel):
         self.encoder.init_meta_encoder()
         
 
-# %% ../../nbs/20_models.oak.ipynb 176
+# %% ../../nbs/20_models.oak.ipynb 178
 class Encoder014(Encoder013):
 
     def __init__(
@@ -1652,7 +1660,7 @@ class Encoder014(Encoder013):
         return data_fused_repr.squeeze(), meta_repr
         
 
-# %% ../../nbs/20_models.oak.ipynb 177
+# %% ../../nbs/20_models.oak.ipynb 179
 class OAK014(OAK013, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -1672,3 +1680,192 @@ class OAK014(OAK013, DistilBertPreTrainedModel):
         self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head()
         
         
+
+# %% ../../nbs/20_models.oak.ipynb 192
+class OAK015(OAK003):
+
+    def __init__(
+        self, 
+        config,
+        neg2data_aug_meta_prefix:Optional[str]=None,
+        **kwargs,
+    ):
+        super().__init__(config, **kwargs)
+        store_attr('neg2data_aug_meta_prefix')
+        self.rep_loss_fn = MultiTripletWithNegatives(margin=kwargs['margin'], n_negatives=kwargs['num_negatives'], 
+                                                     tau=kwargs['tau'], apply_softmax=kwargs['apply_softmax'], 
+                                                     reduce='mean')
+        
+    def compute_loss(self, data_repr, lbl2data_repr, lbl2data_data2ptr, lbl2data_idx, neg2data_repr, 
+                     neg2data_data2ptr, neg2data_idx, plbl2data_data2ptr, plbl2data_idx, **kwargs):
+        return self.rep_loss_fn(data_repr, pos_targ=lbl2data_repr, n_pos=lbl2data_data2ptr, pos_idx=lbl2data_idx, 
+                                neg_targ=neg2data_repr, n_neg=neg2data_data2ptr, neg_idx=neg2data_idx, 
+                                n_ppos=plbl2data_data2ptr, ppos_idx=plbl2data_idx, **kwargs)
+        
+    def forward(
+        self,
+        data_input_ids:Optional[torch.Tensor]=None,
+        data_attention_mask:Optional[torch.Tensor]=None,
+        
+        lbl2data_data2ptr:Optional[torch.Tensor]=None,
+        lbl2data_idx:Optional[torch.Tensor]=None,
+        lbl2data_input_ids:Optional[torch.Tensor]=None,
+        vlbl2data_attention_mask:Optional[torch.Tensor]=None,
+
+        neg2data_input_ids:Optional[torch.Tensor]=None,
+        neg2data_attention_mask:Optional[torch.Tensor]=None,
+        neg2data_data2ptr:Optional[torch.Tensor]=None,
+        neg2data_idx:Optional[torch.Tensor]=None,
+        
+        plbl2data_data2ptr:Optional[torch.Tensor]=None,
+        plbl2data_idx:Optional[torch.Tensor]=None,
+        
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+        **kwargs
+    ):  
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        
+        if self.use_encoder_parallel: 
+            encoder = XCDataParallel(module=self.encoder)
+        else: encoder = self.encoder
+        
+        data_meta_kwargs = Parameters.from_feat_meta_aug_prefix('data', self.data_aug_meta_prefix, **kwargs)
+        data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask, 
+                         data_aug_meta_prefix=self.data_aug_meta_prefix, **data_meta_kwargs)
+        
+        loss = None; lbl2data_o = EncoderOutput()
+        if (
+            lbl2data_input_ids is not None and 
+            neg2data_input_ids is not None
+        ):
+            lbl2data_meta_kwargs = Parameters.from_feat_meta_aug_prefix('lbl2data', self.lbl2data_aug_meta_prefix, **kwargs)
+            lbl2data_o = encoder(data_input_ids=lbl2data_input_ids, data_attention_mask=lbl2data_attention_mask, 
+                                 data_aug_meta_prefix=self.lbl2data_aug_meta_prefix, **lbl2data_meta_kwargs)
+
+            neg2data_meta_kwargs = Parameters.from_feat_meta_aug_prefix('neg2data', self.neg2data_aug_meta_prefix, **kwargs)
+            neg2data_o = encoder(data_input_ids=neg2data_input_ids, data_attention_mask=neg2data_attention_mask, 
+                                 data_aug_meta_prefix=self.neg2data_aug_meta_prefix, **neg2data_meta_kwargs)
+            
+            loss = self.compute_loss(data_o.fused_rep, lbl2data_o.rep, lbl2data_data2ptr, lbl2data_idx, neg2data_o.rep, 
+                                     neg2data_data2ptr, neg2data_idx, plbl2data_data2ptr, plbl2data_idx, **kwargs)
+            
+            if self.use_query_loss:
+                loss += self.compute_loss(data_o.rep, lbl2data_o.rep, lbl2data_data2ptr, lbl2data_idx, neg2data_o.rep, 
+                                          neg2data_data2ptr, neg2data_idx, plbl2data_data2ptr, plbl2data_idx, **kwargs)
+                
+            if self.use_calib_loss:
+                loss += self.calibration_loss(data_o.fused_rep, data_o.rep, lbl2data_o.rep, lbl2data_data2ptr, lbl2data_idx,
+                                              plbl2data_data2ptr,plbl2data_idx)
+                loss += self.calibration_loss(data_o.fused_rep, data_o.rep, neg2data_o.rep, neg2data_data2ptr, neg2data_idx,
+                                              plbl2data_data2ptr,plbl2data_idx)
+                
+        if not return_dict:
+            o = (data_o.logits,data_o.rep,data_o.fused_rep,lbl2data_o.logits,lbl2data_o.rep,lbl2data_o.fused_rep)
+            return ((loss,) + o) if loss is not None else o
+        
+        
+        return XCModelOutput(
+            loss=loss,
+            
+            data_repr=data_o.rep,
+            data_fused_repr=data_o.fused_rep,
+            
+            lbl2data_repr=lbl2data_o.rep,
+            lbl2data_fused_repr=lbl2data_o.fused_rep,
+        )
+            
+
+# %% ../../nbs/20_models.oak.ipynb 203
+class OAK016(OAK003):
+
+    def __init__(
+        self, 
+        config,
+        neg2data_aug_meta_prefix:Optional[str]=None,
+        **kwargs,
+    ):
+        super().__init__(config, **kwargs)
+        store_attr('neg2data_aug_meta_prefix')
+        self.loss_fn = MarginMSEWithNegatives()
+        
+    def compute_loss(self, data_repr, lbl2data_repr, lbl2data_scores, neg2data_repr, neg2data_scores, **kwargs):
+        return self.rep_loss_fn(data_repr, lbl2data_repr, lbl2data_scores, neg2data_repr, neg2data_scores, **kwargs)
+        
+    def forward(
+        self,
+        data_input_ids:Optional[torch.Tensor]=None,
+        data_attention_mask:Optional[torch.Tensor]=None,
+        
+        lbl2data_input_ids:Optional[torch.Tensor]=None,
+        lbl2data_attention_mask:Optional[torch.Tensor]=None,
+        lbl2data_data2ptr:Optional[torch.Tensor]=None,
+        lbl2data_idx:Optional[torch.Tensor]=None,
+        lbl2data_scores:Optional[torch.Tensor]=None,
+
+        neg2data_input_ids:Optional[torch.Tensor]=None,
+        neg2data_attention_mask:Optional[torch.Tensor]=None,
+        neg2data_data2ptr:Optional[torch.Tensor]=None,
+        neg2data_idx:Optional[torch.Tensor]=None,
+        neg2data_scores:Optional[torch.Tensor]=None,
+        
+        plbl2data_data2ptr:Optional[torch.Tensor]=None,
+        plbl2data_idx:Optional[torch.Tensor]=None,
+        
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+        **kwargs
+    ):  
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        
+        if self.use_encoder_parallel: 
+            encoder = XCDataParallel(module=self.encoder)
+        else: encoder = self.encoder
+        
+        data_meta_kwargs = Parameters.from_feat_meta_aug_prefix('data', self.data_aug_meta_prefix, **kwargs)
+        data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask, 
+                         data_aug_meta_prefix=self.data_aug_meta_prefix, **data_meta_kwargs)
+        
+        loss = None; lbl2data_o = EncoderOutput()
+        if (
+            lbl2data_input_ids is not None and 
+            neg2data_input_ids is not None
+        ):
+            lbl2data_meta_kwargs = Parameters.from_feat_meta_aug_prefix('lbl2data', self.lbl2data_aug_meta_prefix, **kwargs)
+            lbl2data_o = encoder(data_input_ids=lbl2data_input_ids, data_attention_mask=lbl2data_attention_mask, 
+                                 data_aug_meta_prefix=self.lbl2data_aug_meta_prefix, **lbl2data_meta_kwargs)
+
+            neg2data_meta_kwargs = Parameters.from_feat_meta_aug_prefix('neg2data', self.neg2data_aug_meta_prefix, **kwargs)
+            neg2data_o = encoder(data_input_ids=neg2data_input_ids, data_attention_mask=neg2data_attention_mask, 
+                                 data_aug_meta_prefix=self.neg2data_aug_meta_prefix, **neg2data_meta_kwargs)
+
+            loss = self.compute_loss(data_o.fused_rep, lbl2data_o.rep, lbl2data_scores, neg2data_o.rep, 
+                                     neg2data_scores, **kwargs)
+            
+            if self.use_query_loss:
+                loss += self.compute_loss(data_o.rep, lbl2data_o.rep, lbl2data_scores, neg2data_o.rep, 
+                                         neg2data_scores, **kwargs)
+                
+            if self.use_calib_loss:
+                loss += self.calibration_loss(data_o.fused_rep, data_o.rep, lbl2data_o.rep, lbl2data_data2ptr, lbl2data_idx,
+                                              plbl2data_data2ptr,plbl2data_idx)
+                loss += self.calibration_loss(data_o.fused_rep, data_o.rep, neg2data_o.rep, neg2data_data2ptr, neg2data_idx,
+                                              plbl2data_data2ptr,plbl2data_idx)
+                
+        if not return_dict:
+            o = (data_o.logits,data_o.rep,data_o.fused_rep,lbl2data_o.logits,lbl2data_o.rep,lbl2data_o.fused_rep)
+            return ((loss,) + o) if loss is not None else o
+        
+        
+        return XCModelOutput(
+            loss=loss,
+            
+            data_repr=data_o.rep,
+            data_fused_repr=data_o.fused_rep,
+            
+            lbl2data_repr=lbl2data_o.rep,
+            lbl2data_fused_repr=lbl2data_o.fused_rep,
+        )
+            
