@@ -48,22 +48,26 @@ def parse_args():
     
 
 # %% ../nbs/36_main.ipynb 7
-def retain_topk_metadata(block, train_k:int=5, test_k:int=3):
+def retain_topk_metadata(block, train_k:Union[int,Dict]=5, test_k:Union[int,Dict]=3):
     if train_k is not None and block.train is not None:
         for meta_name in block.train.dset.meta.keys():
-            data_meta = retain_topk(block.train.dset.meta[meta_name].data_meta, k=train_k)
-            lbl_meta = block.train.dset.meta[meta_name].lbl_meta
-            block.train.dset.meta[meta_name].update_meta_matrix(data_meta, lbl_meta)
-            if block.train.dset.meta[meta_name].use_meta_distribution or block.train.dset.meta[meta_name].return_scores: 
-                block.train.dset.meta[meta_name]._store_scores()
+            k = train_k.get(meta_name, None) if isinstance(train_k, dict) else train_k
+            if k is not None:
+                data_meta = retain_topk(block.train.dset.meta[meta_name].data_meta, k=k)
+                lbl_meta = block.train.dset.meta[meta_name].lbl_meta
+                block.train.dset.meta[meta_name].update_meta_matrix(data_meta, lbl_meta)
+                if block.train.dset.meta[meta_name].use_meta_distribution or block.train.dset.meta[meta_name].return_scores: 
+                    block.train.dset.meta[meta_name]._store_scores()
 
     if test_k is not None and block.test is not None:
         for meta_name in block.test.dset.meta.keys():
-            data_meta = retain_topk(block.test.dset.meta[meta_name].data_meta, k=test_k)
-            lbl_meta = block.test.dset.meta[meta_name].lbl_meta
-            block.test.dset.meta[meta_name].update_meta_matrix(data_meta, lbl_meta)
-            if block.test.dset.meta[meta_name].use_meta_distribution or block.test.meta[meta_name].return_scores: 
-                block.test.dset.meta[meta_name]._store_scores()
+            k = test_k.get(meta_name, None) if isinstance(test_k, dict) else test_k
+            if k is not None:
+                data_meta = retain_topk(block.test.dset.meta[meta_name].data_meta, k=k)
+                lbl_meta = block.test.dset.meta[meta_name].lbl_meta
+                block.test.dset.meta[meta_name].update_meta_matrix(data_meta, lbl_meta)
+                if block.test.dset.meta[meta_name].use_meta_distribution or block.test.meta[meta_name].return_scores: 
+                    block.test.dset.meta[meta_name]._store_scores()
 
 def retrain_topk_labels(block, train_k:int=5, test_k:int=3):
     if train_k is not None and block.train is not None:
