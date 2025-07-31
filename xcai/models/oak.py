@@ -176,7 +176,9 @@ class Encoder(DistilBertPreTrainedModel):
         
         self.meta_embeddings = nn.Embedding(num_metadata, config.dim)
 
-        self.ones = torch.ones(resize_length, dtype=torch.long, device=self.device) if resize_length is not None else None
+        if resize_length is None: self.ones = None
+        else: self.register_buffer('ones', torch.ones(resize_length, dtype=torch.long, device=self.device))
+        
         self.post_init()
 
     def freeze_meta_embeddings(self):
