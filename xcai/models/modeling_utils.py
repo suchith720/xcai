@@ -113,10 +113,10 @@ class CrossAttention(nn.Module):
 # %% ../../nbs/21_models.modeling_utils.ipynb 29
 class RepresentationHead(nn.Module):
     
-    def __init__(self, config):
+    def __init__(self, config, use_ln:Optional[bool]=True):
         super().__init__()
         self.transform = nn.Linear(config.dim, config.dim)
-        self.layer_norm = nn.LayerNorm(config.dim, eps=1e-12)
+        self.layer_norm = nn.LayerNorm(config.dim, eps=1e-6) if use_ln else None 
         self.projector = nn.Linear(config.dim, config.dim)
         self.activation = get_activation(config.activation)
         
@@ -129,7 +129,8 @@ class RepresentationHead(nn.Module):
     def forward(self, x:torch.Tensor):
         x = self.transform(x)
         x = self.activation(x)
-        x = self.layer_norm(x)
+        if self.layer_norm is not None:
+            x = self.layer_norm(x)
         x = self.projector(x)
         return x
     

@@ -162,15 +162,16 @@ class Encoder(DistilBertPreTrainedModel):
         num_metadata:int,
         resize_length:Optional[int]=None,
         normalize:Optional[bool]=True,
+        use_ln:Optional[bool]=True,
     ):
         super().__init__(config)
         store_attr('normalize')
         self.distilbert = DistilBertModel(config)
         
-        self.dr_head = RepresentationHead(config)
-        self.dr_fused_head = RepresentationHead(config)
+        self.dr_head = RepresentationHead(config, use_ln=use_ln)
+        self.dr_fused_head = RepresentationHead(config, use_ln=use_ln)
         
-        self.meta_head = RepresentationHead(config)
+        self.meta_head = RepresentationHead(config, use_ln=use_ln)
         
         self.cross_head = CrossAttention(config)
         
@@ -625,10 +626,12 @@ class OAK003(OAK000, DistilBertPreTrainedModel):
         num_metadata:int,
         resize_length:Optional[int]=None,
         normalize:Optional[bool]=True,
+        use_layer_norm:Optional[bool]=True,
         **kwargs
     ):
         super().__init__(config, **kwargs)
-        self.encoder = Encoder003(config, num_metadata=num_metadata, resize_length=resize_length, normalize=normalize)
+        self.encoder = Encoder003(config, num_metadata=num_metadata, resize_length=resize_length, 
+                                  normalize=normalize, use_ln=use_layer_norm)
         self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head()
 
     @torch.no_grad()

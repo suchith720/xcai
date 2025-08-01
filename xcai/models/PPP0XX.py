@@ -1404,16 +1404,17 @@ class DBT023Encoder(DistilBertPreTrainedModel):
         self, 
         config,
         normalize:Optional[bool]=False,
+        use_ln:Optional[bool]=False,
         *args, 
         **kwargs
     ):
         super().__init__(config, *args, **kwargs)
-        store_attr('normalize')
+        store_attr('normalize,use_ln')
         self.distilbert = DistilBertModel(config)
         
         self.transform = nn.Linear(config.dim, config.dim)
         self.projector = nn.Linear(config.dim, config.dim)
-        self.layer_norm = nn.LayerNorm(config.dim, eps=1e-6)
+        self.layer_norm = nn.LayerNorm(config.dim, eps=1e-6) if use_ln else None
         self.activation = get_activation(config.activation)
 
     @torch.no_grad()
@@ -1434,7 +1435,8 @@ class DBT023Encoder(DistilBertPreTrainedModel):
             **kwargs
         )
         rep = self.transform(o[0])
-        rep = self.layer_norm(rep)
+        if self.use_ln: 
+            rep = self.layer_norm(rep)
         rep = self.projector(rep)
         rep = Pooling.mean_pooling(rep, attention_mask)
         
@@ -1450,12 +1452,13 @@ class DBT023(DistilBertPreTrainedModel):
         self,
         config,
         normalize:Optional[bool]=False,
+        use_layer_norm:Optional[bool]=False,
         use_encoder_parallel:Optional[bool]=True,
         *args, **kwargs
     ):
         super().__init__(config, *args, **kwargs)
         store_attr('use_encoder_parallel')
-        self.encoder = DBT023Encoder(config, normalize=normalize)
+        self.encoder = DBT023Encoder(config, normalize=normalize, use_ln=use_layer_norm)
         self.loss_fn = MarginMSEWithNegatives()
         self.post_init(); self.remap_post_init()
         
@@ -1535,12 +1538,13 @@ class DBT024(DistilBertPreTrainedModel):
         apply_softmax:Optional[bool]=False,
         n_negatives:Optional[int]=10,
         normalize:Optional[bool]=False,
+        use_layer_norm:Optional[bool]=True,
         use_encoder_parallel:Optional[bool]=True,
         *args, **kwargs
     ):
         super().__init__(config, *args, **kwargs)
         store_attr('use_encoder_parallel')
-        self.encoder = DBT023Encoder(config, normalize=normalize)
+        self.encoder = DBT023Encoder(config, normalize=normalize, use_ln=use_layer_norm)
         self.loss_fn = MultiTripletWithNegatives(margin=margin, n_negatives=n_negatives, tau=tau, apply_softmax=apply_softmax, reduce='mean')
         self.post_init(); self.remap_post_init()
         
