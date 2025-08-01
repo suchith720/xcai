@@ -329,15 +329,12 @@ class OAK000(nn.Module):
         use_query_loss:Optional[float]=True,
         
         use_encoder_parallel:Optional[bool]=True,
-        
-        normalize:Optional[bool]=True,
     ):
         super().__init__(config)
         store_attr('meta_loss_weight,fusion_loss_weight,calib_loss_weight')
         store_attr('data_pred_meta_prefix,lbl2data_pred_meta_prefix')
         store_attr('data_aug_meta_prefix,lbl2data_aug_meta_prefix')
         store_attr('use_fusion_loss,use_query_loss,use_calib_loss,use_encoder_parallel')
-        store_attr('normalize')
         
         self.encoder = None
         self.rep_loss_fn = MultiTriplet(margin=margin, n_negatives=num_negatives, tau=tau, 
@@ -627,10 +624,11 @@ class OAK003(OAK000, DistilBertPreTrainedModel):
         config,
         num_metadata:int,
         resize_length:Optional[int]=None,
+        normalize:Optional[bool]=True,
         **kwargs
     ):
         super().__init__(config, **kwargs)
-        self.encoder = Encoder003(config, num_metadata=num_metadata, resize_length=resize_length)
+        self.encoder = Encoder003(config, num_metadata=num_metadata, resize_length=resize_length, normalize=normalize)
         self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head()
 
     @torch.no_grad()
