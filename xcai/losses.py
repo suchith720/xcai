@@ -7,7 +7,7 @@ __all__ = ['get_sparse_matrix', 'BaseLoss', 'MultiCrossEntropy', 'Calibration', 
 
 # %% ../nbs/04_losses.ipynb 3
 import functools, torch, torch.nn as nn, torch.nn.functional as F, pickle
-from typing import MutableSequence, Union
+from typing import MutableSequence, Union, Tuple
 
 from fastcore.utils import *
 from fastcore.meta import *
@@ -16,11 +16,16 @@ from .torch_core import *
 from .core import *
 
 # %% ../nbs/04_losses.ipynb 15
-def get_sparse_matrix(data_idx:torch.Tensor, n_data:torch.Tensor, scores:Optional[torch.Tensor]=None):
+def get_sparse_matrix(data_idx:torch.Tensor, n_data:torch.Tensor, scores:Optional[torch.Tensor]=None, 
+                      size:Optional[Tuple]=None):
     data_ptr = torch.cat([torch.zeros(1, device=n_data.device, dtype=n_data.dtype), n_data.cumsum(0)])
     if scores is None: scores = torch.ones_like(data_idx)
     if data_idx.shape != scores.shape: raise ValueError(f'`data_idx` and `scores` should have same shape.')
-    return torch.sparse_csr_tensor(data_ptr, data_idx, scores, device=data_ptr.device)
+    return (
+        torch.sparse_csr_tensor(data_ptr, data_idx, scores, device=data_ptr.device)
+        if size is None else
+        torch.sparse_csr_tensor(data_ptr, data_idx, scores, device=data_ptr.device, size=size)
+    )
     
 
 # %% ../nbs/04_losses.ipynb 17
@@ -138,7 +143,7 @@ def forward(cls:Calibration,
     esc,sc = einp@targ.T,inp@targ.T
     
     _, idx = torch.unique(torch.cat([inp2targ_idx, pinp2targ_idx]), return_inverse=True)
-    pos = get_sparse_matrix(idx[len(inp2targ_idx):], n_pinp2targ).to_dense()[:, idx[:len(inp2targ_idx)]]
+    pos = get_sparse_matrix(idx[len(inp2targ_idx):], n_pinp2targ, size=(len(n_pinp2targ), idx.max()+1)).to_dense()[:, idx[:len(inp2targ_idx)]]
 
     mul = 2*pos - 1
     loss = F.relu((sc-esc)*mul + cls.margin)
