@@ -300,7 +300,7 @@ class MetaXCDataset(BaseXCDataset):
     def __init__(self,
                  prefix:str,
                  data_meta:sparse.csr_matrix, 
-                 lbl_meta:sparse.csr_matrix, 
+                 lbl_meta:Optional[sparse.csr_matrix]=None, 
                  meta_info:Optional[Dict]=None, 
                  n_data_meta_samples:Optional[int]=None,
                  n_lbl_meta_samples:Optional[int]=None,
@@ -313,11 +313,13 @@ class MetaXCDataset(BaseXCDataset):
 
     def prune_data_meta(self, data_repr:torch.Tensor, meta_repr:torch.Tensor, batch_size:Optional[int]=64, thresh:Optional[float]=0.0, 
                         topk:Optional[int]=None):
+        assert self.data_meta is not None, "`self.data_meta` is empty."
         data_meta = self.prune_data_lbl(self.data_meta, data_repr, meta_repr, batch_size, thresh, topk)
         self.curr_data_meta = [o.indices.tolist() for o in data_meta]
 
     def prune_lbl_meta(self, lbl_repr:torch.Tensor, meta_repr:torch.Tensor, batch_size:Optional[int]=64, thresh:Optional[float]=0.0, 
                        topk:Optional[int]=None):
+        assert self.lbl_meta is not None, "`self.lbl_meta` is empty."
         lbl_meta = self.prune_data_lbl(self.lbl_meta, lbl_repr, meta_repr, batch_size, thresh, topk)
         self.curr_lbl_meta = [o.indices.tolist() for o in lbl_meta]
 
@@ -325,7 +327,7 @@ class MetaXCDataset(BaseXCDataset):
         if self.data_meta is not None: self.curr_data_meta = [o.indices.tolist() for o in self.data_meta]
         if self.lbl_meta is not None: self.curr_lbl_meta = [o.indices.tolist() for o in self.lbl_meta]
 
-    def update_meta_matrix(self, data_meta:sparse.csr_matrix, lbl_meta:sparse.csr_matrix):
+    def update_meta_matrix(self, data_meta:sparse.csr_matrix, lbl_meta:Optional[sparse.csr_matrix]=None):
         self.data_meta, self.lbl_meta = data_meta, lbl_meta
         self._store_indices()
         
@@ -341,8 +343,8 @@ class MetaXCDataset(BaseXCDataset):
     def _sample_meta_items(self, idxs:List):
         assert max(idxs) < self.n_meta, f"indices should be less than {self.n_meta}"
         meta_info = {k: [v[i] for i in idxs] for k,v in self.meta_info.items()}
-        return MetaXCDataset(self.prefix, self.data_meta[:, idxs], self.lbl_meta[:, idxs], meta_info, 
-                             self.n_data_meta_samples, self.n_lbl_meta_samples, self.meta_info_keys)
+        return MetaXCDataset(self.prefix, self.data_meta[:, idxs], None if self.lbl_meta is None else self.lbl_meta[:, idxs], 
+                             meta_info, self.n_data_meta_samples, self.n_lbl_meta_samples, self.meta_info_keys)
         
     @classmethod
     @delegates(MetaXCData.from_file)
@@ -352,6 +354,7 @@ class MetaXCDataset(BaseXCDataset):
 
     @dispatch
     def get_lbl_meta(self, idx:int):
+        if self.curr_lbl_meta is None: return {}
         prefix = f'{self.prefix}2lbl2data'
         x = {f'{prefix}_idx': self.curr_lbl_meta[idx]}
         if self.n_lbl_meta_samples: x[f'{prefix}_idx'] = [x[f'{prefix}_idx'][i] for i in np.random.permutation(len(x[f'{prefix}_idx']))[:self.n_lbl_meta_samples]]
@@ -361,6 +364,7 @@ class MetaXCDataset(BaseXCDataset):
     
     @dispatch
     def get_lbl_meta(self, idxs:List):
+        if self.curr_lbl_meta is None: return {}
         prefix = f'{self.prefix}2lbl2data'
         x = {f'{prefix}_idx': [self.curr_lbl_meta[idx] for idx in idxs]}
         if self.n_lbl_meta_samples: x[f'{prefix}_idx'] = [[o[i] for i in np.random.permutation(len(o))[:self.n_lbl_meta_samples]] for o in x[f'{prefix}_idx']]
