@@ -398,7 +398,8 @@ class MetaXCDataset(BaseXCDataset):
 @patch
 def _verify_inputs(cls:MetaXCDataset):
     cls.n_data,cls.n_meta = cls.data_meta.shape[0],cls.data_meta.shape[1]
-    
+
+    cls.n_lbl = None
     if cls.lbl_meta is not None:
         cls.n_lbl = cls.lbl_meta.shape[0]
         if cls.lbl_meta.shape[1] != cls.n_meta:
