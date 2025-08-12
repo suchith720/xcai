@@ -105,6 +105,7 @@ class Info():
                  return_tensors:Optional[str]=None,
                  prompt_func:Optional[Callable]=None,
                  **kwargs):
+        if fname is None: return
         self = cls()
         self.info = self.read_info(fname, sep, info_column_names, enc)
         if use_tokenizer: 

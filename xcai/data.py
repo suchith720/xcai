@@ -55,7 +55,8 @@ class MetaXCData:
     
     @classmethod
     @delegates(Info.from_txt)
-    def from_file(cls, data_meta:str, lbl_meta:str, meta_info:str, prefix:str, meta_max_sequence_length:Optional[int]=None, **kwargs):
+    def from_file(cls, prefix:str, data_meta:str, lbl_meta:Optional[str]=None, meta_info:Optional[str]=None, 
+                  meta_max_sequence_length:Optional[int]=None, **kwargs):
         return {
             'prefix': prefix,
             'data_meta': _read_sparse_file(data_meta),
