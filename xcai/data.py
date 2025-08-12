@@ -461,7 +461,7 @@ class XCDataset(BaseXCDataset):
             for meta in self.meta.values():
                 if meta.n_data != self.n_data: 
                     raise ValueError(f'`meta`({meta.n_data}) and `data`({self.n_data}) should have the same number of datapoints.')
-                if self.n_lbl is not None and meta.n_lbl != self.n_lbl: 
+                if self.n_lbl is not None and meta.n_lbl is not None and meta.n_lbl != self.n_lbl: 
                     raise ValueError(f'`meta`({meta.n_lbl}) and `data`({self.n_lbl}) should have the same number of labels.')
 
 
