@@ -163,8 +163,8 @@ class SMetaXCDataset(MetaXCDataset):
     def _sample_meta_items(self, idxs:List):
         assert max(idxs) < self.n_meta, f"indices should be less than {self.n_meta}"
         meta_info = {k: [v[i] for i in idxs] for k,v in self.meta_info.items()}
-        return SMetaXCDataset(prefix=self.prefix, data_meta=self.data_meta[:, idxs], lbl_meta=self.lbl_meta[:, idxs], meta_info=meta_info, 
-                              n_data_meta_samples=self.n_data_meta_samples, n_lbl_meta_samples=self.n_lbl_meta_samples,
+        return SMetaXCDataset(prefix=self.prefix, data_meta=self.data_meta[:, idxs], lbl_meta=None if self.lbl_meta is None else self.lbl_meta[:, idxs], 
+                              meta_info=meta_info, n_data_meta_samples=self.n_data_meta_samples, n_lbl_meta_samples=self.n_lbl_meta_samples,
                               meta_info_keys=self.meta_info_keys, n_sdata_meta_samples=self.n_sdata_meta_samples, 
                               n_slbl_meta_samples=self.n_slbl_meta_samples, meta_oversample=self.meta_oversample, 
                               use_meta_distribution=self.use_meta_distribution, meta_dropout_remove=self.meta_dropout_remove, 
@@ -201,6 +201,7 @@ class SMetaXCDataset(MetaXCDataset):
         return x
         
     def get_lbl_meta(self, idxs:List):
+        if self.curr_lbl_meta is None: return {}
         x, prefix = dict(), f'{self.prefix}2lbl'
         o = self.extract_items(prefix, self.curr_lbl_meta, idxs, self.n_lbl_meta_samples, self.n_slbl_meta_samples, self.meta_oversample, 
                                self.meta_info, self.meta_info_keys, self.use_meta_distribution, self.lbl_meta_scores, 
@@ -271,8 +272,9 @@ class SXCDataset(BaseXCDataset):
                 x.update(meta.get_data_meta(idxs))
                 if self.n_lbl:
                     z = meta.get_lbl_meta(x['lbl2data_idx'])
-                    z[f'{meta.prefix}2lbl_data2ptr'] = torch.tensor([o.sum() for o in z[f'{meta.prefix}2lbl_lbl2ptr'].split_with_sizes(x[f'lbl2data_data2ptr'].tolist())])
-                    z[f'p{meta.prefix}2lbl_data2ptr'] = torch.tensor([o.sum() for o in z[f'p{meta.prefix}2lbl_lbl2ptr'].split_with_sizes(x[f'lbl2data_data2ptr'].tolist())])
+                    if len(z):
+                        z[f'{meta.prefix}2lbl_data2ptr'] = torch.tensor([o.sum() for o in z[f'{meta.prefix}2lbl_lbl2ptr'].split_with_sizes(x[f'lbl2data_data2ptr'].tolist())])
+                        z[f'p{meta.prefix}2lbl_data2ptr'] = torch.tensor([o.sum() for o in z[f'p{meta.prefix}2lbl_lbl2ptr'].split_with_sizes(x[f'lbl2data_data2ptr'].tolist())])
                     x.update(z)
         return x
 
