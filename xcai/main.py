@@ -97,6 +97,8 @@ def get_config(config:Union[str, Dict], config_key:Optional[str]=None, data_dir:
         config = load_config(config, config_key)
     elif isinstance(config, str):
         config = CFGS[config](data_dir)[config_key]
+    elif isinstance(config, dict):
+        pass
     else: raise ValueError(f'Invalid configuration: {config}')
         
     for k in config['parameters']:
@@ -148,15 +150,12 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
             if only_test and 'train' in config['path']: del config['path']['train'] 
     
         if use_sxc:
+            block = SXCBlock.from_cfg(config, config_key, padding=True, return_tensors='pt', data_dir=data_dir, **kwargs)
             if use_oracle:
-                block = SXCBlock.from_cfg(config, config_key, padding=True, return_tensors='pt', use_tokenizer=False, 
-                                          data_dir=data_dir, **kwargs)
                 augment_metadata(dset=block.train.dset, meta_name=f'{meta_name}_meta', config=config, config_key=config_key,
                                  data_dir=data_dir, prompt=prompt, padding=True, return_tensors='pt')
                 augment_metadata(dset=block.test.dset, meta_name=f'{meta_name}_meta', config=config, config_key=config_key,
                                  data_dir=data_dir, prompt=prompt, padding=True, return_tensors='pt')
-            else:
-                block = SXCBlock.from_cfg(config, config_key, padding=True, return_tensors='pt', data_dir=data_dir, **kwargs)
         elif use_nxc:
             block = NXCBlock.from_cfg(config, config_key, padding=True, return_tensors='pt', data_dir=data_dir, **kwargs)
         else: 
