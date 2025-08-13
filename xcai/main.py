@@ -117,12 +117,12 @@ def augment_metadata(dset:Union[XCDataset,SXCDataset], meta_name:str, config:Uni
                      prompt:Optional[Callable]=None, sep_tok:Optional[str]=" :: ", **kwargs):
     if prompt is None: prompt = lambda x:x
         
-    text = [data_prompt(o) for o in dset.data_info['input_text']]
+    text = [prompt(o) for o in dset.data_info['input_text']]
     data_meta = dset.meta[meta_name].data_meta
     meta_info = dset.meta[meta_name].meta_info
 
     aug_text = []
-    for p,q,txt in tqdm(zip(data_meta.indptr, data_meta.indptr[1:], input_text), total=len(text)):
+    for p,q,txt in tqdm(zip(data_meta.indptr, data_meta.indptr[1:], text), total=len(text)):
         aug_text.append(txt + sep_tok.join([meta_info['input_text'][i] for i in data_meta.indices[p:q]]))
 
     config = get_config(config, config_key=config_key, data_dir=data_dir)
@@ -138,7 +138,7 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
                 train_meta_topk:Optional[int]=None, test_meta_topk:Optional[int]=None, meta_name:Optional[str]=None, 
                 data_seq_length:Optional[int]=128, lbl_seq_length:Optional[int]=128, exclude_sep:Optional[bool]=False, 
                 do_data_meta_aug:Optional[bool]=False, do_lbl_meta_aug:Optional[bool]=False, use_nxc:Optional[bool]=False, 
-                prompt:Optional[Callable]=None, **kwargs):
+                prompt:Optional[Callable]=None, data_dir:Optional[str]=None, **kwargs):
 
     if not os.path.exists(pkl_file): do_build = True
 
@@ -149,17 +149,18 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
     
         if use_sxc:
             if use_oracle:
-                block = SXCBlock.from_cfg(config, config_key, padding=True, return_tensors='pt', use_tokenizer=False, **kwargs)
+                block = SXCBlock.from_cfg(config, config_key, padding=True, return_tensors='pt', use_tokenizer=False, 
+                                          data_dir=data_dir, **kwargs)
                 augment_metadata(dset=block.train.dset, meta_name=f'{meta_name}_meta', config=config, config_key=config_key,
                                  data_dir=data_dir, prompt=prompt, padding=True, return_tensors='pt')
                 augment_metadata(dset=block.test.dset, meta_name=f'{meta_name}_meta', config=config, config_key=config_key,
                                  data_dir=data_dir, prompt=prompt, padding=True, return_tensors='pt')
             else:
-                block = SXCBlock.from_cfg(config, config_key, padding=True, return_tensors='pt', **kwargs)
+                block = SXCBlock.from_cfg(config, config_key, padding=True, return_tensors='pt', data_dir=data_dir, **kwargs)
         elif use_nxc:
-            block = NXCBlock.from_cfg(config, config_key, padding=True, return_tensors='pt', **kwargs)
+            block = NXCBlock.from_cfg(config, config_key, padding=True, return_tensors='pt', data_dir=data_dir, **kwargs)
         else: 
-            block = XCBlock.from_cfg(config, config_key, transform_type='xcs', **kwargs)
+            block = XCBlock.from_cfg(config, config_key, transform_type='xcs', data_dir=data_dir, **kwargs)
 
             if do_data_meta_aug: block = AugmentMetaInputIdsTfm.apply(block, f'{meta_name}_meta', 'data', data_seq_length, exclude_sep)
             if do_lbl_meta_aug: block = AugmentMetaInputIdsTfm.apply(block, f'{meta_name}_meta', 'lbl', lbl_seq_length, exclude_sep)
