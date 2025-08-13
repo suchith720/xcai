@@ -236,6 +236,10 @@ class SXCDataset(BaseXCDataset):
 
     def _getitems(self, idxs:List):
         return SXCDataset(self.data._getitems(idxs), **{k:meta._getitems(idxs) for k,meta in self.meta.items()})
+
+    def get_valid_dset(self):
+        idxs = np.where(self.data.data_lbl.getnnz(axis=1) > 0)[0]
+        return self._getitems(idxs)
         
     @classmethod
     @delegates(SMainXCDataset.from_file)
