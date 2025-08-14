@@ -17,7 +17,7 @@ from .data import XCDataBlock, XCDataset, XCCollator
 from .block import NXCBlock, SXCBlock, XCBlock, CFGS
 from .core import Info, get_best_model, load_config
 from .transform import AugmentMetaInputIdsTfm
-from .learner import XCLearningArguments
+from .learner import XCLearningArguments, XCLearner
 
 from .models.PPP0XX import DBT024
 from .clustering.cluster import BalancedClusters
