@@ -283,7 +283,6 @@ def get_cluster_mapping(embeddings:torch.Tensor, cluster_sz:int=3):
     cluster_mapping = torch.zeros(embeddings.shape[0], dtype=torch.int64)
     for i,o in enumerate(clusters): cluster_mapping[o] = i
     return cluster_mapping, len(clusters)
-    
 
 # %% ../../nbs/13_clustering.cluster.ipynb 26
 def get_cluster_size(emb_sz, cluster_sz):
