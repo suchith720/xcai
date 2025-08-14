@@ -128,7 +128,7 @@ def augment_metadata(dset:Union[XCDataset,SXCDataset], meta_name:str, config:Uni
         aug_text.append(txt + sep_tok.join([meta_info['input_text'][i] for i in data_meta.indices[p:q]]))
 
     config = get_config(config, config_key=config_key, data_dir=data_dir)
-    dset.data.data_info = {'identifier': meta_info['identifier'], 'input_text': aug_text}
+    dset.data.data_info['input_text'] = aug_text
     tokenize_info(dset.data.data_info, config['parameters'], 
                   max_sequence_length=config['parameters']['main_max_data_sequence_length'])
     
