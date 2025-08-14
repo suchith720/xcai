@@ -321,13 +321,14 @@ class OAK000(nn.Module):
         calib_apply_softmax:Optional[bool]=False,
         calib_loss_weight:Optional[float]=0.1,
         use_calib_loss:Optional[float]=False,
-        
+
+        use_meta_loss:Optional[bool]=False,
         meta_loss_weight:Optional[Union[List,float]]=0.3,
         
         use_fusion_loss:Optional[bool]=False,
         fusion_loss_weight:Optional[float]=0.15,
 
-        use_query_loss:Optional[float]=True,
+        use_query_loss:Optional[float]=False,
         
         use_encoder_parallel:Optional[bool]=True,
     ):
@@ -335,7 +336,7 @@ class OAK000(nn.Module):
         store_attr('meta_loss_weight,fusion_loss_weight,calib_loss_weight')
         store_attr('data_pred_meta_prefix,lbl2data_pred_meta_prefix')
         store_attr('data_aug_meta_prefix,lbl2data_aug_meta_prefix')
-        store_attr('use_fusion_loss,use_query_loss,use_calib_loss,use_encoder_parallel')
+        store_attr('use_fusion_loss,use_query_loss,use_meta_loss,use_calib_loss,use_encoder_parallel')
         
         self.encoder = None
         self.rep_loss_fn = MultiTriplet(margin=margin, n_negatives=num_negatives, tau=tau, 
@@ -479,8 +480,9 @@ class OAK000(nn.Module):
             if self.use_calib_loss:
                 loss += self.calibration_loss(data_o.fused_rep, data_o.rep, lbl2data_o.rep,lbl2data_data2ptr,lbl2data_idx,
                                               plbl2data_data2ptr,plbl2data_idx)
-            
-            loss += self.compute_meta_loss(data_o.fused_rep, lbl2data_o.rep, **kwargs)
+
+            if self.use_meta_loss:
+                loss += self.compute_meta_loss(data_o.fused_rep, lbl2data_o.rep, **kwargs)
             
             if self.use_fusion_loss:
                 loss += self.compute_fusion_loss(data_o.fused_rep, data_o.meta_repr, self.data_aug_meta_prefix, **kwargs)
@@ -1435,20 +1437,21 @@ class Encoder011(Encoder003):
     
     def __init__(
         self, 
-        config, 
-        n_clusters:int,
-        n_metadata:int,
+        config,
+        num_metadata:int,
+        num_meta_clusters:Optional[int]=None,
         **kwargs
     ):
-        super().__init__(config, num_metadata=n_clusters, **kwargs)
-        self.pretrained_meta_embeddings = nn.Embedding(n_clusters, config.dim)
-        self.register_buffer("metadata_remap", torch.arange(n_metadata)%n_clusters, persistent=True)
+        if num_meta_clusters is None: num_meta_clusters = num_metadata
+        super().__init__(config, num_metadata=num_meta_clusters, **kwargs)
+        self.pretrained_meta_embeddings = nn.Embedding(num_meta_clusters, config.dim)
+        self.register_buffer("metadata_idx2cluster", torch.arange(num_metadata)%num_meta_clusters, persistent=True)
         self.post_init()
 
-    def set_metadata_remap(self, metadata_remap:torch.Tensor):
-        if metadata_remap.shape[0] != self.metadata_remap.shape[0]:
-            raise ValueError(f'Shape mismatch, `metadata_remap` should have {self.metadata_remap.shape[0]} elements.')
-        self.metadata_remap = metadata_remap
+    @torch.no_grad()
+    def set_metadata_mapping(self, metadata_idx2cluster:torch.Tensor):
+        assert metadata_idx2cluster.shape[0] == self.metadata_idx2cluster.shape[0], f"Shape mismatch, `metadata_idx2cluster` should have {self.metadata_idx2cluster.shape[0]} elements."
+        self.metadata_idx2cluster.copy_(metadata_idx2cluster)
 
     def fuse_meta_into_embeddings(self, data_repr:torch.Tensor, data_mask:torch.Tensor, meta_kwargs:Dict):
         meta_repr = {}
@@ -1460,7 +1463,8 @@ class Encoder011(Encoder003):
             
             if len(idx):
                 m_idx,m_repr_mask = self.resize(m_args['idx'], m_args['data2ptr'][idx])
-                m_repr = F.normalize(self.meta_embeddings(self.metadata_remap[m_idx]) + self.pretrained_meta_embeddings(self.metadata_remap[m_idx]), dim=1)
+                m_repr = self.meta_embeddings(self.metadata_idx2cluster[m_idx]) + self.pretrained_meta_embeddings(self.metadata_idx2cluster[m_idx])
+                m_repr = F.normalize(m_repr, dim=1) if self.normalize else m_repr
                 
                 m_repr, m_repr_mask = m_repr.view(len(idx), -1, self.config.dim), m_repr_mask.bool().view(len(idx), -1)
                 meta_repr[m_key] = m_repr[m_repr_mask]
@@ -1470,7 +1474,6 @@ class Encoder011(Encoder003):
                 
         return data_fused_repr.squeeze(), meta_repr
 
-    
 
 # %% ../../nbs/20_models.oak.ipynb 145
 class OAK011(OAK000, DistilBertPreTrainedModel):
@@ -1481,22 +1484,27 @@ class OAK011(OAK000, DistilBertPreTrainedModel):
     def __init__(
         self, 
         config,
-        n_clusters:int,
-        n_metadata:int,
+        num_metadata:int,
+        num_meta_clusters:int,
         resize_length:Optional[int]=None,
+        normalize:Optional[bool]=True,
+        use_layer_norm:Optional[bool]=True,
         **kwargs
     ):
         super().__init__(config, **kwargs)
-        self.encoder = Encoder011(config, n_clusters=n_clusters, n_metadata=n_metadata, resize_length=resize_length)
+        self.encoder = Encoder011(config, num_metadata=num_metadata, num_meta_clusters=num_meta_clusters, 
+                                  resize_length=resize_length, normalize=normalize, use_ln=use_layer_norm)
         self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head()
 
+    @torch.no_grad()
     def init_meta_embeddings(self):
         self.encoder.init_meta_embeddings()
 
     def remap_post_init(self):
         self.distilbert = self.encoder.distilbert
+        
 
-# %% ../../nbs/20_models.oak.ipynb 153
+# %% ../../nbs/20_models.oak.ipynb 154
 class Encoder012(Encoder):
 
     def __init__(self, config, **kwargs):
@@ -1525,7 +1533,7 @@ class Encoder012(Encoder):
         return data_fused_repr.squeeze(), meta_repr
     
 
-# %% ../../nbs/20_models.oak.ipynb 154
+# %% ../../nbs/20_models.oak.ipynb 155
 class OAK012(OAK000, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -1546,7 +1554,7 @@ class OAK012(OAK000, DistilBertPreTrainedModel):
         self.distilbert = self.encoder.distilbert
         
 
-# %% ../../nbs/20_models.oak.ipynb 165
+# %% ../../nbs/20_models.oak.ipynb 166
 class Encoder013(Encoder003):
 
     def __init__(
@@ -1596,7 +1604,7 @@ class Encoder013(Encoder003):
         return data_fused_repr.squeeze(), meta_repr
     
 
-# %% ../../nbs/20_models.oak.ipynb 166
+# %% ../../nbs/20_models.oak.ipynb 167
 class OAK013(OAK008, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -1621,7 +1629,7 @@ class OAK013(OAK008, DistilBertPreTrainedModel):
         self.encoder.init_meta_encoder()
         
 
-# %% ../../nbs/20_models.oak.ipynb 179
+# %% ../../nbs/20_models.oak.ipynb 180
 class Encoder014(Encoder013):
 
     def __init__(
@@ -1665,7 +1673,7 @@ class Encoder014(Encoder013):
         return data_fused_repr.squeeze(), meta_repr
         
 
-# %% ../../nbs/20_models.oak.ipynb 180
+# %% ../../nbs/20_models.oak.ipynb 181
 class OAK014(OAK013, DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -1686,8 +1694,8 @@ class OAK014(OAK013, DistilBertPreTrainedModel):
         
         
 
-# %% ../../nbs/20_models.oak.ipynb 193
-class OAK015(OAK003):
+# %% ../../nbs/20_models.oak.ipynb 194
+class OAK015(OAK011):
 
     def __init__(
         self, 
@@ -1782,8 +1790,8 @@ class OAK015(OAK003):
         )
             
 
-# %% ../../nbs/20_models.oak.ipynb 207
-class OAK016(OAK003):
+# %% ../../nbs/20_models.oak.ipynb 208
+class OAK016(OAK011):
 
     def __init__(
         self, 
