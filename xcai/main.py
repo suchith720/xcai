@@ -121,10 +121,11 @@ def get_cluster_mapping(do_inference:bool, use_pretrained:bool, num_metadata:int
                         normalize:Optional[bool]=True, use_layer_norm:Optional[bool]=None, **kwargs):
     if do_inference and not use_pretrained:
         metadata_idx2cluster, meta_repr = None, None
-        num_meta_cluster = _get_cluster_size(num_metadata, cluster_size)
+        num_meta_cluster = get_cluster_size(num_metadata, cluster_size)
     else:
-        metadata_idx2cluster, meta_repr, num_meta_cluster = get_cluster_mapping(meta_embed_init_file, cluster_sz=cluster_size, mname=model_name,
-                meta_info=meta_info, collator=collator, normalize=normalize, use_layer_norm=use_layer_norm)
+        metadata_idx2cluster, meta_repr, num_meta_cluster = _get_cluster_mapping(meta_embed_init_file, cluster_sz=cluster_size, mname=model_name,
+                                                                                 meta_info=meta_info, collator=collator, normalize=normalize, 
+                                                                                 use_layer_norm=use_layer_norm)
     return metadata_idx2cluster, meta_repr, num_meta_cluster
     
 
