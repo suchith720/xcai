@@ -20,7 +20,7 @@ from .transform import AugmentMetaInputIdsTfm
 from .learner import XCLearningArguments, XCLearner
 
 from .models.PPP0XX import DBT024
-from .clustering.cluster import BalancedClusters
+from .clustering.cluster import BalancedClusters, get_cluster_size
 
 from xclib.utils.sparse import retain_topk
 
@@ -93,7 +93,7 @@ def get_metadata_representation(mname:str, meta_info:Dict, collator:XCCollator, 
     return learn._get_data_representation(dset, to_cpu=True)
 
 # %% ../nbs/36_main.ipynb 8
-def get_cluster_mapping(meta_repr:Optional[Union[torch.Tensor,str]]=None, cluster_sz:Optional[int]=3, mname:Optional[str]=None, 
+def _get_cluster_mapping(meta_repr:Optional[Union[torch.Tensor,str]]=None, cluster_sz:Optional[int]=3, mname:Optional[str]=None, 
                         meta_info:Optional[Dict]=None, collator:Optional[XCCollator]=None, normalize:Optional[bool]=True, 
                         use_layer_norm:Optional[bool]=True, use_encoder_parallel:Optional[bool]=True):
     if cluster_sz > 1:
@@ -113,6 +113,19 @@ def get_cluster_mapping(meta_repr:Optional[Union[torch.Tensor,str]]=None, cluste
         num_meta_clusters = meta_repr.shape[0]
 
     return metadata_idx2cluster, meta_repr, num_meta_clusters
+    
+
+# %% ../nbs/36_main.ipynb 9
+def get_cluster_mapping(do_inference:bool, use_pretrained:bool, num_metadata:int, cluster_size:int, meta_embed_init_file:Optional[str]=None, 
+                        model_name:Optional[str]=None, meta_info:Optional[Dict]=None, collator:Optional[Callable]=None, 
+                        normalize:Optional[bool]=True, use_layer_norm:Optional[bool]=None):
+    if do_inference and not use_pretrained:
+        metadata_idx2cluster, meta_repr = None, None
+        num_meta_cluster = _get_cluster_size(num_metadata, cluster_size)
+    else:
+        metadata_idx2cluster, meta_repr, num_meta_cluster = get_cluster_mapping(meta_embed_init_file, cluster_sz=cluster_size, mname=model_name,
+                meta_info=meta_info, collator=collator, normalize=normalize, use_layer_norm=use_layer_norm)
+    return metadata_idx2cluster, meta_repr, num_meta_cluster
     
 
 # %% ../nbs/36_main.ipynb 11
