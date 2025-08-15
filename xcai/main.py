@@ -118,7 +118,7 @@ def _get_cluster_mapping(meta_repr:Optional[Union[torch.Tensor,str]]=None, clust
 # %% ../nbs/36_main.ipynb 9
 def get_cluster_mapping(do_inference:bool, use_pretrained:bool, num_metadata:int, cluster_size:int, meta_embed_init_file:Optional[str]=None, 
                         model_name:Optional[str]=None, meta_info:Optional[Dict]=None, collator:Optional[Callable]=None, 
-                        normalize:Optional[bool]=True, use_layer_norm:Optional[bool]=None):
+                        normalize:Optional[bool]=True, use_layer_norm:Optional[bool]=None, **kwargs):
     if do_inference and not use_pretrained:
         metadata_idx2cluster, meta_repr = None, None
         num_meta_cluster = _get_cluster_size(num_metadata, cluster_size)
