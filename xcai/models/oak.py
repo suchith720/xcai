@@ -160,7 +160,6 @@ class Encoder(DistilBertPreTrainedModel):
         self, 
         config:PretrainedConfig, 
         num_metadata:int,
-        resize_length:Optional[int]=None,
         normalize:Optional[bool]=True,
         use_ln:Optional[bool]=True,
     ):
@@ -176,9 +175,6 @@ class Encoder(DistilBertPreTrainedModel):
         self.cross_head = CrossAttention(config)
         
         self.meta_embeddings = nn.Embedding(num_metadata, config.dim)
-
-        if resize_length is None: self.ones = None
-        else: self.register_buffer('ones', torch.ones(resize_length, dtype=torch.long, device=self.device), persistent=False)
         
         self.post_init()
 
@@ -222,12 +218,7 @@ class Encoder(DistilBertPreTrainedModel):
     def resize(self, idx:torch.Tensor, num_inputs:torch.Tensor):
         if torch.any(num_inputs <= 0): raise ValueError("`num_inputs` should be non-zero positive integer.")
         bsz, total_num_inputs = num_inputs.shape[0], idx.shape[0]
-        
-        self.ones = self.ones.to(idx.device)
-        ones = (
-            torch.ones(total_num_inputs, dtype=torch.long, device=idx.device) 
-            if self.ones is None or self.ones.shape[0] < total_num_inputs else self.ones[:total_num_inputs]
-        )
+        ones = torch.ones(total_num_inputs, dtype=torch.long, device=idx.device)
 
         max_num_inputs = num_inputs.max()
         if torch.all(num_inputs == max_num_inputs):
@@ -515,11 +506,10 @@ class OAK001(OAK000, DistilBertPreTrainedModel):
         self, 
         config,
         num_metadata:int,
-        resize_length:Optional[int]=None,
         **kwargs
     ):
         super().__init__(config, **kwargs)
-        self.encoder = Encoder(config, num_metadata=num_metadata, resize_length=resize_length)
+        self.encoder = Encoder(config, num_metadata=num_metadata)
         self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head()
 
     def remap_post_init(self):
@@ -551,7 +541,6 @@ class OAK002(OAK000, DistilBertPreTrainedModel):
         self, 
         config,
         num_metadata:int,
-        resize_length:Optional[int]=None,
         
         cross_tau:Optional[float]=0.1,
         cross_dropout:Optional[float]=0.1,
@@ -560,7 +549,7 @@ class OAK002(OAK000, DistilBertPreTrainedModel):
     ):
         super().__init__(config, **kwargs)
         self.encoder = Encoder002(config, cross_tau=cross_tau, cross_dropout=cross_dropout,
-                                  num_metadata=num_metadata, resize_length=resize_length)
+                                  num_metadata=num_metadata)
         self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head()
 
     def remap_post_init(self):
@@ -626,14 +615,13 @@ class OAK003(OAK000, DistilBertPreTrainedModel):
         self, 
         config,
         num_metadata:int,
-        resize_length:Optional[int]=None,
         normalize:Optional[bool]=True,
         use_layer_norm:Optional[bool]=True,
         **kwargs
     ):
         super().__init__(config, **kwargs)
-        self.encoder = Encoder003(config, num_metadata=num_metadata, resize_length=resize_length, 
-                                  normalize=normalize, use_ln=use_layer_norm)
+        self.encoder = Encoder003(config, num_metadata=num_metadata, normalize=normalize, 
+                                  use_ln=use_layer_norm)
         self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head()
 
     @torch.no_grad()
@@ -669,14 +657,13 @@ class OAK004(OAK003, DistilBertPreTrainedModel):
         self, 
         config,
         num_metadata:int,
-        resize_length:Optional[int]=None,
         
         cross_tau:Optional[float]=1.0,
         cross_dropout:Optional[float]=0.1,
         
         **kwargs
     ):
-        super().__init__(config, **kwargs, num_metadata=num_metadata, resize_length=resize_length)
+        super().__init__(config, **kwargs, num_metadata=num_metadata)
         self.encoder = Encoder004(config, cross_tau=cross_tau, cross_dropout=cross_dropout,
                                   num_metadata=num_metadata, resize_length=resize_length)
         self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head()
@@ -753,7 +740,6 @@ class OAK005(OAK003, DistilBertPreTrainedModel):
         self, 
         config,
         num_metadata:int,
-        resize_length:Optional[int]=None,
 
         num_batch_labels:Optional[int]=None, 
         ignore_token:Optional[int]=0,
@@ -762,7 +748,7 @@ class OAK005(OAK003, DistilBertPreTrainedModel):
         
         **kwargs
     ):
-        super().__init__(config, **kwargs, num_metadata=num_metadata, resize_length=resize_length, num_batch_labels=num_batch_labels)
+        super().__init__(config, **kwargs, num_metadata=num_metadata, num_batch_labels=num_batch_labels)
         store_attr('use_gen_loss')
         self.g_lw = gen_loss_weight
         self.encoder = Encoder005(config, num_metadata=num_metadata, resize_length=resize_length)
@@ -879,7 +865,6 @@ class Encoder006(DistilBertPreTrainedModel):
         self, 
         config:PretrainedConfig, 
         num_metadata:int,
-        resize_length:Optional[int]=None,
     ):
         super().__init__(config)
         self.distilbert = DistilBertModel(config)
@@ -890,8 +875,7 @@ class Encoder006(DistilBertPreTrainedModel):
         self.cross_head = CrossAttention(config)
         self.meta_embeddings = nn.Embedding(num_metadata, config.dim, sparse=True)
         self.pretrained_meta_embeddings = nn.Embedding(num_metadata, config.dim)
-
-        self.ones = torch.ones(resize_length, dtype=torch.long, device=self.device) if resize_length is not None else None
+        
         self.post_init()
 
     def freeze_meta_embeddings(self):
@@ -947,12 +931,7 @@ class Encoder006(DistilBertPreTrainedModel):
     def resize(self, idx:torch.Tensor, num_inputs:torch.Tensor):
         if torch.any(num_inputs == 0): raise ValueError("`num_inputs` should be non-zero positive integer.")
         bsz, total_num_inputs = num_inputs.shape[0], idx.shape[0]
-        
-        self.ones = self.ones.to(idx.device)
-        ones = (
-            torch.ones(total_num_inputs, dtype=torch.long, device=idx.device) 
-            if self.ones is None or self.ones.shape[0] < total_num_inputs else self.ones[:total_num_inputs]
-        )
+        ones = torch.ones(total_num_inputs, dtype=torch.long, device=idx.device) 
 
         max_num_inputs = num_inputs.max()
         if (num_inputs == max_num_inputs).all():
@@ -1031,11 +1010,10 @@ class OAK006(OAK000, DistilBertPreTrainedModel):
         self, 
         config,
         num_metadata:int,
-        resize_length:Optional[int]=None,
         **kwargs
     ):
         super().__init__(config, **kwargs)
-        self.encoder = Encoder006(config, num_metadata=num_metadata, resize_length=resize_length)
+        self.encoder = Encoder006(config, num_metadata=num_metadata)
         self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head()
 
     def init_meta_embeddings(self):
@@ -1486,14 +1464,13 @@ class OAK011(OAK000, DistilBertPreTrainedModel):
         config,
         num_metadata:int,
         num_meta_clusters:Optional[int]=None,
-        resize_length:Optional[int]=None,
         normalize:Optional[bool]=True,
         use_layer_norm:Optional[bool]=True,
         **kwargs
     ):
         super().__init__(config, **kwargs)
         self.encoder = Encoder011(config, num_metadata=num_metadata, num_meta_clusters=num_meta_clusters, 
-                                  resize_length=resize_length, normalize=normalize, use_ln=use_layer_norm)
+                                  normalize=normalize, use_ln=use_layer_norm)
         self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head()
 
     @torch.no_grad()
@@ -1543,11 +1520,10 @@ class OAK012(OAK000, DistilBertPreTrainedModel):
         self, 
         config,
         num_metadata:int,
-        resize_length:Optional[int]=None,
         **kwargs
     ):
         super().__init__(config, **kwargs)
-        self.encoder = Encoder012(config, num_metadata=num_metadata, resize_length=resize_length)
+        self.encoder = Encoder012(config, num_metadata=num_metadata)
         self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head()
         
     def remap_post_init(self):
@@ -1615,11 +1591,10 @@ class OAK013(OAK008, DistilBertPreTrainedModel):
         self, 
         config,
         num_metadata:int,
-        resize_length:Optional[int]=None,
         **kwargs
     ):
         super().__init__(config, num_metadata=num_metadata, resize_length=resize_length, **kwargs)
-        self.encoder = Encoder013(config, num_metadata=num_metadata, resize_length=resize_length)
+        self.encoder = Encoder013(config, num_metadata=num_metadata)
         self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head()
 
     def remap_post_init(self):
@@ -1685,10 +1660,9 @@ class OAK014(OAK013, DistilBertPreTrainedModel):
         config,
         n_metadata:int,
         n_meta_clusters:int,
-        resize_length:Optional[int]=None,
         **kwargs
     ):
-        super().__init__(config, num_metadata=n_metadata, resize_length=resize_length, **kwargs)
+        super().__init__(config, num_metadata=n_metadata, **kwargs)
         self.encoder = Encoder014(config, n_metadata=n_metadata, n_meta_clusters=n_meta_clusters, resize_length=resize_length)
         self.post_init(); self.remap_post_init(); self.init_retrieval_head(); self.init_cross_head()
         
