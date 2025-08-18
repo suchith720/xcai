@@ -1485,7 +1485,7 @@ class OAK011(OAK000, DistilBertPreTrainedModel):
         self, 
         config,
         num_metadata:int,
-        num_meta_clusters:int,
+        num_meta_clusters:Optional[int]=None,
         resize_length:Optional[int]=None,
         normalize:Optional[bool]=True,
         use_layer_norm:Optional[bool]=True,
