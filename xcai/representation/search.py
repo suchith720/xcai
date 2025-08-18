@@ -53,10 +53,13 @@ class IndexSearch:
 # %% ../../nbs/11_representation.search.ipynb 13
 class BruteForceSearch:
     
-    def __init__(self, 
-                 index:Optional[torch.Tensor]=None, 
-                 n_bm:Optional[int]=50):
-        store_attr('index,n_bm')
+    def __init__(
+        self, 
+        index:Optional[torch.Tensor]=None, 
+        n_bm:Optional[int]=50,
+        normalize:Optional[bool]=True,
+    ):
+        store_attr('index,n_bm,normalize')
         
     def build(self, data:Optional[torch.Tensor], info:Optional[torch.Tensor]=None):
         if info is not None and data.shape[0] != info.shape[0]: 
@@ -69,10 +72,14 @@ class BruteForceSearch:
     def proc(self, inputs:Optional[torch.Tensor], n_bm:Optional[int]=None):
         store_attr('n_bm', is_none=False)
         index, info = self.index
-        inputs, n_bm = F.normalize(inputs, dim=1), min(index.shape[0], self.n_bm)
+        
+        inputs = F.normalize(inputs, dim=1) if self.normalize else inputs
         inputs = inputs.to(index.device)
         
-        sc, idx = torch.topk(inputs@F.normalize(index, dim=1).T, n_bm, dim=1, largest=True)
+        n_bm = min(index.shape[0], self.n_bm)
+        index = F.normalize(index, dim=1) if self.normalize else index
+        
+        sc, idx = torch.topk(inputs@index.T, n_bm, dim=1, largest=True)
         if info is None: info = idx
         else: info = info.unsqueeze(0).expand((idx.shape[0],-1)).gather(1, idx)
             

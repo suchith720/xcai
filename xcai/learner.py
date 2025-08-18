@@ -236,6 +236,7 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
                  index_m:Optional[int]=100, 
                  index_efs:Optional[int]=300,
                  index_num_threads:Optional[int]=84,
+                 search_normalize:Optional[bool]=True,
                  use_cpu_for_searching:Optional[bool]=False,
                  predict_with_generation:Optional[bool]=False,
                  predict_with_representation:Optional[bool]=False,
@@ -309,7 +310,7 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
         
         store_attr('generation_num_beams,generation_length_penalty,generation_max_info,generation_eos_token')
         store_attr('representation_accumulation_steps,representation_num_beams,representation_search_type')
-        store_attr('index_space,index_efc,index_m,index_efs,index_num_threads,use_cpu_for_searching')
+        store_attr('index_space,index_efc,index_m,index_efs,index_num_threads,use_cpu_for_searching,search_normalize')
         store_attr('predict_with_generation,predict_with_representation,output_concatenation_weight')
         store_attr('group_by_cluster,num_cluster_update_epochs,num_cluster_size_update_epochs,num_clustering_warmup_epochs')
         store_attr('clustering_devices,clustering_type,maximum_cluster_size,use_cpu_for_clustering')
@@ -352,7 +353,7 @@ class XCLearner(Seq2SeqTrainer):
         self.tbs = TrieBeamSearch(trie, self.args.generation_eos_token, n_bm=self.args.generation_num_beams, 
                                   len_penalty=self.args.generation_length_penalty, max_info=self.args.generation_max_info, **kwargs)
         self.idxs = (
-            BruteForceSearch(n_bm=self.args.representation_num_beams)
+            BruteForceSearch(n_bm=self.args.representation_num_beams, normalize=self.args.search_normalize)
             if self.args.representation_search_type == 'BRUTEFORCE' else
             IndexSearch(space=self.args.index_space, efc=self.args.index_efc, m=self.args.index_m, 
                         efs=self.args.index_efs, n_bm=self.args.representation_num_beams, 

@@ -220,7 +220,7 @@ class Encoder(DistilBertPreTrainedModel):
         return F.normalize(embed, dim=1) if normalize else embed
 
     def resize(self, idx:torch.Tensor, num_inputs:torch.Tensor):
-        if torch.any(num_inputs == 0): raise ValueError("`num_inputs` should be non-zero positive integer.")
+        if torch.any(num_inputs <= 0): raise ValueError("`num_inputs` should be non-zero positive integer.")
         bsz, total_num_inputs = num_inputs.shape[0], idx.shape[0]
         
         self.ones = self.ones.to(idx.device)
@@ -230,7 +230,7 @@ class Encoder(DistilBertPreTrainedModel):
         )
 
         max_num_inputs = num_inputs.max()
-        if (num_inputs == max_num_inputs).all():
+        if torch.all(num_inputs == max_num_inputs):
             return idx,ones
         
         xnum_inputs = max_num_inputs-num_inputs+1
