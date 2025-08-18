@@ -55,7 +55,7 @@ def parse_args():
     parser.add_argument('--normalize', action='store_true')
     parser.add_argument('--use_ln', action='store_true')
     
-    return parser.parse_args()
+    return parser.parse_known_args()[0]
     
 
 # %% ../nbs/36_main.ipynb 7
