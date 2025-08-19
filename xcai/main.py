@@ -96,6 +96,7 @@ def get_metadata_representation(mname:str, meta_info:Dict, collator:XCCollator, 
         data_collator=collator,
     )
     return learn._get_data_representation(dset, to_cpu=True)
+    
 
 # %% ../nbs/36_main.ipynb 9
 def _get_cluster_mapping(meta_repr:Optional[Union[torch.Tensor,str]]=None, cluster_sz:Optional[int]=3, mname:Optional[str]=None, 
@@ -237,10 +238,12 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
         if use_sxc:
             block = SXCBlock.from_cfg(config, config_key, padding=True, return_tensors='pt', data_dir=data_dir, **kwargs)
             if use_oracle:
-                augment_metadata(dset=block.train.dset, meta_name=f'{meta_name}_meta', config=config, config_key=config_key,
-                                 data_dir=data_dir, prompt=prompt, padding=True, return_tensors='pt')
-                augment_metadata(dset=block.test.dset, meta_name=f'{meta_name}_meta', config=config, config_key=config_key,
-                                 data_dir=data_dir, prompt=prompt, padding=True, return_tensors='pt')
+                if block.train is not None and f'{meta_name}_meta' in block.train.dset.meta:
+                    augment_metadata(dset=block.train.dset, meta_name=f'{meta_name}_meta', config=config, 
+                                     config_key=config_key, data_dir=data_dir, prompt=prompt, padding=True, return_tensors='pt')
+                if block.test is not None and f'{meta_name}_meta' in block.test.dset.meta:
+                    augment_metadata(dset=block.test.dset, meta_name=f'{meta_name}_meta', config=config, 
+                                     config_key=config_key, data_dir=data_dir, prompt=prompt, padding=True, return_tensors='pt')
         elif use_nxc:
             block = NXCBlock.from_cfg(config, config_key, padding=True, return_tensors='pt', data_dir=data_dir, **kwargs)
         else: 
