@@ -121,21 +121,30 @@ def _get_cluster_mapping(meta_repr:Optional[Union[torch.Tensor,str]]=None, clust
     return metadata_idx2cluster, meta_repr, num_meta_clusters
     
 
-# %% ../nbs/36_main.ipynb 10
+# %% ../nbs/36_main.ipynb 11
 def get_cluster_mapping(do_inference:bool, use_pretrained:bool, num_metadata:int, cluster_size:int, meta_embed_init_file:Optional[str]=None, 
                         model_name:Optional[str]=None, meta_info:Optional[Dict]=None, collator:Optional[Callable]=None, 
-                        normalize:Optional[bool]=True, use_layer_norm:Optional[bool]=None, **kwargs):
+                        normalize:Optional[bool]=True, use_layer_norm:Optional[bool]=None, output_dir:Optional[str]=None, 
+                        **kwargs):
     if do_inference and not use_pretrained:
         metadata_idx2cluster, meta_repr = None, None
         num_meta_cluster = get_cluster_size(num_metadata, cluster_size)
     else:
-        metadata_idx2cluster, meta_repr, num_meta_cluster = _get_cluster_mapping(meta_embed_init_file, cluster_sz=cluster_size, mname=model_name,
-                                                                                 meta_info=meta_info, collator=collator, normalize=normalize, 
-                                                                                 use_layer_norm=use_layer_norm)
+        map_file = f'{output_dir}/cluster_info.pth'
+        if os.path.exists(map_file):
+            metadata_idx2cluster, meta_repr, num_meta_cluster = torch.load(map_file)
+        else:
+            metadata_idx2cluster, meta_repr, num_meta_cluster = _get_cluster_mapping(meta_embed_init_file, cluster_sz=cluster_size, 
+                                                                                     mname=model_name, meta_info=meta_info, 
+                                                                                     collator=collator, normalize=normalize, 
+                                                                                     use_layer_norm=use_layer_norm)
+            os.makedirs(output_dir, exist_ok=True)
+            torch.save((metadata_idx2cluster, meta_repr, num_meta_cluster), map_file)
+            
     return metadata_idx2cluster, meta_repr, num_meta_cluster
     
 
-# %% ../nbs/36_main.ipynb 12
+# %% ../nbs/36_main.ipynb 13
 def retain_topk_metadata(block, train_k:Union[int,Dict]=5, test_k:Union[int,Dict]=3):
     if train_k is not None and block.train is not None:
         for meta_name in block.train.dset.meta.keys():
@@ -171,13 +180,13 @@ def retrain_topk_labels(block, train_k:int=5, test_k:int=3):
             block.test.dset.data._store_scores()
     
 
-# %% ../nbs/36_main.ipynb 13
+# %% ../nbs/36_main.ipynb 14
 def get_valid_dset(block):
     num_empty_idx = sum(block.dset.data.data_lbl.getnnz(axis=1) == 0)
     return block._getitems(np.where(block.dset.data.data_lbl.getnnz(axis=1) > 0)[0]) if num_empty_idx > 0 else block
     
 
-# %% ../nbs/36_main.ipynb 14
+# %% ../nbs/36_main.ipynb 15
 def get_config(config:Union[str, Dict], config_key:Optional[str]=None, data_dir:Optional[str]=None, **kwargs):
     if isinstance(config, str) and os.path.exists(config):
         config = load_config(config, config_key)
@@ -192,14 +201,14 @@ def get_config(config:Union[str, Dict], config_key:Optional[str]=None, data_dir:
     return config
     
 
-# %% ../nbs/36_main.ipynb 15
+# %% ../nbs/36_main.ipynb 16
 def tokenize_info(info:Dict, config:Dict, max_sequence_length:int):
     tokz, tokz_args = Info(), {p:config[p] for p in inspect.signature(Info.tokenize).parameters if p in config}
     tokz.info = info
     tokz.tokenize(**tokz_args, max_sequence_length=max_sequence_length)
     
 
-# %% ../nbs/36_main.ipynb 16
+# %% ../nbs/36_main.ipynb 17
 def augment_metadata(dset:Union[XCDataset,SXCDataset], meta_name:str, config:Union[str, Dict], 
                      config_key:Optional[str]=None, data_dir:Optional[str]=None, 
                      prompt:Optional[Callable]=None, sep_tok:Optional[str]=" :: ", **kwargs):
@@ -219,7 +228,7 @@ def augment_metadata(dset:Union[XCDataset,SXCDataset], meta_name:str, config:Uni
                   max_sequence_length=config['parameters']['main_max_data_sequence_length'])
     
 
-# %% ../nbs/36_main.ipynb 18
+# %% ../nbs/36_main.ipynb 19
 def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=True, config_key:Optional[str]=None, 
                 do_build:Optional[bool]=False, only_test:Optional[bool]=False, use_oracle:Optional[bool]=False, 
                 remove_empty_datapoints:Optional[bool]=False, train_label_topk:Optional[int]=None, test_label_topk:Optional[int]=None, 
@@ -345,7 +354,7 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
     return block
         
 
-# %% ../nbs/36_main.ipynb 20
+# %% ../nbs/36_main.ipynb 21
 def load_model(output_dir:str, model_fn:Callable, model_args:Dict, init_fn:Callable, init_args:Optional[Dict]=dict(), 
                do_inference:Optional[bool]=False, use_pretrained:Optional[bool]=False):
     if do_inference:
@@ -360,7 +369,7 @@ def load_model(output_dir:str, model_fn:Callable, model_args:Dict, init_fn:Calla
     return model
     
 
-# %% ../nbs/36_main.ipynb 22
+# %% ../nbs/36_main.ipynb 23
 def get_output(pred_idx:torch.Tensor, pred_ptr:torch.Tensor, pred_score:torch.Tensor, n_lbl:int, **kwargs):
     n_data = pred_ptr.shape[0]
     pred_ptr = torch.cat([torch.zeros((1,), dtype=torch.long), pred_ptr.cumsum(dim=0)])
@@ -368,7 +377,7 @@ def get_output(pred_idx:torch.Tensor, pred_ptr:torch.Tensor, pred_score:torch.Te
     return pred
     
 
-# %% ../nbs/36_main.ipynb 24
+# %% ../nbs/36_main.ipynb 25
 def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:int=None, train_k:int=None, save_teacher:bool=False, 
          save_classifier:bool=False, resume_from_checkpoint:Optional[bool]=None):
     eval_dataset = learn.eval_dataset if eval_dataset is None else eval_dataset
