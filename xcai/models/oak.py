@@ -59,6 +59,10 @@ class CrossAttention(nn.Module):
         nn.init.zeros_(self.v.weight); nn.init.zeros_(self.v.bias)
         nn.init.zeros_(self.o.weight); nn.init.zeros_(self.o.bias)
 
+    @torch.no_grad()
+    def init_output_zero(self):
+        nn.init.zeros_(self.o.weight); nn.init.zeros_(self.o.bias)
+
     def forward(
         self, 
         q: torch.Tensor,
