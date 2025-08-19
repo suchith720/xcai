@@ -47,10 +47,17 @@ class CrossAttention(nn.Module):
 
     @torch.no_grad()
     def post_init(self):
-        nn.init.eye_(self.q.weight.data)
-        nn.init.eye_(self.k.weight.data)
-        nn.init.eye_(self.v.weight.data)
-        nn.init.eye_(self.o.weight.data)
+        nn.init.eye_(self.q.weight); nn.init.zeros_(self.q.bias)
+        nn.init.eye_(self.k.weight); nn.init.zeros_(self.k.bias)
+        nn.init.eye_(self.v.weight); nn.init.zeros_(self.v.bias)
+        nn.init.eye_(self.o.weight); nn.init.zeros_(self.o.bias)
+
+    @torch.no_grad()
+    def init_zeros(self):
+        nn.init.zeros_(self.q.weight); nn.init.zeros_(self.q.bias)
+        nn.init.zeros_(self.k.weight); nn.init.zeros_(self.k.bias)
+        nn.init.zeros_(self.v.weight); nn.init.zeros_(self.v.bias)
+        nn.init.zeros_(self.o.weight); nn.init.zeros_(self.o.bias)
 
     def forward(
         self, 
