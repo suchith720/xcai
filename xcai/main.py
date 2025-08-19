@@ -124,22 +124,22 @@ def _get_cluster_mapping(meta_repr:Optional[Union[torch.Tensor,str]]=None, clust
 # %% ../nbs/36_main.ipynb 11
 def get_cluster_mapping(do_inference:bool, use_pretrained:bool, num_metadata:int, cluster_size:int, meta_embed_init_file:Optional[str]=None, 
                         model_name:Optional[str]=None, meta_info:Optional[Dict]=None, collator:Optional[Callable]=None, 
-                        normalize:Optional[bool]=True, use_layer_norm:Optional[bool]=None, output_dir:Optional[str]=None, 
-                        **kwargs):
+                        normalize:Optional[bool]=True, use_layer_norm:Optional[bool]=None, output_dir:Optional[str]=None, **kwargs):
     if do_inference and not use_pretrained:
         metadata_idx2cluster, meta_repr = None, None
         num_meta_cluster = get_cluster_size(num_metadata, cluster_size)
     else:
-        map_file = f'{output_dir}/cluster_info.pth'
-        if os.path.exists(map_file):
+        map_file = None if output_dir is None else f'{output_dir}/cluster_info.pth'
+        if map_file is not None and os.path.exists(map_file):
             metadata_idx2cluster, meta_repr, num_meta_cluster = torch.load(map_file)
         else:
             metadata_idx2cluster, meta_repr, num_meta_cluster = _get_cluster_mapping(meta_embed_init_file, cluster_sz=cluster_size, 
                                                                                      mname=model_name, meta_info=meta_info, 
                                                                                      collator=collator, normalize=normalize, 
                                                                                      use_layer_norm=use_layer_norm)
-            os.makedirs(output_dir, exist_ok=True)
-            torch.save((metadata_idx2cluster, meta_repr, num_meta_cluster), map_file)
+            if output_dir is not None:
+                os.makedirs(output_dir, exist_ok=True)
+                torch.save((metadata_idx2cluster, meta_repr, num_meta_cluster), map_file)
             
     return metadata_idx2cluster, meta_repr, num_meta_cluster
     
