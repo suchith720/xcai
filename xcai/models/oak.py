@@ -181,6 +181,12 @@ class Encoder(DistilBertPreTrainedModel):
     def freeze_meta_embeddings(self):
         self.meta_embeddings.requires_grad_(False)
 
+    def freeze_transformer(self):
+        for p in self.distilbert.parameters(): p.requires_grad_(False)
+
+    def unfreeze_transformer(self):
+        for p in self.distilbert.parameters(): p.requires_grad_(True)
+
     def unfreeze_meta_embeddings(self):
         self.meta_embeddings.requires_grad_(True)
 
