@@ -317,8 +317,10 @@ def get_pkl_file(pkl_dir:str, fname:str, use_sxc_sampler:bool, use_exact:Optiona
 
 # %% ../nbs/00_core.ipynb 37
 def get_config_key(fname):
-    fname = os.path.basename(fname).split('.')[0]
-    return fname, fname.replace('_', '-')
+    key = os.path.basename(fname).split('.')[0]
+    fname = key.replace('_', '-')
+    if fname.endswith('-exact'): fname = fname[:-6]
+    return key, fname 
     
 
 # %% ../nbs/00_core.ipynb 39
