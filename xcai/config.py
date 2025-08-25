@@ -52,6 +52,7 @@ PARAM = {
     
     # Dataset
     #-------------------------
+    'enable_delayed_indexing': False,
     'n_lbl_samples': None,
     'data_info_keys': None,
     'lbl_info_keys': None,
