@@ -142,7 +142,7 @@ class XCSamplerFeatTfm:
         return sbatch
     
     def sample_dep_features(
-        self:XCSamplerFeatTfm, 
+        self, 
         sampled_batch:List, 
         sbatch:List, 
         names:List, 
