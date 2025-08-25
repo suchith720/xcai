@@ -4,15 +4,16 @@
 __all__ = ['identity_collate_fn', 'SMainXCDataset', 'SMetaXCDataset', 'SXCDataset', 'SBaseXCDataBlock', 'SXCDataBlock']
 
 # %% ../nbs/35_sdata.ipynb 3
-import torch, inspect, numpy as np, scipy.sparse as sp
+import torch, inspect, numpy as np, scipy.sparse as sp, inspect
 from typing import Callable, Optional, Union, Dict
 from torch.utils.data import DataLoader
 from transformers import BatchEncoding
+from itertools import chain
 
 from .core import Filterer, Info
 from .data import MainXCData, MetaXCData
-from .data import BaseXCDataset, MainXCDataset, MetaXCDataset, MetaXCDatasets
-from .data import BaseXCDataBlock
+from .data import BaseXCDataset, MainXCDataset, MetaXCDataset, XCDataset
+from .data import BaseXCDataBlock, XCDataBlock
 from .data import _read_sparse_file
 from .graph.operations import *
 
@@ -23,7 +24,7 @@ from plum import dispatch
 # %% ../nbs/35_sdata.ipynb 11
 def identity_collate_fn(batch): return BatchEncoding(batch)
 
-# %% ../nbs/35_sdata.ipynb 14
+# %% ../nbs/35_sdata.ipynb 16
 class SMainXCDataset(MainXCDataset):
 
     def __init__(
@@ -39,27 +40,6 @@ class SMainXCDataset(MainXCDataset):
         
         self.data_lbl_scores = None
         if use_main_distribution or return_scores: self._store_scores()
-
-    def _get_dataset(
-        self, 
-        data_info:Dict, 
-        data_lbl:Optional[sp.csr_matrix]=None, 
-        lbl_info:Optional[Dict]=None, 
-        data_lbl_filterer:Optional[Union[sp.csr_matrix,np.array]]=None, 
-        **kwargs
-    ):
-        n_lbl_samples = kwargs.get('n_lbl_samples') if 'n_lbl_samples' in kwargs else self.n_lbl_samples
-        data_info_keys = kwargs.get('data_info_keys') if 'data_info_keys' in kwargs else self.data_info_keys
-        lbl_info_keys = kwargs.get('lbl_info_keys') if 'lbl_info_keys' in kwargs else self.lbl_info_keys
-        n_slbl_samples = kwargs.get('n_slbl_samples') if 'n_slbl_samples' in kwargs else self.n_slbl_samples
-        main_oversample = kwargs.get('main_oversample') if 'main_oversample' in kwargs else self.main_oversample
-        use_main_distribution = kwargs.get('use_main_distribution') if 'use_main_distribution' in kwargs else self.use_main_distribution
-        return_scores = kwargs.get('return_scores') if 'return_scores' in kwargs else self.return_scores
-        
-        return SMainXCDataset(data_info=data_info, data_lbl=data_lbl, lbl_info=lbl_info, data_lbl_filterer=data_lbl_filterer, 
-                              n_lbl_samples=n_lbl_samples, data_info_keys=data_info_keys, lbl_info_keys=lbl_info_keys, 
-                              n_slbl_samples=n_slbl_samples, main_oversample=main_oversample, use_main_distribution=use_main_distribution, 
-                              return_scores=return_scores)
         
     def _store_scores(self):
         if self.data_lbl is not None:
@@ -69,52 +49,20 @@ class SMainXCDataset(MainXCDataset):
             else:
                 data_lbl = self.data_lbl
             self.data_lbl_scores = [o.data.tolist() for o in data_lbl]
-            
+        
     def __getitems__(self, idxs:List):
         x = {'data_idx': torch.tensor(idxs, dtype=torch.int64)}
         x.update(self.get_info('data', idxs, self.data_info, self.data_info_keys))
         if self.data_lbl is not None:
             prefix = 'lbl2data'
-            o = self.extract_items(prefix, self.curr_data_lbl, idxs, self.n_lbl_samples, self.n_slbl_samples, self.main_oversample, 
-                                   self.lbl_info, self.lbl_info_keys, self.use_main_distribution, self.data_lbl_scores, 
-                                   return_scores=self.return_scores)
+            o = Sampler.extract_items(prefix, self.curr_data_lbl, idxs, self.n_lbl_samples, self.n_slbl_samples, 
+                                      self.main_oversample, self.lbl_info, self.lbl_info_keys, self.use_main_distribution, 
+                                      self.data_lbl_scores, return_scores=self.return_scores)
             x.update(o)
         return x
-
-    @classmethod
-    @delegates(MainXCData.from_file)
-    def from_file(
-        cls, 
-        n_lbl_samples:Optional[int]=None,
-        data_info_keys:Optional[List]=None,
-        lbl_info_keys:Optional[List]=None,
-        n_slbl_samples:Optional[int]=1,
-        main_oversample:Optional[bool]=False,
-        use_main_distribution:Optional[bool]=False,
-        return_scores:Optional[bool]=False,
-        **kwargs
-    ):
-        return cls(**MainXCData.from_file(**kwargs), n_lbl_samples=n_lbl_samples, data_info_keys=data_info_keys, 
-                   lbl_info_keys=lbl_info_keys, n_slbl_samples=n_slbl_samples, main_oversample=main_oversample, 
-                   use_main_distribution=use_main_distribution, return_scores=return_scores)
-
-    def _getitems(cls, idxs:List):
-        return SMainXCDataset(
-            data_info={k:v[idxs] if isinstance(v, torch.Tensor) or isinstance(v, np.ndarray) else [v[idx] for idx in idxs] for k,v in cls.data_info.items()}, 
-            data_lbl=cls.data_lbl[idxs] if cls.data_lbl is not None else None, 
-            lbl_info=cls.lbl_info, 
-            data_lbl_filterer=Filterer.sample_x(cls.data_lbl_filterer, sz=cls.data_lbl.shape, idx=idxs) if cls.data_lbl_filterer is not None else None,
-            n_lbl_samples=cls.n_lbl_samples,
-            data_info_keys=cls.data_info_keys,
-            lbl_info_keys=cls.lbl_info_keys,
-            n_slbl_samples=cls.n_slbl_samples,
-            main_oversample=cls.main_oversample,
-            use_main_distribution=cls.use_main_distribution,
-            return_scores=cls.return_scores,
-        )
     
 
-# %% ../nbs/35_sdata.ipynb 27
+# %% ../nbs/35_sdata.ipynb 29
 class SMetaXCDataset(MetaXCDataset):
 
     def __init__(
@@ -136,110 +84,43 @@ class SMetaXCDataset(MetaXCDataset):
         if use_meta_distribution or return_scores: self._store_scores()
 
     def _store_scores(self):
-        if self.data_meta is not None:
-            if self.use_meta_distribution:
-                data_meta = self.data_meta / (self.data_meta.sum(axis=1) + 1e-9)
-                data_meta = data_meta.tocsr()
-            else:
-                data_meta = self.data_meta
-            self.data_meta_scores = [o.data.tolist() for o in data_meta]
-            
-        if self.lbl_meta is not None:
-            if self.use_meta_distribution:
-                lbl_meta = self.lbl_meta / (self.lbl_meta.sum(axis=1) + 1e-9)
-                lbl_meta = lbl_meta.tocsr()
-            else:
-                lbl_meta = self.lbl_meta
-            self.lbl_meta_scores = [o.data.tolist() for o in lbl_meta]
-
-    def _getitems(self, idxs:List):
-        return SMetaXCDataset(prefix=self.prefix, data_meta=self.data_meta[idxs], lbl_meta=self.lbl_meta, meta_info=self.meta_info, 
-                              n_data_meta_samples=self.n_data_meta_samples, n_lbl_meta_samples=self.n_lbl_meta_samples, 
-                              meta_info_keys=self.meta_info_keys, n_sdata_meta_samples=self.n_sdata_meta_samples, 
-                              n_slbl_meta_samples=self.n_slbl_meta_samples, meta_oversample=self.meta_oversample, 
-                              use_meta_distribution=self.use_meta_distribution, meta_dropout_remove=self.meta_dropout_remove, 
-                              meta_dropout_replace=self.meta_dropout_replace, return_scores=self.return_scores)
-
-    def _sample_meta_items(self, idxs:List):
-        assert max(idxs) < self.n_meta, f"indices should be less than {self.n_meta}"
-        meta_info = {k: [v[i] for i in idxs] for k,v in self.meta_info.items()}
-        return SMetaXCDataset(prefix=self.prefix, data_meta=self.data_meta[:, idxs], lbl_meta=None if self.lbl_meta is None else self.lbl_meta[:, idxs], 
-                              meta_info=meta_info, n_data_meta_samples=self.n_data_meta_samples, n_lbl_meta_samples=self.n_lbl_meta_samples,
-                              meta_info_keys=self.meta_info_keys, n_sdata_meta_samples=self.n_sdata_meta_samples, 
-                              n_slbl_meta_samples=self.n_slbl_meta_samples, meta_oversample=self.meta_oversample, 
-                              use_meta_distribution=self.use_meta_distribution, meta_dropout_remove=self.meta_dropout_remove, 
-                              meta_dropout_replace=self.meta_dropout_replace, return_scores=self.return_scores)
+        def get_scores(matrix:sp.csr_matrix, use_meta_distribution:bool):
+            if matrix is not None:
+                if use_meta_distribution:
+                    matrix = matrix / (matrix.sum(axis=1) + 1e-9)
+                    matrix = matrix.tocsr()
+                return [o.data.tolist() for o in matrix]
+                
+        self.data_meta_scores = get_scores(self.data_meta, self.use_meta_distribution)
+        self.lbl_meta_scores = get_scores(self.lbl_meta, self.use_meta_distribution)
         
-    @classmethod
-    @delegates(MetaXCData.from_file)
-    def from_file(
-        cls, 
-        n_data_meta_samples:Optional[int]=None, 
-        n_lbl_meta_samples:Optional[int]=None, 
-        meta_info_keys:Optional[List]=None,
-        n_sdata_meta_samples:Optional[int]=1,
-        n_slbl_meta_samples:Optional[int]=1,
-        meta_oversample:Optional[bool]=False,
-        use_meta_distribution:Optional[bool]=False,
-        meta_dropout_remove:Optional[float]=None,
-        meta_dropout_replace:Optional[float]=None,
-        return_scores:Optional[bool]=False,
-        **kwargs
-    ):
-        return cls(**MetaXCData.from_file(**kwargs), n_data_meta_samples=n_data_meta_samples, n_lbl_meta_samples=n_lbl_meta_samples, 
-                   meta_info_keys=meta_info_keys, n_sdata_meta_samples=n_sdata_meta_samples, n_slbl_meta_samples=n_slbl_meta_samples,
-                   meta_oversample=meta_oversample, use_meta_distribution=use_meta_distribution, meta_dropout_remove=meta_dropout_remove, 
-                   meta_dropout_replace=meta_dropout_replace, return_scores=return_scores)
-
     def get_data_meta(self, idxs:List):
         x, prefix = dict(), f'{self.prefix}2data'
-        o = self.extract_items(prefix, self.curr_data_meta, idxs, self.n_data_meta_samples, self.n_sdata_meta_samples, self.meta_oversample, 
-                               self.meta_info, self.meta_info_keys, self.use_meta_distribution, self.data_meta_scores, 
-                               dropout_remove=self.meta_dropout_remove, dropout_replace=self.meta_dropout_replace, 
-                               return_scores=self.return_scores)
+        o = Sampler.extract_items(prefix, self.curr_data_meta, idxs, self.n_data_meta_samples, self.n_sdata_meta_samples, 
+                                  self.meta_oversample, self.meta_info, self.meta_info_keys, self.use_meta_distribution, 
+                                  self.data_meta_scores, dropout_remove=self.meta_dropout_remove, 
+                                  dropout_replace=self.meta_dropout_replace, return_scores=self.return_scores)
         x.update(o)
         return x
         
     def get_lbl_meta(self, idxs:List):
         if self.curr_lbl_meta is None: return {}
         x, prefix = dict(), f'{self.prefix}2lbl'
-        o = self.extract_items(prefix, self.curr_lbl_meta, idxs, self.n_lbl_meta_samples, self.n_slbl_meta_samples, self.meta_oversample, 
-                               self.meta_info, self.meta_info_keys, self.use_meta_distribution, self.lbl_meta_scores, 
-                               dropout_remove=self.meta_dropout_remove, dropout_replace=self.meta_dropout_replace, 
-                               return_scores=self.return_scores)
+        o = Sampler.extract_items(prefix, self.curr_lbl_meta, idxs, self.n_lbl_meta_samples, self.n_slbl_meta_samples, 
+                                  self.meta_oversample, self.meta_info, self.meta_info_keys, self.use_meta_distribution, 
+                                  self.lbl_meta_scores, dropout_remove=self.meta_dropout_remove, 
+                                  dropout_replace=self.meta_dropout_replace, return_scores=self.return_scores)
         x.update(o)
         return x
-
-    def _verify_inputs(cls):
-        cls.n_data,cls.n_meta = cls.data_meta.shape[0],cls.data_meta.shape[1]
-
-        cls.n_lbl = None
-        if cls.lbl_meta is not None:
-            cls.n_lbl = cls.lbl_meta.shape[0]
-            if cls.lbl_meta.shape[1] != cls.n_meta:
-                raise ValueError(f'`lbl_meta`({cls.lbl_meta.shape[1]}) should have same number of columns as `data_meta`({cls.n_meta}).')
-    
-        if cls.meta_info is not None:
-            n_meta = cls._verify_info(cls.meta_info)
-            if n_meta != cls.n_meta:
-                raise ValueError(f'`meta_info`({n_meta}) should have same number of entries as number of columns of `data_meta`({cls.n_meta})')
-            if cls.meta_info_keys is None: cls.meta_info_keys = list(cls.meta_info.keys())
         
 
-# %% ../nbs/35_sdata.ipynb 34
-class SXCDataset(BaseXCDataset):
+# %% ../nbs/35_sdata.ipynb 36
+class SXCDataset(XCDataset):
 
     def __init__(self, data:SMainXCDataset, **kwargs):
         super().__init__()
         self.data, self.meta = data, MetaXCDatasets({k:kwargs[k] for k in self.get_meta_args(**kwargs) if isinstance(kwargs[k], SMetaXCDataset)})
         self._verify_inputs()
-
-    def _getitems(self, idxs:List):
-        return SXCDataset(self.data._getitems(idxs), **{k:meta._getitems(idxs) for k,meta in self.meta.items()})
-
-    def get_valid_dset(self):
-        idxs = np.where(self.data.data_lbl.getnnz(axis=1) > 0)[0]
-        return self._getitems(idxs)
         
     @classmethod
     @delegates(SMainXCDataset.from_file)
@@ -255,21 +136,7 @@ class SXCDataset(BaseXCDataset):
         # meta = {k:SMetaXCDataset.from_file(**v, **kwargs) for k,v in meta_kwargs.items()}
         
         return cls(data, **meta)
-
-    @staticmethod
-    def get_meta_args(**kwargs):
-        return [k for k in kwargs if re.match(r'.*_meta$', k)]
-
-    def _verify_inputs(self):
-        self.n_data, self.n_lbl = self.data.n_data, self.data.n_lbl
-        if len(self.meta):
-            self.n_meta = len(self.meta)
-            for meta in self.meta.values():
-                if meta.n_data != self.n_data: 
-                    raise ValueError(f'`meta`({meta.n_data}) and `data`({self.n_data}) should have the same number of datapoints.')
-                if self.n_lbl is not None and meta.n_lbl is not None and meta.n_lbl != self.n_lbl: 
-                    raise ValueError(f'`meta`({meta.n_lbl}) and `data`({self.n_lbl}) should have the same number of labels.')
-
+        
     def __getitems__(self, idxs:List):
         x = self.data.__getitems__(idxs)
         if self.n_meta:
@@ -283,41 +150,8 @@ class SXCDataset(BaseXCDataset):
                     x.update(z)
         return x
 
-    @property
-    def lbl_info(self): return self.data.lbl_info
-
-    @property
-    def lbl_dset(self): return SMainXCDataset(data_info=self.data.lbl_info, n_lbl_samples=self.data.n_lbl_samples, 
-                                               data_info_keys=self.data.data_info_keys, lbl_info_keys=self.data.lbl_info_keys, 
-                                               n_slbl_samples=self.data.n_slbl_samples, main_oversample=self.data.main_oversample, 
-                                               use_main_distribution=self.data.use_main_distribution, return_scores=self.data.return_scores)
-        
-    def lbl_meta_dset(self, meta_name):
-        m = self.meta[f'{meta_name}_meta']
-        return SMetaXCDataset(prefix=m.prefix, data_meta=m.lbl_meta, lbl_meta=m.lbl_meta, meta_info=m.meta_info, 
-                              n_data_meta_samples=m.n_data_meta_samples, n_lbl_meta_samples=m.n_lbl_meta_samples, 
-                              meta_info_keys=m.meta_info_keys, n_sdata_meta_samples=m.n_sdata_meta_samples, 
-                              n_slbl_meta_samples=m.n_slbl_meta_samples, meta_oversample=m.meta_oversample, 
-                              use_meta_distribution=m.use_meta_distribution, meta_dropout_remove=m.meta_dropout_remove, 
-                              meta_dropout_replace=m.meta_dropout_replace, return_scores=m.return_scores)
-        
-    @property
-    def data_info(self): return self.data.data_info
-
-    @property
-    def data_dset(self): return SMainXCDataset(data_info=self.data.data_info, n_lbl_samples=self.data.n_lbl_samples, 
-                                               data_info_keys=self.data.data_info_keys, lbl_info_keys=self.data.lbl_info_keys, 
-                                               n_slbl_samples=self.data.n_slbl_samples, main_oversample=self.data.main_oversample, 
-                                               use_main_distribution=self.data.use_main_distribution, return_scores=self.data.return_scores)
-        
-    def data_meta_dset(self, meta_name):
-        return self.meta[f'{meta_name}_meta']
-        
-    def one_batch(self, bsz:Optional[int]=10, seed:Optional[int]=None):
-        if seed is not None: torch.manual_seed(seed)
-        idxs = list(torch.randperm(len(self)).numpy())[:bsz]
-        return [self[idx] for idx in idxs]
-
+    # =========== Operations ===========
+    
     def get_one_hop_metadata(self, batch_size:Optional[int]=1024, thresh:Optional[int]=10, topk:Optional[int]=10, **kwargs):
         data_lbl = Graph.threshold_on_degree(self.data.data_lbl, thresh=thresh)
         data_meta, lbl_meta = Graph.one_hop_matrix(data_lbl, batch_size=batch_size, topk=topk, do_normalize=True)
@@ -426,138 +260,21 @@ class SXCDataset(BaseXCDataset):
         
         
 
-# %% ../nbs/35_sdata.ipynb 42
+# %% ../nbs/35_sdata.ipynb 44
 class SBaseXCDataBlock(BaseXCDataBlock):
-
-    @delegates(DataLoader.__init__)
-    def __init__(
-        self, 
-        dset:SXCDataset, 
-        collate_fn:Optional[Callable]=identity_collate_fn,
-        **kwargs
-    ):
-        self.dset, self.dl_kwargs, self.collate_fn = dset, self._get_dl_kwargs(**kwargs), collate_fn
-        self.dl = DataLoader(dset, collate_fn=collate_fn, **self.dl_kwargs) if collate_fn is not None else None
-
-    def _get_dl_kwargs(self, **kwargs):
-        dl_params = inspect.signature(DataLoader.__init__).parameters
-        return {k:v for k,v in kwargs.items() if k in dl_params}
-
+    
     @classmethod
     @delegates(SXCDataset.from_file)
     def from_file(cls, collate_fn:Callable=identity_collate_fn, **kwargs):
-        return SBaseXCDataBlock(SXCDataset.from_file(**kwargs), collate_fn, **kwargs)
-
-    def __len__(self):
-        return len(self.dset)    
-    
-    def _getitems(self, idxs:List):
-        return SBaseXCDataBlock(self.dset._getitems(idxs), collate_fn=self.collate_fn, **self.dl_kwargs)
-
-    @property
-    def bsz(self): return self.dl.batch_size
-
-    @bsz.setter
-    def bsz(self, v):
-        self.dl_kwargs['batch_size'] = v
-        self.dl = DataLoader(self.dset, collate_fn=self.collate_fn, **self.dl_kwargs) if self.collate_fn is not None else None
-
-    @property
-    def data_lbl_filterer(self): return self.dset.data.data_lbl_filterer
-
-    @data_lbl_filterer.setter
-    def data_lbl_filterer(self, val): self.dset.data.data_lbl_filterer = val
-
-    @dispatch
-    def one_batch(self):
-        return next(iter(self.dl))
-
-    @dispatch
-    def one_batch(self, bsz:int):
-        self.dl_kwargs['batch_size'] = bsz
-        self.dl = DataLoader(self.dset, collate_fn=self.collate_fn, **self.dl_kwargs) if self.collate_fn is not None else None
-        return next(iter(self.dl))
-        
-    def filterer(cls, train:'SBaseXCDataBlock', valid:'SBaseXCDataBlock', fld:Optional[str]='identifier'):
-        train_info, valid_info, lbl_info = train.dset.data.data_info, valid.dset.data.data_info, train.dset.data.lbl_info
-        if fld not in train_info: raise ValueError(f'`{fld}` not in `data_info`')
-            
-        train.data_lbl_filterer, valid_filterer = Filterer.generate(train_info[fld], valid_info[fld], lbl_info[fld], 
-                                                                    train.dset.data.data_lbl, valid.dset.data.data_lbl)
-        _, valid_filterer, idx = Filterer.prune(valid.dset.data.data_lbl, valid_filterer)
-        
-        valid = valid._getitems(idx)
-        valid.data_lbl_filterer = valid_filterer
-        
-        return train, valid
-        
-    def splitter(cls, valid_pct:Optional[float]=0.2, seed=None):
-        if seed is not None: torch.manual_seed(seed)
-        rnd_idx = list(torch.randperm(len(cls)).numpy())
-        cut = int(valid_pct * len(cls))
-        train, valid = cls._getitems(rnd_idx[cut:]), cls._getitems(rnd_idx[:cut])
-        if cls.data_lbl_filterer is None: return train, valid
-        else: return cls.filterer(train, valid)
-
-    def sample(cls, pct:Optional[float]=0.2, n:Optional[int]=None, seed=None):
-        if seed is not None: torch.manual_seed(seed)
-        rnd_idx = list(torch.randperm(len(cls)).numpy())
-        cut = int(pct * len(cls)) if n is None else max(1, n)
-        return cls._getitems(rnd_idx[:cut])
+        return cls(SXCDataset.from_file(**kwargs), collate_fn, **kwargs)
         
 
-# %% ../nbs/35_sdata.ipynb 46
-class SXCDataBlock:
-
-    def __init__(self, train:SBaseXCDataBlock=None, valid:SBaseXCDataBlock=None, test:SBaseXCDataBlock=None):
-        self.train, self.valid, self.test = train, valid, test
+# %% ../nbs/35_sdata.ipynb 48
+class SXCDataBlock(XCDataBlock):
 
     @staticmethod
-    def load_cfg(fname):
-        with open(fname, 'r') as f: return json.load(f)
-
-    def sample_info(self, info, idx):
-        return {k: v[idx] if isinstance(v, torch.Tensor) or isinstance(v, np.ndarray) else [v[i] for i in idx] for k,v in info.items()}
-
-    def linker_dset(self, meta_name:str, remove_empty:Optional[bool]=True):
-        if meta_name not in self.train.dset.meta:
-            raise ValueError(f'Invalid metadata: {meta_name}')
-
-        train_meta = self.train.dset.meta[meta_name].data_meta
-        if remove_empty:
-            train_idx = np.where(train_meta.getnnz(axis=1) > 0)[0]
-            meta_idx = np.where(train_meta.getnnz(axis=0) > 0)[0]
-            train_meta = train_meta[train_idx][:, meta_idx].tocsr()
-        
-        train_info = self.train.dset.data.data_info
-        meta_info = self.train.dset.meta[meta_name].meta_info
-
-        if remove_empty:
-            train_info = self.sample_info(train_info, train_idx)
-            meta_info = self.sample_info(meta_info, meta_idx)
-
-        collate_fn = self.train.collate_fn
-        train_dset = SBaseXCDataBlock(SXCDataset(SMainXCDataset(data_info=train_info, data_lbl=train_meta, lbl_info=meta_info)), 
-                                      collate_fn=collate_fn)
-        
-        if self.test is not None:
-            test_meta = self.test.dset.meta[meta_name].data_meta
-            if remove_empty:
-                test_meta = test_meta[:, meta_idx].tocsr()
-                test_idx = np.where(test_meta.getnnz(axis=1) > 0)[0]
-                test_meta = test_meta[test_idx].tocsr()
-    
-            test_info = self.test.dset.data.data_info
-            if remove_empty: test_info = self.sample_info(test_info, test_idx)
-    
-            test_dset = SBaseXCDataBlock(SXCDataset(SMainXCDataset(data_info=test_info, data_lbl=test_meta, lbl_info=meta_info)), 
-                                         collate_fn=collate_fn)
-            return SXCDataBlock(train=train_dset, test=test_dset)
-        
-        return SXCDataBlock(train=train_dset)
-
-    @staticmethod
-    def inference_dset(data_info:Dict, data_lbl:sp.csr_matrix, lbl_info:Dict, data_lbl_filterer, **kwargs):
+    def inference_dset(data_info:Dict, data_lbl:sp.csr_matrix, lbl_info:Dict, data_lbl_filterer, 
+                       **kwargs):
         x_idx = np.where(data_lbl.getnnz(axis=1) == 0)[0].reshape(-1,1)
         y_idx = np.zeros((len(x_idx),1), dtype=np.int64)
         data_lbl[x_idx, y_idx] = 1
@@ -566,19 +283,7 @@ class SXCDataBlock:
         pred_dset = SXCDataset(SMainXCDataset(data_info=data_info, data_lbl=data_lbl, lbl_info=lbl_info,
                                               data_lbl_filterer=data_lbl_filterer, **kwargs))
         return pred_dset
-
-    @property
-    def lbl_info(self): return self.test.dset.data.lbl_info if self.train is None else self.train.dset.data.lbl_info
-
-    @property
-    def lbl_dset(self): return SMainXCDataset(data_info=self.train.dset.data.lbl_info)
-
-    @property
-    def n_lbl(self): return self.test.dset.n_lbl if self.train is None else self.train.dset.n_lbl
-
-    @property
-    def collator(self): return self.test.collate_fn if self.train is None else self.train.collate_fn
-        
+    
     @classmethod
     def from_cfg(
         cls, 
