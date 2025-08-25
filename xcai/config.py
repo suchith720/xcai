@@ -19,6 +19,7 @@ PARAM = {
     #-------------------------
     'pad_token': 0,
     'oversample': False,
+    'keep_attention_mask': True,
     'sampling_features': [('lbl2data',2), ('hlk2data',1), ('hlk2lbl2data',1)],
 
     # OAKSamplerFeatTfm

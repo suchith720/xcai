@@ -104,6 +104,7 @@ class Info():
                  padding:Optional[bool]=True,
                  return_tensors:Optional[str]=None,
                  prompt_func:Optional[Callable]=None,
+                 keep_attention_mask:Optional[bool]=True,
                  **kwargs):
         if fname is None: return
         self = cls()
@@ -111,6 +112,7 @@ class Info():
         if use_tokenizer: 
             self.tokenize(tokenization_column, tokenizer, max_sequence_length, padding=padding, return_tensors=return_tensors, 
                           prompt_func=prompt_func)
+            if not keep_attention_mask: self.info.pop('attention_mask', None)
         return self.info
         
 
@@ -144,9 +146,15 @@ class Filterer:
         return train_lbl_filterer, test_lbl_filterer
 
     @staticmethod
-    def sample(f:np.array, sz:tuple, idx:List):
+    def sample_x(f:np.array, sz:tuple, idx:List):
         f = sparse.coo_matrix((np.full(f.shape[0],1), (f[:, 0], f[:, 1])), shape=sz).tocsr()
         f = f[idx].tocoo()
+        return np.vstack([f.row, f.col]).T
+
+    @staticmethod
+    def sample_y(f:np.array, sz:tuple, idx:List):
+        f = sparse.coo_matrix((np.full(f.shape[0],1), (f[:, 0], f[:, 1])), shape=sz).tocsr()
+        f = f[:, idx].tocoo()
         return np.vstack([f.row, f.col]).T
 
     @staticmethod
@@ -156,7 +164,7 @@ class Filterer:
         data.eliminate_zeros()
         
         idx = np.where(data.getnnz(axis=1) > 0)[0]
-        return data[idx], Filterer.sample(data_filterer, data.shape, idx), idx
+        return data[idx], Filterer.sample_x(data_filterer, data.shape, idx), idx
 
     @staticmethod
     def apply(data:sparse.csr_matrix, data_filterer:np.array):
@@ -166,7 +174,7 @@ class Filterer:
 
         
 
-# %% ../nbs/00_core.ipynb 24
+# %% ../nbs/00_core.ipynb 30
 def get_tok_sparse(tokens:List, n_cols:Optional[int]=None):
     n_toks = torch.tensor([len(tok) for tok in tokens])
     tok_ptr = torch.concat([torch.zeros((1,), dtype=torch.long), n_toks.cumsum(dim=0)])
@@ -187,13 +195,13 @@ def get_tok_idf(dset:Dataset, field:Optional[str]='data_input_ids', n_cols:Optio
     return compute_inv_doc_freq(tok_sparse)
     
 
-# %% ../nbs/00_core.ipynb 26
+# %% ../nbs/00_core.ipynb 32
 def prepare_batch(m, b, m_args=None):
     m_kwargs = inspect.signature(m.forward).parameters
     return BatchEncoding({k:v for k,v in b.items() if k in m_kwargs or (m_args is not None and k in m_args)})
     
 
-# %% ../nbs/00_core.ipynb 27
+# %% ../nbs/00_core.ipynb 33
 def store_attr(names=None, self=None, but='', cast=False, store_args=None, is_none=True, **attrs):
     fr = sys._getframe(1)
     args = argnames(fr, True)
@@ -211,7 +219,7 @@ def store_attr(names=None, self=None, but='', cast=False, store_args=None, is_no
     return _store_attr(self, anno, is_none, **attrs)
     
 
-# %% ../nbs/00_core.ipynb 28
+# %% ../nbs/00_core.ipynb 34
 def _store_attr(self, anno, is_none, **attrs):
     stored = getattr(self, '__stored_args__', None)
     for n,v in attrs.items():
@@ -220,12 +228,12 @@ def _store_attr(self, anno, is_none, **attrs):
         if stored is not None: stored[n] = v
        
 
-# %% ../nbs/00_core.ipynb 29
+# %% ../nbs/00_core.ipynb 35
 def get_attr(x, attr:str):
     for a in attr.split('.'): x = getattr(x, a)
     return x
 
-# %% ../nbs/00_core.ipynb 30
+# %% ../nbs/00_core.ipynb 36
 def sorted_metric(keys:List, order:Optional[Dict]=None):
     order = {o.split('@')[0]:i for i,o in enumerate(keys)}
     def _suffix(x): return (int(x.split('_')[0]) , x.split('_')[1]) if '_' in x else (int(x),)
@@ -243,7 +251,7 @@ def display_metric(metrics, remove_prefix:Optional[bool]=True, order:Optional[Li
         display(pd.concat([metric, other], axis=1))
         
 
-# %% ../nbs/00_core.ipynb 31
+# %% ../nbs/00_core.ipynb 37
 def get_tensor_statistics(x:torch.Tensor):
     c = ['mean', 'std', '25', '50', '75']
     s = torch.cat([x.float().mean(dim=0, keepdim=True), 
@@ -259,7 +267,7 @@ def total_recall(inp_idx:torch.Tensor, n_inp:torch.Tensor, targ:sparse.csr_matri
     return sc.sum(), sc
     
 
-# %% ../nbs/00_core.ipynb 32
+# %% ../nbs/00_core.ipynb 38
 def get_best_model(mdir:str, pat:Optional[str]=r'^checkpoint-(\d+)'):
     nm = sorted([int(re.match(pat, o).group(1)) for o in os.listdir(mdir) if re.match(pat, o)])[-1]
     fname = f'{mdir}/checkpoint-{nm}/trainer_state.json'
@@ -267,7 +275,7 @@ def get_best_model(mdir:str, pat:Optional[str]=r'^checkpoint-(\d+)'):
     return f'{mdir}/checkpoint-{nm}' if mname is None else mname
     
 
-# %% ../nbs/00_core.ipynb 33
+# %% ../nbs/00_core.ipynb 39
 def get_output_sparse(pred_idx, pred_ptr, pred_score, targ_idx, targ_ptr, n_lbl):
     n_data = pred_ptr.shape[0]
     
@@ -281,7 +289,7 @@ def get_output_sparse(pred_idx, pred_ptr, pred_score, targ_idx, targ_ptr, n_lbl)
     return pred, targ
 
 
-# %% ../nbs/00_core.ipynb 34
+# %% ../nbs/00_core.ipynb 40
 def get_output(data_lbl, pred_lbl):
     output = {
         'targ_idx': torch.tensor(data_lbl.indices),
@@ -292,13 +300,13 @@ def get_output(data_lbl, pred_lbl):
     }
     return output
 
-# %% ../nbs/00_core.ipynb 35
+# %% ../nbs/00_core.ipynb 41
 def load_config(fname, key):
     with open(fname, 'r') as file:
         return json.load(file)[key]
         
 
-# %% ../nbs/00_core.ipynb 36
+# %% ../nbs/00_core.ipynb 42
 def get_pkl_file(pkl_dir:str, fname:str, use_sxc_sampler:bool, use_exact:Optional[bool]=False, 
                  use_only_test:Optional[bool]=False, use_oracle:Optional[bool]=False, 
                  use_nxc_sampler:Optional[bool]=False):
@@ -315,7 +323,7 @@ def get_pkl_file(pkl_dir:str, fname:str, use_sxc_sampler:bool, use_exact:Optiona
     return f'{pkl_file}.joblib'
     
 
-# %% ../nbs/00_core.ipynb 37
+# %% ../nbs/00_core.ipynb 43
 def get_config_key(fname):
     key = os.path.basename(fname).split('.')[0]
     fname = key.replace('_', '-')
@@ -323,7 +331,7 @@ def get_config_key(fname):
     return key, fname 
     
 
-# %% ../nbs/00_core.ipynb 39
+# %% ../nbs/00_core.ipynb 45
 class ScoreFusion():
     
     def __init__(self, prop:Optional[np.array]=None, max_depth:Optional[int]=7):
@@ -366,7 +374,7 @@ class ScoreFusion():
         return beta*(res+score_a)+score_b
     
 
-# %% ../nbs/00_core.ipynb 41
+# %% ../nbs/00_core.ipynb 47
 def retain_randk(matrix:sparse.csr_matrix, topk:Optional[int]=3):
     data, indices, indptr = [], [], np.zeros_like(matrix.indptr)
     for i,row in tqdm(enumerate(matrix), total=matrix.shape[0]):
@@ -386,7 +394,7 @@ def retain_randk(matrix:sparse.csr_matrix, topk:Optional[int]=3):
     return o
     
 
-# %% ../nbs/00_core.ipynb 43
+# %% ../nbs/00_core.ipynb 49
 def random_topk(data_lbl, topk=5):
     data,indices,indptr = [],[],[0]
     for i,j in tqdm(zip(data_lbl.indptr, data_lbl.indptr[1:]), total=data_lbl.shape[0]):
@@ -404,7 +412,7 @@ def random_topk(data_lbl, topk=5):
     return o
     
 
-# %% ../nbs/00_core.ipynb 44
+# %% ../nbs/00_core.ipynb 50
 def robustness_analysis(block, meta_name:str, analysis_type:str='missing', pct:float=0.5, topk:int=3):
     data_meta = random_topk(block.test.dset.meta[f'{meta_name}_meta'].data_meta, topk=topk)
     
@@ -423,7 +431,7 @@ def robustness_analysis(block, meta_name:str, analysis_type:str='missing', pct:f
     return block
     
 
-# %% ../nbs/00_core.ipynb 46
+# %% ../nbs/00_core.ipynb 52
 class ShowMetric:
 
     ORDER = ['P@1', 'P@5', 'N@5', 'PSP@1', 'PSP@5', 'R@200']

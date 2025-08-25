@@ -14,7 +14,7 @@ from itertools import chain
 from tqdm.auto import tqdm
 
 from IPython.display import display
-from typing import Dict, Optional, Callable
+from typing import Dict, Optional, Callable, Union
 from torch.utils.data import Dataset,DataLoader
 from xclib.data import data_utils as du
 from xclib.utils.sparse import retain_topk
@@ -40,12 +40,12 @@ class MainXCData:
     
     @classmethod
     @delegates(Info.from_txt)
-    def from_file(cls, data_info:str, lbl_info:str, data_lbl:Optional[str]=None, data_lbl_filterer:Optional[str]=None, 
+    def from_file(cls, data_info:str, lbl_info:Optional[Union[str, Dict]]=None, data_lbl:Optional[str]=None, data_lbl_filterer:Optional[str]=None, 
                   main_max_data_sequence_length:Optional[int]=None, main_max_lbl_sequence_length:Optional[int]=None, **kwargs):
         return {
             'data_lbl': _read_sparse_file(data_lbl),
             'data_info': Info.from_txt(data_info, max_sequence_length=main_max_data_sequence_length, **kwargs),
-            'lbl_info': Info.from_txt(lbl_info, max_sequence_length=main_max_lbl_sequence_length, **kwargs),
+            'lbl_info': Info.from_txt(lbl_info, max_sequence_length=main_max_lbl_sequence_length, **kwargs) if isinstance(lbl_info, str) else lbl_info,
             'data_lbl_filterer': Filterer.load_filter(data_lbl_filterer),
         }
     
@@ -61,7 +61,7 @@ class MetaXCData:
             'prefix': prefix,
             'data_meta': _read_sparse_file(data_meta),
             'lbl_meta': _read_sparse_file(lbl_meta),
-            'meta_info': Info.from_txt(meta_info, max_sequence_length=meta_max_sequence_length, **kwargs),
+            'meta_info': Info.from_txt(meta_info, max_sequence_length=meta_max_sequence_length, **kwargs) if isinstance(meta_info, str) else meta_info,
         }
     
 
@@ -229,19 +229,21 @@ class MainXCDataset(BaseXCDataset):
                  n_lbl_samples:Optional[int]=None,
                  data_info_keys:Optional[List]=None,
                  lbl_info_keys:Optional[List]=None,
+                 enable_delayed_indexing:Optional[bool]=False,
                  **kwargs):
         super().__init__()
-        store_attr('data_info,data_lbl,lbl_info,data_lbl_filterer,n_lbl_samples,data_info_keys,lbl_info_keys')
+        store_attr('data_info,data_lbl,lbl_info,data_lbl_filterer,n_lbl_samples,data_info_keys,lbl_info_keys,enable_delayed_indexing')
         self.curr_data_lbl = None
         
         self._verify_inputs()
-        self._store_indices()
+        if not enable_delayed_indexing: self._store_indices()
         
     @classmethod
     @delegates(MainXCData.from_file)
-    def from_file(cls, n_lbl_samples:Optional[int]=None, data_info_keys:Optional[List]=None, lbl_info_keys:Optional[List]=None, **kwargs):
-        return cls(**MainXCData.from_file(**kwargs), n_lbl_samples=n_lbl_samples, 
-                   data_info_keys=data_info_keys, lbl_info_keys=lbl_info_keys)
+    def from_file(cls, n_lbl_samples:Optional[int]=None, data_info_keys:Optional[List]=None, 
+                  lbl_info_keys:Optional[List]=None, enable_delayed_indexing:Optional[bool]=False, **kwargs):
+        return cls(**MainXCData.from_file(**kwargs), n_lbl_samples=n_lbl_samples, data_info_keys=data_info_keys, 
+                   lbl_info_keys=lbl_info_keys, enable_delayed_indexing=enable_delayed_indexing)
 
     def _store_indices(cls):
         if cls.data_lbl is not None: cls.curr_data_lbl = [o.indices.tolist() for o in cls.data_lbl]
@@ -265,7 +267,12 @@ class MainXCDataset(BaseXCDataset):
     @classmethod
     def _initialize(cls, dset):
         return cls(dset.data_info, data_lbl=dset.data_lbl, lbl_info=dset.lbl_info, data_lbl_filterer=dset.data_lbl_filterer,
-                   n_lbl_samples=dset.n_lbl_samples, data_info_keys=dset.data_info_keys, lbl_info_keys=dset.lbl_info_keys)
+                   n_lbl_samples=dset.n_lbl_samples, data_info_keys=dset.data_info_keys, lbl_info_keys=dset.lbl_info_keys, 
+                   enable_delayed_indexing=dset.enable_delayed_indexing)
+
+    def enable_indexing(self):
+        self.enable_delayed_indexing = True
+        self._store_indices()
         
 
 # %% ../nbs/02_data.ipynb 20
@@ -289,13 +296,30 @@ def _getitems(cls:MainXCDataset, idxs:List):
         {k:[v[idx] for idx in idxs] for k,v in cls.data_info.items()}, 
         data_lbl=cls.data_lbl[idxs] if cls.data_lbl is not None else None, 
         lbl_info=cls.lbl_info, 
-        data_lbl_filterer=Filterer.sample(cls.data_lbl_filterer, sz=cls.data_lbl.shape, idx=idxs) if cls.data_lbl_filterer is not None else None,
+        data_lbl_filterer=Filterer.sample_x(cls.data_lbl_filterer, sz=cls.data_lbl.shape, idx=idxs) if cls.data_lbl_filterer is not None else None,
         n_lbl_samples=cls.n_lbl_samples,
         data_info_keys=cls.data_info_keys,
         lbl_info_keys=cls.lbl_info_keys,
+        enable_delayed_indexing=self.enable_delayed_indexing,
     )
+    
 
-# %% ../nbs/02_data.ipynb 31
+# %% ../nbs/02_data.ipynb 23
+@patch
+def _getlabels(cls:MainXCDataset, idxs:List):
+    return MainXCDataset(
+        cls.data_info, 
+        data_lbl=cls.data_lbl[:, idxs] if cls.data_lbl is not None else None, 
+        lbl_info={k:[v[idx] for idx in idxs] for k,v in cls.lbl_info.items()},
+        data_lbl_filterer=Filterer.sample_y(cls.data_lbl_filterer, sz=cls.data_lbl.shape, idx=idxs) if cls.data_lbl_filterer is not None else None,
+        n_lbl_samples=cls.n_lbl_samples,
+        data_info_keys=cls.data_info_keys,
+        lbl_info_keys=cls.lbl_info_keys,
+        enable_delayed_indexing=self.enable_delayed_indexing,
+    )
+    
+
+# %% ../nbs/02_data.ipynb 32
 class MetaXCDataset(BaseXCDataset):
 
     def __init__(self,
@@ -306,11 +330,12 @@ class MetaXCDataset(BaseXCDataset):
                  n_data_meta_samples:Optional[int]=None,
                  n_lbl_meta_samples:Optional[int]=None,
                  meta_info_keys:Optional[List]=None,
+                 enable_delayed_indexing:Optional[bool]=False,
                  **kwargs):
-        store_attr('prefix,data_meta,lbl_meta,meta_info,n_data_meta_samples,n_lbl_meta_samples,meta_info_keys')
+        store_attr('prefix,data_meta,lbl_meta,meta_info,n_data_meta_samples,n_lbl_meta_samples,meta_info_keys,enable_delayed_indexing')
         self.curr_data_meta,self.curr_lbl_meta = None,None
         self._verify_inputs()
-        self._store_indices()
+        if not enable_delayed_indexing: self._store_indices()
 
     def prune_data_meta(self, data_repr:torch.Tensor, meta_repr:torch.Tensor, batch_size:Optional[int]=64, thresh:Optional[float]=0.0, 
                         topk:Optional[int]=None):
@@ -330,28 +355,43 @@ class MetaXCDataset(BaseXCDataset):
 
     def update_meta_matrix(self, data_meta:sparse.csr_matrix, lbl_meta:Optional[sparse.csr_matrix]=None):
         self.data_meta, self.lbl_meta = data_meta, lbl_meta
-        self._store_indices()
+        if not enable_delayed_indexing: self._store_indices()
         
     def _getitems(self, idxs:List):
         return MetaXCDataset(self.prefix, self.data_meta[idxs], self.lbl_meta, self.meta_info, 
-                             self.n_data_meta_samples, self.n_lbl_meta_samples, self.meta_info_keys)
+                             self.n_data_meta_samples, self.n_lbl_meta_samples, self.meta_info_keys, 
+                             enable_delayed_indexing=self.enable_delayed_indexing)
+
+    def _getlabels(self, idxs:List):
+        return MetaXCDataset(self.prefix, self.data_meta[:, idxs], self.lbl_meta[:, idxs], 
+                             meta_info={k:[v[idx] for idx in idxs] for k,v in self.meta_info.items()}, 
+                             n_data_meta_samples=self.n_data_meta_samples, n_lbl_meta_sample=sself.n_lbl_meta_samples, 
+                             meta_info_keys=self.meta_info_keys, enable_delayed_indexing=self.enable_delayed_indexing)
     
     @classmethod
     def _initialize(cls, dset):
         return cls(dset.prefix, dset.data_meta, dset.lbl_meta, dset.meta_info, 
-                   dset.n_data_meta_samples, dset.n_lbl_meta_samples, dset.meta_info_keys)
+                   dset.n_data_meta_samples, dset.n_lbl_meta_samples, dset.meta_info_keys, 
+                   enable_delayed_indexing=dset.enable_delayed_indexing)
+
+    def enable_indexing(self):
+        self.enable_delayed_indexing = True
+        self._store_indices()
 
     def _sample_meta_items(self, idxs:List):
         assert max(idxs) < self.n_meta, f"indices should be less than {self.n_meta}"
         meta_info = {k: [v[i] for i in idxs] for k,v in self.meta_info.items()}
         return MetaXCDataset(self.prefix, self.data_meta[:, idxs], None if self.lbl_meta is None else self.lbl_meta[:, idxs], 
-                             meta_info, self.n_data_meta_samples, self.n_lbl_meta_samples, self.meta_info_keys)
+                             meta_info, self.n_data_meta_samples, self.n_lbl_meta_samples, self.meta_info_keys, 
+                             enable_delayed_indexing=dset.enable_delayed_indexing)
         
     @classmethod
     @delegates(MetaXCData.from_file)
-    def from_file(cls, n_data_meta_samples:Optional[int]=None, n_lbl_meta_samples:Optional[int]=None, meta_info_keys:Optional[List]=None, **kwargs):
+    def from_file(cls, n_data_meta_samples:Optional[int]=None, n_lbl_meta_samples:Optional[int]=None, 
+                  meta_info_keys:Optional[List]=None, enable_delayed_indexing:Optional[bool]=False, **kwargs):
         return cls(**MetaXCData.from_file(**kwargs), n_data_meta_samples=n_data_meta_samples, 
-                   n_lbl_meta_samples=n_lbl_meta_samples, meta_info_keys=meta_info_keys)
+                   n_lbl_meta_samples=n_lbl_meta_samples, meta_info_keys=meta_info_keys, 
+                   enable_delayed_indexing=enable_delayed_indexing)
 
     @dispatch
     def get_lbl_meta(self, idx:int):
@@ -394,7 +434,7 @@ class MetaXCDataset(BaseXCDataset):
             display(df)
     
 
-# %% ../nbs/02_data.ipynb 33
+# %% ../nbs/02_data.ipynb 34
 @patch
 def _verify_inputs(cls:MetaXCDataset):
     cls.n_data,cls.n_meta = cls.data_meta.shape[0],cls.data_meta.shape[1]
@@ -412,7 +452,7 @@ def _verify_inputs(cls:MetaXCDataset):
         if cls.meta_info_keys is None: cls.meta_info_keys = list(cls.meta_info.keys())
             
 
-# %% ../nbs/02_data.ipynb 47
+# %% ../nbs/02_data.ipynb 48
 class MetaXCDatasets(dict):
 
     def __init__(self, meta:Dict):
@@ -428,7 +468,7 @@ class MetaXCDatasets(dict):
         delattr(self, key)
         
 
-# %% ../nbs/02_data.ipynb 48
+# %% ../nbs/02_data.ipynb 49
 class XCDataset(BaseXCDataset):
 
     def __init__(self, data:MainXCDataset, **kwargs):
@@ -443,6 +483,9 @@ class XCDataset(BaseXCDataset):
     def _getitems(self, idxs:List):
         return XCDataset(self.data._getitems(idxs), **{k:meta._getitems(idxs) for k,meta in self.meta.items()})
 
+    def _getlabels(self, idxs:List):
+        return XCDataset(self.data._getlabels(idxs), **{k:meta._getlabels(idxs) for k,meta in self.meta.items()})
+
     def get_valid_dset(self):
         idxs = np.where(self.data.data_lbl.getnnz(axis=1) > 0)[0]
         return self._getitems(idxs)
@@ -450,6 +493,10 @@ class XCDataset(BaseXCDataset):
     @classmethod
     def _initialize(cls, dset):
         return cls(MainXCDataset._initialize(dset.data), **{k:MetaXCDataset._initialize(meta) for k,meta in dset.meta.items()})
+
+    def enable_indexing(self):
+        self.data.enable_indexing()
+        for meta_name in self.meta: self.meta[meta_name].enable_indexing()
         
     @classmethod
     @delegates(MainXCDataset.from_file)
@@ -593,7 +640,7 @@ class XCDataset(BaseXCDataset):
                                                   meta_info_keys=self.meta[f'{meta_2}_meta'].meta_info_keys)
        
 
-# %% ../nbs/02_data.ipynb 60
+# %% ../nbs/02_data.ipynb 61
 class XCCollator:
 
     def __init__(self, tfms):
@@ -603,7 +650,7 @@ class XCCollator:
         return self.tfms(x)
         
 
-# %% ../nbs/02_data.ipynb 77
+# %% ../nbs/02_data.ipynb 78
 class BaseXCDataBlock:
 
     @delegates(DataLoader.__init__)
@@ -626,13 +673,21 @@ class BaseXCDataBlock:
         dl_params = inspect.signature(DataLoader.__init__).parameters
         return {k:v for k,v in kwargs.items() if k in dl_params}
 
-    
     def _getitems(self, idxs:List):
         return BaseXCDataBlock(self.dset._getitems(idxs), collate_fn=self.collate_fn, **self.dl_kwargs)
+
+    def _getlabels(self, idxs:List):
+        return BaseXCDataBlock(self.dset._getlabels(idxs), collate_fn=self.collate_fn, **self.dl_kwargs)
+
+    def get_valid_dset(self):
+        return BaseXCDataBlock(self.dset.get_valid_dset(), collate_fn=self.collate_fn, **self.dl_kwargs)
 
     @classmethod
     def _initialize(cls, dset):
         return cls(XCDataset._initialize(dset.dset), collate_fn=dset.collate_fn, **dset.dl_kwargs) if dset is not None else None
+
+    def enable_indexing(self):
+        self.dset.enable_indexing()
 
     @property
     def bsz(self): return self.dl.batch_size
@@ -660,7 +715,7 @@ class BaseXCDataBlock:
         
         
 
-# %% ../nbs/02_data.ipynb 78
+# %% ../nbs/02_data.ipynb 79
 @patch
 def filterer(cls:BaseXCDataBlock, train:'BaseXCDataBlock', valid:'BaseXCDataBlock', fld:Optional[str]='identifier'):
     train_info, valid_info, lbl_info = train.dset.data.data_info, valid.dset.data.data_info, train.dset.data.lbl_info
@@ -692,16 +747,37 @@ def sample(cls:BaseXCDataBlock, pct:Optional[float]=0.2, n:Optional[int]=None, s
     return cls._getitems(rnd_idx[:cut])
     
 
-# %% ../nbs/02_data.ipynb 88
+# %% ../nbs/02_data.ipynb 89
 class XCDataBlock:
 
     def __init__(self, train:BaseXCDataBlock=None, valid:BaseXCDataBlock=None, test:BaseXCDataBlock=None):
         self.train, self.valid, self.test = train, valid, test
 
+    def get_valid_data_block(self):
+        if self.train: self.train = self.train.get_valid_dset()
+        if self.valid: self.valid = self.valid.get_valid_dset()
+        if self.test: self.test = self.test.get_valid_dset()
+            
+    def get_valid_label_block(self):
+        if self.train:
+            valid_idx = np.where(self.train.dset.data.data_lbl.getnnz(axis=0) > 0)[0]
+            self.train = self.train._getlabels(valid_idx)
+            if self.valid: self.valid = self.valid._getlabels(valid_idx)
+            if self.test: self.test = self.test._getlabels(valid_idx)
+
+    def get_valid_dset(self):
+        self.get_valid_data_block()
+        self.get_valid_label_block()
+        
     @classmethod
     def _initialize(cls, dset):
         return cls(BaseXCDataBlock._initialize(dset.train), BaseXCDataBlock._initialize(dset.valid), BaseXCDataBlock._initialize(dset.test))
 
+    def enable_indexing(self):
+        if self.train: self.train.enable_indexing()
+        if self.valid: self.valid.enable_indexing()
+        if self.test: self.test.enable_indexing()
+        
     @staticmethod
     def load_cfg(fname):
         with open(fname, 'r') as f: return json.load(f)
@@ -778,7 +854,24 @@ class XCDataBlock:
                  valid_pct:Optional[float]=0.2,
                  seed=None):
         if isinstance(cfg, str): cfg = cls.load_cfg(cfg)
-        blks = {o:BaseXCDataBlock.from_file(**cfg['path'][o], **cfg['parameters'], collate_fn=collate_fn) for o in ['train', 'valid', 'test'] if o in cfg['path']}
+
+        blks = dict()
+        for split in ['train', 'valid', 'test']:
+
+            if split in cfg['path']:
+                
+                if split != 'train' and 'train' in blks:
+                    if 'lbl_info' not in cfg['path'][split]:
+                        cfg['path'][split]['lbl_info'] = blks['train'].dset.data.lbl_info
+    
+                    if blks['train'].dset.meta is not None:
+                        for meta_name in blks['train'].dset.meta:
+                            if 'meta_info' not in cfg['path'][split][meta_name]:
+                                cfg['path'][split][meta_name]['meta_info'] = blks['train'].dset.meta[meta_name].meta_info
+                                
+                blks[split] = BaseXCDataBlock.from_file(**cfg['path'][split], **cfg['parameters'], collate_fn=collate_fn)
+                
+        # blks = {o:BaseXCDataBlock.from_file(**cfg['path'][o], **cfg['parameters'], collate_fn=collate_fn) for o in ['train', 'valid', 'test'] if o in cfg['path']}
         # if 'valid' not in blks: blks['train'], blks['valid'] = blks['train'].splitter(valid_pct, seed=seed)
         return cls(**blks)
         

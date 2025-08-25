@@ -103,7 +103,7 @@ class SMainXCDataset(MainXCDataset):
             data_info={k:v[idxs] if isinstance(v, torch.Tensor) or isinstance(v, np.ndarray) else [v[idx] for idx in idxs] for k,v in cls.data_info.items()}, 
             data_lbl=cls.data_lbl[idxs] if cls.data_lbl is not None else None, 
             lbl_info=cls.lbl_info, 
-            data_lbl_filterer=Filterer.sample(cls.data_lbl_filterer, sz=cls.data_lbl.shape, idx=idxs) if cls.data_lbl_filterer is not None else None,
+            data_lbl_filterer=Filterer.sample_x(cls.data_lbl_filterer, sz=cls.data_lbl.shape, idx=idxs) if cls.data_lbl_filterer is not None else None,
             n_lbl_samples=cls.n_lbl_samples,
             data_info_keys=cls.data_info_keys,
             lbl_info_keys=cls.lbl_info_keys,
