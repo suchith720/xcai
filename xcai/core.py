@@ -308,12 +308,10 @@ def load_config(fname, key):
 
 # %% ../nbs/00_core.ipynb 42
 def get_pkl_file(pkl_dir:str, fname:str, use_sxc_sampler:bool, use_exact:Optional[bool]=False, 
-                 use_only_test:Optional[bool]=False, use_oracle:Optional[bool]=False, 
-                 use_nxc_sampler:Optional[bool]=False):
+                 use_only_test:Optional[bool]=False, use_oracle:Optional[bool]=False):
     pkl_file = f'{pkl_dir}/{fname}'
 
     if use_sxc_sampler: pkl_file = f'{pkl_file}_sxc'
-    elif use_nxc_sampler: pkl_file = f'{pkl_file}_nxc'
     else: pkl_file = f'{pkl_file}_xcs'
             
     if use_exact: pkl_file = f'{pkl_file}_exact'

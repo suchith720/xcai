@@ -234,8 +234,8 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
                 remove_empty_datapoints:Optional[bool]=False, train_label_topk:Optional[int]=None, test_label_topk:Optional[int]=None, 
                 train_meta_topk:Optional[int]=None, test_meta_topk:Optional[int]=None, meta_name:Optional[str]=None, 
                 data_seq_length:Optional[int]=128, lbl_seq_length:Optional[int]=128, exclude_sep:Optional[bool]=False, 
-                do_data_meta_aug:Optional[bool]=False, do_lbl_meta_aug:Optional[bool]=False, use_nxc:Optional[bool]=False, 
-                prompt:Optional[Callable]=None, data_dir:Optional[str]=None, **kwargs):
+                do_data_meta_aug:Optional[bool]=False, do_lbl_meta_aug:Optional[bool]=False, prompt:Optional[Callable]=None, 
+                data_dir:Optional[str]=None, **kwargs):
 
     if not os.path.exists(pkl_file): do_build = True
 
@@ -253,8 +253,6 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
                 if block.test is not None and f'{meta_name}_meta' in block.test.dset.meta:
                     augment_metadata(dset=block.test.dset, meta_name=f'{meta_name}_meta', config=config, 
                                      config_key=config_key, data_dir=data_dir, prompt=prompt, padding=True, return_tensors='pt')
-        elif use_nxc:
-            block = NXCBlock.from_cfg(config, config_key, padding=True, return_tensors='pt', data_dir=data_dir, **kwargs)
         else: 
             block = XCBlock.from_cfg(config, config_key, transform_type='xcs', data_dir=data_dir, **kwargs)
 

@@ -68,13 +68,6 @@ PARAM = {
 
     'use_meta_distribution': False,
     'use_main_distribution': False,
-
-    'meta_dropout_remove': None,
-    'meta_dropout_replace': None,
-
-    'n_neg_samples': None,
-    'n_sneg_samples': 1,
-    'neg_oversample': True,
 }
 
 # %% ../nbs/25_config.ipynb 8
