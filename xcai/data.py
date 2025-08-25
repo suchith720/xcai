@@ -765,7 +765,7 @@ class XCDataBlock:
             if self.valid: self.valid = self.valid._getlabels(valid_idx)
             if self.test: self.test = self.test._getlabels(valid_idx)
 
-    def get_valid_dset(self):
+    def get_valid_block(self):
         self.get_valid_data_block()
         self.get_valid_label_block()
         
