@@ -40,7 +40,6 @@ def parse_args():
     parser.add_argument('--save_representation', action='store_true')
     
     parser.add_argument('--use_sxc_sampler', action='store_true')
-    parser.add_argument('--use_nxc_sampler', action='store_true')
     parser.add_argument('--only_test', action='store_true')
     parser.add_argument('--use_oracle', action='store_true')
 
@@ -232,9 +231,9 @@ def augment_metadata(dset:Union[XCDataset,SXCDataset], meta_name:str, config:Uni
 def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=True, config_key:Optional[str]=None, 
                 do_build:Optional[bool]=False, only_test:Optional[bool]=False, use_oracle:Optional[bool]=False, 
                 remove_empty_datapoints:Optional[bool]=False, train_label_topk:Optional[int]=None, test_label_topk:Optional[int]=None, 
-                train_meta_topk:Optional[int]=None, test_meta_topk:Optional[int]=None, meta_name:Optional[str]=None, 
-                data_seq_length:Optional[int]=128, lbl_seq_length:Optional[int]=128, exclude_sep:Optional[bool]=False, 
-                do_data_meta_aug:Optional[bool]=False, do_lbl_meta_aug:Optional[bool]=False, prompt:Optional[Callable]=None, 
+                train_meta_topk:Optional[int]=None, test_meta_topk:Optional[int]=None, aug_meta_name:Optional[str]=None, 
+                aug_data_seq_length:Optional[int]=128, aug_lbl_seq_length:Optional[int]=128, aug_exclude_sep:Optional[bool]=False, 
+                perform_data_meta_aug:Optional[bool]=False, perform_lbl_meta_aug:Optional[bool]=False, prompt:Optional[Callable]=None, 
                 data_dir:Optional[str]=None, **kwargs):
 
     if not os.path.exists(pkl_file): do_build = True
@@ -247,17 +246,17 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
         if use_sxc:
             block = SXCBlock.from_cfg(config, config_key, padding=True, return_tensors='pt', data_dir=data_dir, **kwargs)
             if use_oracle:
-                if block.train is not None and f'{meta_name}_meta' in block.train.dset.meta:
-                    augment_metadata(dset=block.train.dset, meta_name=f'{meta_name}_meta', config=config, 
+                if block.train is not None and aug_meta_name in block.train.dset.meta:
+                    augment_metadata(dset=block.train.dset, meta_name=aug_meta_name, config=config, 
                                      config_key=config_key, data_dir=data_dir, prompt=prompt, padding=True, return_tensors='pt')
-                if block.test is not None and f'{meta_name}_meta' in block.test.dset.meta:
-                    augment_metadata(dset=block.test.dset, meta_name=f'{meta_name}_meta', config=config, 
+                if block.test is not None and aug_meta_name in block.test.dset.meta:
+                    augment_metadata(dset=block.test.dset, meta_name=aug_meta_name, config=config, 
                                      config_key=config_key, data_dir=data_dir, prompt=prompt, padding=True, return_tensors='pt')
         else: 
             block = XCBlock.from_cfg(config, config_key, transform_type='xcs', data_dir=data_dir, **kwargs)
 
-            if do_data_meta_aug: block = AugmentMetaInputIdsTfm.apply(block, f'{meta_name}_meta', 'data', data_seq_length, exclude_sep)
-            if do_lbl_meta_aug: block = AugmentMetaInputIdsTfm.apply(block, f'{meta_name}_meta', 'lbl', lbl_seq_length, exclude_sep)
+            if perform_data_meta_aug: block = AugmentMetaInputIdsTfm.apply(block, aug_meta_name, 'data', aug_data_seq_length, aug_exclude_sep)
+            if perform_lbl_meta_aug: block = AugmentMetaInputIdsTfm.apply(block, aug_meta_name, 'lbl', aug_lbl_seq_length, aug_exclude_sep)
             
         joblib.dump(block, pkl_file)
     else:
