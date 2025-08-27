@@ -223,9 +223,9 @@ def __call__(
 # %% ../nbs/19_data_sampler.ipynb 54
 class NGAMESamplerFeatTfm:
 
-    def __init__(self, sampler_num_labels:Optional[int]=1, sampler_label_oversample:Optional[bool]=False, 
+    def __init__(self, sampler_num_labels:Optional[int]=1, sampler_lbl_oversample:Optional[bool]=False, 
                  pad_token:Optional[int]=0, **kwargs):
-        self.n_labels, self.lbl_oversample = sampler_num_labels, sampler_label_oversample
+        self.n_labels, self.lbl_oversample = sampler_num_labels, sampler_lbl_oversample
         self.pad_proc = PadFeatTfm(pad_tok=pad_token, in_place=False, drop=False)
 
     def align_features(self, features:List, prefix:str, level:int):
@@ -251,10 +251,13 @@ class NGAMESamplerFeatTfm:
             input_ids, attention_mask = o[f'{name}_input_ids'], o[f'{name}_attention_mask']
             
             indptr = torch.cat([torch.zeros((1,), dtype=torch.int64), batch[f'p{name}_data2ptr'].cumsum(dim=0)])
-            if oversample: idx = torch.hstack([torch.randint(n, size=(n_samples,))+offset for n,offset in zip(batch[f'p{name}_data2ptr'], indptr)])
-            else: idx = torch.hstack([torch.randperm(n)[:n_samples]+offset for n,offset in zip(batch[f'p{name}_data2ptr'], indptr)])
-        
-            batch[f'{name}_data2ptr'] = torch.clamp(batch[f'p{name}_data2ptr'], max=n_samples)
+            if oversample: 
+                idx = torch.hstack([torch.randint(n, size=(n_samples,))+offset for n,offset in zip(batch[f'p{name}_data2ptr'], indptr)])
+                batch[f'{name}_data2ptr'] = torch.full(batch[f'p{name}_data2ptr'].shape, n_samples)
+            else: 
+                idx = torch.hstack([torch.randperm(n)[:n_samples]+offset for n,offset in zip(batch[f'p{name}_data2ptr'], indptr)])
+                batch[f'{name}_data2ptr'] = torch.clamp(batch[f'p{name}_data2ptr'], max=n_samples)
+            
             batch[f'{name}_idx'] = batch[f'p{name}_idx'][idx]
             batch[f'{name}_attention_mask'] = attention_mask[idx]
             batch[f'{name}_input_ids'] = input_ids[idx]
@@ -266,21 +269,29 @@ class NGAMESamplerFeatTfm:
     def __call__(self, features:List):
         batch = BatchEncoding({})
         self.collate_data(batch, features)
-        self.collate_labels(batch, features, n_labels=self.n_labels)
+        self.collate_labels(batch, features)
         return batch
 
 
-# %% ../nbs/19_data_sampler.ipynb 62
+# %% ../nbs/19_data_sampler.ipynb 69
 class OAKSamplerFeatTfm(NGAMESamplerFeatTfm):
 
-    def __init__(self, sampler_metadata_info:Union[Dict, List, str], **kwargs):
+    def __init__(
+        self, 
+        sampler_meta_name:Union[List, str], 
+        sampler_num_meta:Optional[Union[Dict, int]]=1, 
+        sampler_meta_oversample:Optional[Union[Dict, int]]=False, 
+        **kwargs
+    ):
         super().__init__(**kwargs)
-        if isinstance(sampler_metadata_info, str): sampler_metadata_info = [sampler_metadata_info]
-        self.meta_info = sampler_metadata_info if isinstance(sampler_metadata_info, dict) else {o: 1 for o in sampler_metadata_info}
-        
+        self.meta_name = sampler_meta_name if isinstance(sampler_meta_name, list) else [sampler_meta_name]
+        self.n_meta, self.meta_oversample = sampler_num_meta, sampler_meta_oversample
+
     def collate_metadata(self, batch:Dict, features:List):
-        for meta_name, n_meta in self.meta_info.items():
-            self.sample_features(batch, features, f'{meta_name}2data', level=1, n_samples=n_meta)
+        for meta_name in self.meta_name:
+            n_meta = self.n_meta if isinstance(self.n_meta, int) else self.n_meta.get(meta_name, 1)
+            oversample = self.meta_oversample if isinstance(self.meta_oversample, int) else self.meta_oversample.get(meta_name, False)
+            self.sample_features(batch, features, f'{meta_name}2data', level=1, n_samples=n_meta, oversample=oversample)
 
     def __call__(self, features:List):
         batch = BatchEncoding({})
@@ -290,11 +301,16 @@ class OAKSamplerFeatTfm(NGAMESamplerFeatTfm):
         return batch
         
 
-# %% ../nbs/19_data_sampler.ipynb 70
+# %% ../nbs/19_data_sampler.ipynb 82
 class CrossSamplerFeatTfm(OAKSamplerFeatTfm):
 
-    def __init__(self, label_outer_product:Optional[bool]=True, meta_outer_product:Optional[bool]=False, 
-                 sampler_use_sep:Optional[bool]=True, **kwargs):
+    def __init__(
+        self, 
+        label_outer_product:Optional[bool]=True, 
+        meta_outer_product:Optional[bool]=False, 
+        sampler_use_sep:Optional[bool]=True, 
+        **kwargs
+    ):
         super().__init__(**kwargs)
         self.lbl_outer_prod, self.meta_outer_prod, self.use_sep = label_outer_product, meta_outer_product, sampler_use_sep
         
@@ -331,9 +347,6 @@ class CrossSamplerFeatTfm(OAKSamplerFeatTfm):
         if f'{name}_idx' in features[0]:
             batch[f'p{name}_data2ptr'] = torch.tensor([len(o[f'{name}_idx']) for o in features], dtype=torch.int64)
             batch[f'p{name}_idx'] = torch.tensor(list(chain(*[o[f'{name}_idx'] for o in features])), dtype=torch.int64)
-
-            # this is wrong; do it again
-            input_ids, attention_mask, labels = self.prepare_cross_features(features, name, outer_product, use_sep)
             
             indptr = torch.cat([torch.zeros((1,), dtype=torch.int64), batch[f'p{name}_data2ptr'].cumsum(dim=0)])
             if oversample: idx = torch.hstack([torch.randint(n, size=(n_samples,))+offset for n,offset in zip(batch[f'p{name}_data2ptr'], indptr)])
@@ -349,8 +362,3 @@ class CrossSamplerFeatTfm(OAKSamplerFeatTfm):
                              oversample=self.lbl_oversample, outer_product=self.lbl_outer_prod, 
                              use_sep=self.use_sep)
 
-    def collate_metadata(self, batch:Dict, features:List):
-        for meta_name, n_meta in self.meta_info.items():
-            self.sample_features(batch, features, f'{meta_name}2data', level=1, n_samples=n_meta,
-                                 outer_product=self.meta_outer_prod, use_sep=self.use_sep)
-        
