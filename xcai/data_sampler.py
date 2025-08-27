@@ -228,28 +228,32 @@ class NGAMESamplerFeatTfm:
         self.n_labels, self.lbl_oversample = sampler_num_labels, sampler_lbl_oversample
         self.pad_proc = PadFeatTfm(pad_tok=pad_token, in_place=False, drop=False)
 
-    def align_features(self, features:List, prefix:str, level:int):
+    def sample_ids(self, x:Dict, prefix:str, idxs:torch.Tensor, data_info:Optional[Dict]=None):
+        if idxs is None:
+            if f'{prefix}_attention_mask' not in x: x[f'{prefix}_attention_mask'] = [[1]*len(i) for i in x[f'{prefix}_input_ids']]
+        else:
+            x[f'{prefix}_input_ids'] = [x[f'{prefix}_input_ids'][i] for i in idxs]
+            x[f'{prefix}_attention_mask'] = [x[f'{prefix}_attention_mask'][i] for i in idxs] if f'{prefix}_attention_mask' in x else [[1]*len(i) for i in x[f'{prefix}_input_ids']]
+
+    def align_features(self, features:List, prefix:str, level:int, idxs:Optional[torch.Tensor]=None, 
+                       data_info:Optional[Dict]=None):
+        if f'{prefix}_input_ids' not in features[0]: return {}
+
+        if f'{prefix}_input_ids' in features[0] and f'{prefix}_attention_mask' in features[0]:
+            features = [{f'{prefix}_input_ids': o[f'{prefix}_input_ids'], f'{prefix}_attention_mask': o[f'{prefix}_attention_mask']} for o in features]        
+        else:
+            features = [{f'{prefix}_input_ids': o[f'{prefix}_input_ids']} for o in features]
+        
         o = self.pad_proc.coll_proc(features, prefix=prefix, lev=level)
-        if f'{prefix}_input_ids' in o and f'{prefix}_attention_mask' not in o: 
-            o[f'{prefix}_attention_mask'] = [[1]*len(i) for i in o[f'{prefix}_input_ids']]
+        self.sample_ids(o, prefix, idxs, data_info)
         return self.pad_proc.proc(o)
 
-    def collate_data(self, batch:Dict, features:List):
-        if 'data_idx' in features[0]:
-            batch['data_idx'] = torch.tensor([o['data_idx'] for o in features], dtype=torch.int64)
-            
-        o =  self.align_features(features, 'data', 0)    
-        batch['data_input_ids'], batch['data_attention_mask'] = o['data_input_ids'], o['data_attention_mask']
-
     def sample_features(self, batch:Dict, features:List, name:str, level:int, n_samples:Optional[int]=1,
-                       oversample:Optional[bool]=False):
+                       oversample:Optional[bool]=False, perform_cross:Optional[bool]=False):
         if f'{name}_idx' in features[0]:
             batch[f'p{name}_data2ptr'] = torch.tensor([len(o[f'{name}_idx']) for o in features], dtype=torch.int64)
             batch[f'p{name}_idx'] = torch.tensor(list(chain(*[o[f'{name}_idx'] for o in features])), dtype=torch.int64)
 
-            o =  self.align_features(features, name, level)
-            input_ids, attention_mask = o[f'{name}_input_ids'], o[f'{name}_attention_mask']
-            
             indptr = torch.cat([torch.zeros((1,), dtype=torch.int64), batch[f'p{name}_data2ptr'].cumsum(dim=0)])
             if oversample: 
                 idx = torch.hstack([torch.randint(n, size=(n_samples,))+offset for n,offset in zip(batch[f'p{name}_data2ptr'], indptr)])
@@ -257,10 +261,25 @@ class NGAMESamplerFeatTfm:
             else: 
                 idx = torch.hstack([torch.randperm(n)[:n_samples]+offset for n,offset in zip(batch[f'p{name}_data2ptr'], indptr)])
                 batch[f'{name}_data2ptr'] = torch.clamp(batch[f'p{name}_data2ptr'], max=n_samples)
-            
+
+            data_info = dict()
+            if perform_cross:
+                data_info = {
+                    'data_idx': torch.arange(len(batch[f'{name}_data2ptr'])).repeat_interleave(batch[f'{name}_data2ptr']),
+                    'data_input_ids': [o['data_input_ids'] for o in features],
+                }
+                data_info['data_attention_mask'] = [o['data_attention_mask'] for o in features] if 'data_attention_mask' in features[0] else [[1]*len(i) for i in data_info['data_input_ids']]
+                
+                
             batch[f'{name}_idx'] = batch[f'p{name}_idx'][idx]
-            batch[f'{name}_attention_mask'] = attention_mask[idx]
-            batch[f'{name}_input_ids'] = input_ids[idx]
+            batch.update(self.align_features(features, name, level, idx, data_info))
+
+    def collate_data(self, batch:Dict, features:List):
+        if 'data_idx' in features[0]:
+            batch['data_idx'] = torch.tensor([o['data_idx'] for o in features], dtype=torch.int64)
+            
+        o =  self.align_features(features, 'data', 0)    
+        batch['data_input_ids'], batch['data_attention_mask'] = o['data_input_ids'], o['data_attention_mask']
 
     def collate_labels(self, batch:Dict, features:List):
         self.sample_features(batch, features, 'lbl2data', level=1, n_samples=self.n_labels, 
@@ -273,7 +292,7 @@ class NGAMESamplerFeatTfm:
         return batch
 
 
-# %% ../nbs/19_data_sampler.ipynb 69
+# %% ../nbs/19_data_sampler.ipynb 68
 class OAKSamplerFeatTfm(NGAMESamplerFeatTfm):
 
     def __init__(
@@ -301,64 +320,35 @@ class OAKSamplerFeatTfm(NGAMESamplerFeatTfm):
         return batch
         
 
-# %% ../nbs/19_data_sampler.ipynb 82
+# %% ../nbs/19_data_sampler.ipynb 81
 class CrossSamplerFeatTfm(OAKSamplerFeatTfm):
 
     def __init__(
         self, 
-        label_outer_product:Optional[bool]=True, 
-        meta_outer_product:Optional[bool]=False, 
         sampler_use_sep:Optional[bool]=True, 
         **kwargs
     ):
         super().__init__(**kwargs)
-        self.lbl_outer_prod, self.meta_outer_prod, self.use_sep = label_outer_product, meta_outer_product, sampler_use_sep
-        
-    def prepare_cross_features(self, features:List, name:str, outer_product:Optional[bool]=False, 
-                               use_sep:Optional[bool]=True):
-        input_ids, attention_mask, labels = list(), list(), list()
-        
-        if 'data_input_ids' in features:
-            if outer_product:
-                for i,data in enumerate(features['data_input_ids']):
-                    for j,meta in enumerate(features[f'{name}2data_input_ids']):
-                        input_ids.extend([data+o if use_sep else data[:-1]+o for o in meta])
-                        labels.extend([1]*len(meta) if i == j else [0]*len(meta))
-            else:
-                for data, meta in zip(features['data_input_ids'], features[f'{name}2data_input_ids']):
-                    input_ids.extend([data+o if use_sep else data[:-1]+o for o in meta])
-                    labels.extend([1]*len(meta))
-                    
-        if 'data_attention_mask' in features:
-            if outer_product:
-                for i,data in enumerate(features['data_attention_mask']):
-                    for j,meta in enumerate(features[f'{name}2data_attention_mask']):
-                        attention_mask.extend([data+o if use_sep else data[:-1]+o for o in meta])
-            else:
-                for data, meta in zip(features['data_input_ids'], features[f'{name}2data_attention_mask']):
-                    attention_mask.extend([data+o if use_sep else data[:-1]+o for o in meta])
+        self.use_sep = sampler_use_sep
+
+    def sample_ids(self, x:Dict, prefix:str, idxs:torch.Tensor, data_info:Optional[Dict]=None):
+        if idxs is None:
+            if f'{prefix}_attention_mask' not in x: x[f'{prefix}_attention_mask'] = [[1]*len(i) for i in x[f'{prefix}_input_ids']]
         else:
-            attention_mask.append([[1]*len(o) for o in input_ids])
-
-        return input_ids, attention_mask, labels
-
-    def sample_features(self, batch:Dict, features:List, name:str, level:int, n_samples:Optional[int]=1,
-                        oversample:Optional[bool]=False, outer_product:Optional[bool]=False, use_sep:Optional[bool]=True):
-        if f'{name}_idx' in features[0]:
-            batch[f'p{name}_data2ptr'] = torch.tensor([len(o[f'{name}_idx']) for o in features], dtype=torch.int64)
-            batch[f'p{name}_idx'] = torch.tensor(list(chain(*[o[f'{name}_idx'] for o in features])), dtype=torch.int64)
-            
-            indptr = torch.cat([torch.zeros((1,), dtype=torch.int64), batch[f'p{name}_data2ptr'].cumsum(dim=0)])
-            if oversample: idx = torch.hstack([torch.randint(n, size=(n_samples,))+offset for n,offset in zip(batch[f'p{name}_data2ptr'], indptr)])
-            else: idx = torch.hstack([torch.randperm(n)[:n_samples]+offset for n,offset in zip(batch[f'p{name}_data2ptr'], indptr)])
-        
-            batch[f'{name}_data2ptr'] = torch.clamp(batch[f'p{name}_data2ptr'], max=n_samples)
-            batch[f'{name}_idx'] = batch[f'p{name}_idx'][idx]
-            batch[f'{name}_attention_mask'] = attention_mask[idx]
-            batch[f'{name}_input_ids'] = input_ids[idx]
+            if self.use_sep:
+                x[f'{prefix}_input_ids'] = [data_info['data_input_ids'][i]+x[f'{prefix}_input_ids'][j][1:] for i,j in zip(data_info['data_idx'], idxs)]
+                x[f'{prefix}_attention_mask'] = [data_info['data_input_ids'][i]+x[f'{prefix}_attention_mask'][j][1:] for i,j in zip(data_info['data_idx'], idxs)] if f'{prefix}_attention_mask' in x else [[1]*len(i) for i in x[f'{prefix}_input_ids']]
+            else:
+                x[f'{prefix}_input_ids'] = [data_info['data_input_ids'][i][:-1]+x[f'{prefix}_input_ids'][j][1:] for i,j in zip(data_info['data_idx'], idxs)]
+                x[f'{prefix}_attention_mask'] = [data_info['data_input_ids'][i][:-1]+x[f'{prefix}_attention_mask'][j][1:] for i,j in zip(data_info['data_idx'], idxs)] if f'{prefix}_attention_mask' in x else [[1]*len(i) for i in x[f'{prefix}_input_ids']]
 
     def collate_labels(self, batch:Dict, features:List):
         self.sample_features(batch, features, 'lbl2data', level=1, n_samples=self.n_labels, 
-                             oversample=self.lbl_oversample, outer_product=self.lbl_outer_prod, 
-                             use_sep=self.use_sep)
+                             oversample=self.lbl_oversample, perform_cross=True)
+        
+    def collate_metadata(self, batch:Dict, features:List):
+        for meta_name in self.meta_name:
+            n_meta = self.n_meta if isinstance(self.n_meta, int) else self.n_meta.get(meta_name, 1)
+            oversample = self.meta_oversample if isinstance(self.meta_oversample, int) else self.meta_oversample.get(meta_name, False)
+            self.sample_features(batch, features, f'{meta_name}2data', level=1, n_samples=n_meta, oversample=oversample, perform_cross=True)
 
