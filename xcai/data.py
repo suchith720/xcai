@@ -151,16 +151,21 @@ class MainXCDataset(BaseXCDataset):
         n_lbl_samples:Optional[int]=None,
         data_info_keys:Optional[List]=None,
         lbl_info_keys:Optional[List]=None,
+        use_main_distribution:Optional[bool]=False,
+        return_scores:Optional[bool]=False,
         enable_delayed_indexing:Optional[bool]=False,
         **kwargs
     ):
         super().__init__()
         store_attr('data_info,data_lbl,lbl_info,data_lbl_filterer,n_lbl_samples,data_info_keys')
-        store_attr('lbl_info_keys,enable_delayed_indexing')
-        self.curr_data_lbl = None
+        store_attr('lbl_info_keys,use_main_distribution,return_scores,enable_delayed_indexing')
+        
+        self.curr_data_lbl, self.data_lbl_scores = None, None
         
         self._verify_inputs()
-        if not enable_delayed_indexing: self._store_indices()
+        if not enable_delayed_indexing: 
+            self._store_indices()
+            if use_main_distribution or return_scores: self._store_scores()
         
     @classmethod
     @delegates(MainXCData.from_file)
@@ -187,9 +192,19 @@ class MainXCDataset(BaseXCDataset):
     def _store_indices(self):
         if self.data_lbl is not None: self.curr_data_lbl = [o.indices.tolist() for o in self.data_lbl]
 
+    def _store_scores(self):
+        if self.data_lbl is not None:
+            if self.use_main_distribution:
+                data_lbl = self.data_lbl / (self.data_lbl.sum(axis=1) + 1e-9)
+                data_lbl = data_lbl.tocsr()
+            else:
+                data_lbl = self.data_lbl
+            self.data_lbl_scores = [o.data.tolist() for o in data_lbl]
+            
     def enable_indexing(self):
         self.enable_delayed_indexing = True
         self._store_indices()
+        if self.use_main_distribution or self.return_scores: self._store_scores()
 
     def _get_dataset(
         self, 
@@ -224,32 +239,44 @@ def __getitem__(cls:MainXCDataset, idx:int):
     if cls.data_lbl is not None:
         prefix = 'lbl2data'
         x[f'{prefix}_idx'] = cls.curr_data_lbl[idx]
-        if cls.n_lbl_samples: x[f'{prefix}_idx'] = [x[f'{prefix}_idx'][i] for i in np.random.permutation(len(x[f'{prefix}_idx']))[:cls.n_lbl_samples]]
+        if cls.return_scores: x[f'{prefix}_scores'] = cls.data_lbl_scores[idx]
+        if cls.n_lbl_samples:
+            rnd_idx = np.random.permutation(len(x[f'{prefix}_idx']))[:cls.n_lbl_samples]
+            x[f'{prefix}_idx'] = [x[f'{prefix}_idx'][i] for i in rnd_idx]
+            if cls.return_scores: x[f'{prefix}_scores'] = [x[f'{prefix}_scores'][i] for i in rnd_idx]
         if cls.lbl_info is not None:
             x.update({f'{prefix}_{k}':[v[i] for i in x[f'{prefix}_idx']] for k,v in cls.lbl_info.items() if k in cls.lbl_info_keys})
     return x
     
 
-# %% ../nbs/02_data.ipynb 30
+# %% ../nbs/02_data.ipynb 32
 class MetaXCDataset(BaseXCDataset):
 
-    def __init__(self,
-                 prefix:str,
-                 data_meta:sparse.csr_matrix, 
-                 lbl_meta:Optional[sparse.csr_matrix]=None, 
-                 meta_info:Optional[Dict]=None, 
-                 n_data_meta_samples:Optional[int]=None,
-                 n_lbl_meta_samples:Optional[int]=None,
-                 meta_info_keys:Optional[List]=None,
-                 enable_delayed_indexing:Optional[bool]=False,
-                 **kwargs):
-        store_attr('prefix,data_meta,lbl_meta,meta_info,n_data_meta_samples')
-        store_attr('n_lbl_meta_samples,meta_info_keys,enable_delayed_indexing')
+    def __init__(
+        self,
+        prefix:str,
+        data_meta:sparse.csr_matrix, 
+        lbl_meta:Optional[sparse.csr_matrix]=None, 
+        meta_info:Optional[Dict]=None, 
+        n_data_meta_samples:Optional[int]=None,
+        n_lbl_meta_samples:Optional[int]=None,
+        meta_info_keys:Optional[List]=None,
+        use_meta_distribution:Optional[bool]=False,
+        return_scores:Optional[bool]=False,
+        enable_delayed_indexing:Optional[bool]=False,
+        **kwargs
+    ):
+        store_attr('prefix,data_meta,lbl_meta,meta_info,n_data_meta_samples,n_lbl_meta_samples')
+        store_attr('meta_info_keys,use_meta_distribution,return_scores,enable_delayed_indexing')
         
         self.curr_data_meta,self.curr_lbl_meta = None,None
+        self.data_meta_scores, self.lbl_meta_scores = None, None
+        
         self._verify_inputs()
         
-        if not enable_delayed_indexing: self._store_indices()
+        if not enable_delayed_indexing: 
+            self._store_indices()
+            if use_meta_distribution or return_scores: self._store_scores()
 
     @classmethod
     @delegates(MetaXCData.from_file)
@@ -276,9 +303,21 @@ class MetaXCDataset(BaseXCDataset):
         if self.data_meta is not None: self.curr_data_meta = [o.indices.tolist() for o in self.data_meta]
         if self.lbl_meta is not None: self.curr_lbl_meta = [o.indices.tolist() for o in self.lbl_meta]
 
+    def _store_scores(self):
+        def get_scores(matrix:sp.csr_matrix, use_meta_distribution:bool):
+            if matrix is not None:
+                if use_meta_distribution:
+                    matrix = matrix / (matrix.sum(axis=1) + 1e-9)
+                    matrix = matrix.tocsr()
+                return [o.data.tolist() for o in matrix]
+                
+        self.data_meta_scores = get_scores(self.data_meta, self.use_meta_distribution)
+        self.lbl_meta_scores = get_scores(self.lbl_meta, self.use_meta_distribution)
+
     def enable_indexing(self):
         self.enable_delayed_indexing = True
         self._store_indices()
+        if self.use_meta_distribution or self.return_scores: self._store_scores()
 
     def prune_data_meta(self, data_repr:torch.Tensor, meta_repr:torch.Tensor, batch_size:Optional[int]=64, thresh:Optional[float]=0.0, 
                         topk:Optional[int]=None):
@@ -294,7 +333,9 @@ class MetaXCDataset(BaseXCDataset):
 
     def update_meta_matrix(self, data_meta:sparse.csr_matrix, lbl_meta:Optional[sparse.csr_matrix]=None):
         self.data_meta, self.lbl_meta = data_meta, lbl_meta
-        if not self.enable_delayed_indexing: self._store_indices()
+        if not self.enable_delayed_indexing: 
+            self._store_indices()
+            if self.use_meta_distribution or self.return_scores: self._store_scores()
 
     def _getitems(self, idxs:List):
         kwargs = {k:getattr(self, k) for k in [o for o in vars(self).keys() if not o.startswith('__')]}
@@ -316,7 +357,11 @@ class MetaXCDataset(BaseXCDataset):
         if self.curr_lbl_meta is None: return {}
         prefix = f'{self.prefix}2lbl2data'
         x = {f'{prefix}_idx': self.curr_lbl_meta[idx]}
-        if self.n_lbl_meta_samples: x[f'{prefix}_idx'] = [x[f'{prefix}_idx'][i] for i in np.random.permutation(len(x[f'{prefix}_idx']))[:self.n_lbl_meta_samples]]
+        if self.return_scores: x[f'{prefix}_scores'] = self.lbl_meta_scores[idx]
+        if self.n_lbl_meta_samples:
+            rnd_idx = np.random.permutation(len(x[f'{prefix}_idx']))[:self.n_lbl_meta_samples]
+            x[f'{prefix}_idx'] = [x[f'{prefix}_idx'][i] for i in rnd_idx]
+            if self.return_scores: x[f'{prefix}_scores'] = [x[f'{prefix}_scores'][i] for i in rnd_idx]
         if self.meta_info is not None:
             x.update({f'{prefix}_{k}':[v[i] for i in x[f'{prefix}_idx']] for k,v in self.meta_info.items() if k in self.meta_info_keys})
         return x
@@ -326,7 +371,11 @@ class MetaXCDataset(BaseXCDataset):
         if self.curr_lbl_meta is None: return {}
         prefix = f'{self.prefix}2lbl2data'
         x = {f'{prefix}_idx': [self.curr_lbl_meta[idx] for idx in idxs]}
-        if self.n_lbl_meta_samples: x[f'{prefix}_idx'] = [[o[i] for i in np.random.permutation(len(o))[:self.n_lbl_meta_samples]] for o in x[f'{prefix}_idx']]
+        if self.return_scores: x[f'{prefix}_scores'] = [self.lbl_meta_scores[idx] for idx in idxs]
+        if self.n_lbl_meta_samples:
+            rnd_idxs = [np.random.permutation(len(o))[:self.n_lbl_meta_samples] for o in x[f'{prefix}_idx']]
+            x[f'{prefix}_idx'] = [[o[i] for i in idx] for o,idx in zip(x[f'{prefix}_idx'],rnd_idxs)]
+            if self.return_scores: x[f'{prefix}_scores'] = [[o[i] for i in idx] for o,idx in zip(x[f'{prefix}_scores'],rnd_idxs)]
         if self.meta_info is not None:
             x.update({f'{prefix}_{k}':[[v[i] for i in o] for o in x[f'{prefix}_idx']] for k,v in self.meta_info.items() if k in self.meta_info_keys})
         return x
@@ -334,7 +383,11 @@ class MetaXCDataset(BaseXCDataset):
     def get_data_meta(self, idx:int):
         prefix = f'{self.prefix}2data'
         x = {f'{prefix}_idx': self.curr_data_meta[idx]}
-        if self.n_data_meta_samples: x[f'{prefix}_idx'] = [x[f'{prefix}_idx'][i] for i in np.random.permutation(len(x[f'{prefix}_idx']))[:self.n_data_meta_samples]]
+        if self.return_scores: x[f'{prefix}_scores'] = self.data_meta_scores[idx]
+        if self.n_data_meta_samples:
+            rnd_idx = np.random.permutation(len(x[f'{prefix}_idx']))[:self.n_data_meta_samples]
+            x[f'{prefix}_idx'] = [x[f'{prefix}_idx'][i] for i in rnd_idx]
+            if self.return_scores: x[f'{prefix}_scores'] = [x[f'{prefix}_scores'][i] for i in rnd_idx]
         if self.meta_info is not None:
             x.update({f'{prefix}_{k}':[v[i] for i in x[f'{prefix}_idx']] for k,v in self.meta_info.items() if k in self.meta_info_keys})
         return x
@@ -351,7 +404,7 @@ class MetaXCDataset(BaseXCDataset):
             display(df)
     
 
-# %% ../nbs/02_data.ipynb 44
+# %% ../nbs/02_data.ipynb 48
 class Operations:
 
     @staticmethod
@@ -541,7 +594,7 @@ class Operations:
         return dset._getitems(valid_idx)
         
 
-# %% ../nbs/02_data.ipynb 46
+# %% ../nbs/02_data.ipynb 50
 class MetaXCDatasets(dict):
 
     def __init__(self, meta:Dict):
@@ -557,7 +610,7 @@ class MetaXCDatasets(dict):
         delattr(self, key)
         
 
-# %% ../nbs/02_data.ipynb 47
+# %% ../nbs/02_data.ipynb 51
 class XCDataset(BaseXCDataset):
 
     def __init__(self, data:MainXCDataset, **kwargs):
@@ -684,7 +737,7 @@ class XCDataset(BaseXCDataset):
                                                            meta_info=self.data.lbl_info, **kwargs)
 
 
-# %% ../nbs/02_data.ipynb 59
+# %% ../nbs/02_data.ipynb 63
 class XCCollator:
 
     def __init__(self, tfms):
@@ -694,7 +747,7 @@ class XCCollator:
         return self.tfms(x)
         
 
-# %% ../nbs/02_data.ipynb 76
+# %% ../nbs/02_data.ipynb 80
 class BaseXCDataBlock:
 
     @delegates(DataLoader.__init__)
@@ -788,7 +841,7 @@ class BaseXCDataBlock:
         return cls._getitems(rnd_idx[:cut])
         
 
-# %% ../nbs/02_data.ipynb 86
+# %% ../nbs/02_data.ipynb 90
 class XCDataBlock:
 
     def __init__(self, train=None, valid=None, test=None):

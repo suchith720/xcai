@@ -150,24 +150,10 @@ class SMainXCDataset(MainXCDataset):
         self,
         n_slbl_samples:Optional[int]=1,
         main_oversample:Optional[bool]=False,
-        use_main_distribution:Optional[bool]=False,
-        return_scores:Optional[bool]=False,
         **kwargs
     ):
         super().__init__(**kwargs)
-        store_attr('n_slbl_samples,main_oversample,use_main_distribution,return_scores')
-        
-        self.data_lbl_scores = None
-        if use_main_distribution or return_scores: self._store_scores()
-        
-    def _store_scores(self):
-        if self.data_lbl is not None:
-            if self.use_main_distribution:
-                data_lbl = self.data_lbl / (self.data_lbl.sum(axis=1) + 1e-9)
-                data_lbl = data_lbl.tocsr()
-            else:
-                data_lbl = self.data_lbl
-            self.data_lbl_scores = [o.data.tolist() for o in data_lbl]
+        store_attr('n_slbl_samples,main_oversample')
         
     def __getitems__(self, idxs:List):
         x = {'data_idx': torch.tensor(idxs, dtype=torch.int64)}
@@ -189,29 +175,13 @@ class SMetaXCDataset(MetaXCDataset):
         n_sdata_meta_samples:Optional[int]=1,
         n_slbl_meta_samples:Optional[int]=1,
         meta_oversample:Optional[bool]=False,
-        use_meta_distribution:Optional[bool]=False,
         meta_dropout_remove:Optional[float]=None,
         meta_dropout_replace:Optional[float]=None,
-        return_scores:Optional[bool]=False,
         **kwargs
     ):
         super().__init__(**kwargs)
-        store_attr('n_sdata_meta_samples,n_slbl_meta_samples,meta_oversample,use_meta_distribution')
-        store_attr('meta_dropout_remove,meta_dropout_replace,return_scores')
-
-        self.data_meta_scores, self.lbl_meta_scores = None, None
-        if use_meta_distribution or return_scores: self._store_scores()
-
-    def _store_scores(self):
-        def get_scores(matrix:sp.csr_matrix, use_meta_distribution:bool):
-            if matrix is not None:
-                if use_meta_distribution:
-                    matrix = matrix / (matrix.sum(axis=1) + 1e-9)
-                    matrix = matrix.tocsr()
-                return [o.data.tolist() for o in matrix]
-                
-        self.data_meta_scores = get_scores(self.data_meta, self.use_meta_distribution)
-        self.lbl_meta_scores = get_scores(self.lbl_meta, self.use_meta_distribution)
+        store_attr('n_sdata_meta_samples,n_slbl_meta_samples,meta_oversample')
+        store_attr('meta_dropout_remove,meta_dropout_replace')
         
     def get_data_meta(self, idxs:List):
         x, prefix = dict(), f'{self.prefix}2data'
