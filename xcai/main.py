@@ -2,8 +2,8 @@
 
 # %% auto 0
 __all__ = ['parse_args', 'check_inference_mode', 'get_metadata_representation', 'get_cluster_mapping', 'retain_topk_metadata',
-           'retrain_topk_labels', 'get_valid_dset', 'get_config', 'tokenize_info', 'augment_metadata', 'build_block',
-           'load_model', 'get_output', 'main']
+           'retrain_topk_labels', 'get_valid_dset', 'get_config', 'tokenize_info', 'augment_metadata', 'get_pkl_file',
+           'build_block', 'load_model', 'get_output', 'main']
 
 # %% ../nbs/36_main.ipynb 3
 import os, torch, scipy.sparse as sp, joblib, argparse, pickle, numpy as np, inspect
@@ -41,6 +41,7 @@ def parse_args():
     
     parser.add_argument('--use_sxc_sampler', action='store_true')
     parser.add_argument('--only_test', action='store_true')
+    parser.add_argument('--text_mode', action='store_true')
     parser.add_argument('--use_oracle', action='store_true')
 
     parser.add_argument('--pickle_dir', type=str, required=True)
@@ -227,7 +228,24 @@ def augment_metadata(dset:Union[XCDataset,SXCDataset], meta_name:str, config:Uni
                   max_sequence_length=config['parameters']['main_max_data_sequence_length'])
     
 
-# %% ../nbs/36_main.ipynb 19
+# %% ../nbs/36_main.ipynb 18
+def get_pkl_file(pkl_dir:str, fname:str, use_sxc_sampler:bool, use_exact:Optional[bool]=False, 
+                 use_only_test:Optional[bool]=False, use_oracle:Optional[bool]=False, 
+                 use_text_mode:Optional[bool]=False):
+    pkl_file = f'{pkl_dir}/{fname}'
+
+    if use_sxc_sampler: pkl_file = f'{pkl_file}_sxc'
+    else: pkl_file = f'{pkl_file}_xcs'
+            
+    if use_exact: pkl_file = f'{pkl_file}_exact'
+    if use_only_test: pkl_file = f'{pkl_file}_only-test'
+    if use_oracle: pkl_file = f'{pkl_file}_oracle'
+    if use_text_mode: pkl_file = f'{pkl_file}_text-mode'
+
+    return f'{pkl_file}.joblib'
+    
+
+# %% ../nbs/36_main.ipynb 20
 def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=True, config_key:Optional[str]=None, 
                 do_build:Optional[bool]=False, only_test:Optional[bool]=False, use_oracle:Optional[bool]=False, 
                 remove_empty_datapoints:Optional[bool]=False, train_label_topk:Optional[int]=None, test_label_topk:Optional[int]=None, 
@@ -273,19 +291,19 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
             for k in [o for o in vars(obj).keys() if not o.startswith('__')]:
                 if k in kwargs: setattr(obj, k, get_meta_args(kwargs, meta_name, k))
 
-        def set_block_attribute(bkl, use_sxc):            
+        def set_block_attribute(bkl):            
             if bkl is not None: 
                 set_data_attribute(bkl.dset.data)
-                if use_sxc and bkl.dset.data.data_lbl_scores is None and (bkl.dset.data.use_main_distribution or bkl.dset.data.return_scores): 
+                if bkl.dset.data.data_lbl_scores is None and (bkl.dset.data.use_main_distribution or bkl.dset.data.return_scores): 
                     bkl.dset.data._store_scores()
                     
                 for k in bkl.dset.meta: 
                     set_meta_attribute(bkl.dset.meta[k], k)
-                    if use_sxc and bkl.dset.meta[k].data_meta_scores is None and (bkl.dset.meta[k].use_meta_distribution or bkl.dset.meta[k].return_scores): 
+                    if bkl.dset.meta[k].data_meta_scores is None and (bkl.dset.meta[k].use_meta_distribution or bkl.dset.meta[k].return_scores): 
                         bkl.dset.meta[k]._store_scores()
 
-        set_block_attribute(block.train, isinstance(block, SXCDataBlock))
-        set_block_attribute(block.test, isinstance(block, SXCDataBlock))
+        set_block_attribute(block.train)
+        set_block_attribute(block.test)
                         
     if remove_empty_datapoints: 
         block = type(block)(train=get_valid_dset(block.train), test=get_valid_dset(block.test))
@@ -299,7 +317,7 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
     return block
         
 
-# %% ../nbs/36_main.ipynb 21
+# %% ../nbs/36_main.ipynb 22
 def load_model(output_dir:str, model_fn:Callable, model_args:Dict, init_fn:Callable, init_args:Optional[Dict]=dict(), 
                do_inference:Optional[bool]=False, use_pretrained:Optional[bool]=False):
     if do_inference:
@@ -314,7 +332,7 @@ def load_model(output_dir:str, model_fn:Callable, model_args:Dict, init_fn:Calla
     return model
     
 
-# %% ../nbs/36_main.ipynb 23
+# %% ../nbs/36_main.ipynb 24
 def get_output(pred_idx:torch.Tensor, pred_ptr:torch.Tensor, pred_score:torch.Tensor, n_lbl:int, **kwargs):
     n_data = pred_ptr.shape[0]
     pred_ptr = torch.cat([torch.zeros((1,), dtype=torch.long), pred_ptr.cumsum(dim=0)])
@@ -322,7 +340,7 @@ def get_output(pred_idx:torch.Tensor, pred_ptr:torch.Tensor, pred_score:torch.Te
     return pred
     
 
-# %% ../nbs/36_main.ipynb 25
+# %% ../nbs/36_main.ipynb 26
 def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:int=None, train_k:int=None, save_teacher:bool=False, 
          save_classifier:bool=False, resume_from_checkpoint:Optional[bool]=None):
     eval_dataset = learn.eval_dataset if eval_dataset is None else eval_dataset

@@ -3,8 +3,8 @@
 # %% auto 0
 __all__ = ['show_data', 'Info', 'Filterer', 'get_tok_sparse', 'compute_inv_doc_freq', 'get_tok_idf', 'prepare_batch',
            'store_attr', 'get_attr', 'sorted_metric', 'display_metric', 'get_tensor_statistics', 'total_recall',
-           'get_best_model', 'get_output_sparse', 'get_output', 'load_config', 'get_pkl_file', 'get_config_key',
-           'ScoreFusion', 'retain_randk', 'random_topk', 'robustness_analysis', 'ShowMetric']
+           'get_best_model', 'get_output_sparse', 'get_output', 'load_config', 'get_config_key', 'ScoreFusion',
+           'retain_randk', 'random_topk', 'robustness_analysis', 'ShowMetric']
 
 # %% ../nbs/00_core.ipynb 2
 import pandas as pd, numpy as np, logging, sys, re, os, torch, json, inspect, torch.nn.functional as F
@@ -307,21 +307,6 @@ def load_config(fname, key):
         
 
 # %% ../nbs/00_core.ipynb 42
-def get_pkl_file(pkl_dir:str, fname:str, use_sxc_sampler:bool, use_exact:Optional[bool]=False, 
-                 use_only_test:Optional[bool]=False, use_oracle:Optional[bool]=False):
-    pkl_file = f'{pkl_dir}/{fname}'
-
-    if use_sxc_sampler: pkl_file = f'{pkl_file}_sxc'
-    else: pkl_file = f'{pkl_file}_xcs'
-            
-    if use_exact: pkl_file = f'{pkl_file}_exact'
-    if use_only_test: pkl_file = f'{pkl_file}_only-test'
-    if use_oracle: pkl_file = f'{pkl_file}_oracle'
-
-    return f'{pkl_file}.joblib'
-    
-
-# %% ../nbs/00_core.ipynb 43
 def get_config_key(fname):
     key = os.path.basename(fname).split('.')[0]
     fname = key.replace('_', '-')
@@ -329,7 +314,7 @@ def get_config_key(fname):
     return key, fname 
     
 
-# %% ../nbs/00_core.ipynb 45
+# %% ../nbs/00_core.ipynb 44
 class ScoreFusion():
     
     def __init__(self, prop:Optional[np.array]=None, max_depth:Optional[int]=7):
@@ -372,7 +357,7 @@ class ScoreFusion():
         return beta*(res+score_a)+score_b
     
 
-# %% ../nbs/00_core.ipynb 47
+# %% ../nbs/00_core.ipynb 46
 def retain_randk(matrix:sparse.csr_matrix, topk:Optional[int]=3):
     data, indices, indptr = [], [], np.zeros_like(matrix.indptr)
     for i,row in tqdm(enumerate(matrix), total=matrix.shape[0]):
@@ -392,7 +377,7 @@ def retain_randk(matrix:sparse.csr_matrix, topk:Optional[int]=3):
     return o
     
 
-# %% ../nbs/00_core.ipynb 49
+# %% ../nbs/00_core.ipynb 48
 def random_topk(data_lbl, topk=5):
     data,indices,indptr = [],[],[0]
     for i,j in tqdm(zip(data_lbl.indptr, data_lbl.indptr[1:]), total=data_lbl.shape[0]):
@@ -410,7 +395,7 @@ def random_topk(data_lbl, topk=5):
     return o
     
 
-# %% ../nbs/00_core.ipynb 50
+# %% ../nbs/00_core.ipynb 49
 def robustness_analysis(block, meta_name:str, analysis_type:str='missing', pct:float=0.5, topk:int=3):
     data_meta = random_topk(block.test.dset.meta[f'{meta_name}_meta'].data_meta, topk=topk)
     
@@ -429,7 +414,7 @@ def robustness_analysis(block, meta_name:str, analysis_type:str='missing', pct:f
     return block
     
 
-# %% ../nbs/00_core.ipynb 52
+# %% ../nbs/00_core.ipynb 51
 class ShowMetric:
 
     ORDER = ['P@1', 'P@5', 'N@5', 'PSP@1', 'PSP@5', 'R@200']
