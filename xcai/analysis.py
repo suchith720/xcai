@@ -6,7 +6,7 @@ __all__ = ['pointwise_eval', 'equal_volume_split', 'get_decile_stats', 'barplot'
            'TextDataset', 'CompareDataset', 'Indices']
 
 # %% ../nbs/16_analysis.ipynb 2
-import os,torch, torch.multiprocessing as mp, pickle, numpy as np, re
+import os,torch, torch.multiprocessing as mp, pickle, numpy as np, re, scipy.sparse as sp
 from typing import Optional, Dict, List, Tuple, Union
 from torch.utils.data import Dataset
 from scipy import sparse
@@ -134,21 +134,11 @@ def decile_plot(preds:Dict, data_lbl:sparse.csr_matrix, data_lbl_filterer:Option
     
 
 # %% ../nbs/16_analysis.ipynb 21
-@dispatch
-def get_pred_dset(pred:sparse.csr_matrix, block:Union[XCDataBlock,SXCDataBlock]):
-    data = MainXCDataset(block.test.dset.data.data_info, pred, block.test.dset.data.lbl_info, 
-                         block.test.dset.data.data_lbl_filterer)
-    return XCDataset(data, **block.test.dset.meta)
-
-
-@dispatch
-def get_pred_dset(pred:sparse.csr_matrix, dset:Union[XCDataset,SXCDataset]):
-    data = MainXCDataset(dset.data.data_info, pred, dset.data.lbl_info, dset.data.data_lbl_filterer)
+def get_pred_dset(pred:sp.csr_matrix, dset:Union[XCDataset,SXCDataset]):
+    args = ['data_info', 'lbl_info', 'data_lbl', 'data_lbl_filterer']
+    kwargs = {k: getattr(dset.data, k) for k in [o for o in vars(dset.data).keys() if not o.startswith('__') and o not in args]}
+    data = MainXCDataset(dset.data.data_info, pred, dset.data.lbl_info, dset.data.data_lbl_filterer, **kwargs)
     return XCDataset(data, **dset.meta)
-
-@dispatch
-def get_pred_dset(pred:sparse.csr_matrix, dset:[MainXCDataset,SMainXCDataset]):
-    return MainXCDataset(dset.data_info, pred, dset.lbl_info, dset.data_lbl_filterer)
     
 
 # %% ../nbs/16_analysis.ipynb 22
