@@ -217,7 +217,7 @@ class TextDataset:
         sort_by:Optional[str]=None,
     ):
         store_attr('dset,pattern,combine_info,sort_by')
-        if not isinstance(self.dset, XCDataset): self.dset = XCDataset._initialize(dset)
+        if type(self.dset) is not XCDataset: self.dset = XCDataset._initialize(dset)
         self.colors = np.random.choice(list(COLORS), len(COLORS), replace=False)
     
     def __getitem__(self, idx):
