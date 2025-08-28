@@ -2,8 +2,8 @@
 
 # %% auto 0
 __all__ = ['pointwise_eval', 'equal_volume_split', 'get_decile_stats', 'barplot', 'decile_plot', 'get_pred_dset',
-           'get_pred_sparse', 'load_pred_sparse', 'get_output', 'load_prediction_and_block', 'PredictionBlock',
-           'TextDataset', 'CompareDataset', 'Indices']
+           'get_pred_meta_dset', 'get_pred_sparse', 'load_pred_sparse', 'get_output', 'load_prediction_and_block',
+           'PredictionBlock', 'TextDataset', 'CompareDataset', 'Indices']
 
 # %% ../nbs/16_analysis.ipynb 2
 import os,torch, torch.multiprocessing as mp, pickle, numpy as np, re, scipy.sparse as sp
@@ -143,6 +143,15 @@ def get_pred_dset(pred:sp.csr_matrix, dset:Union[XCDataset,SXCDataset]):
     
 
 # %% ../nbs/16_analysis.ipynb 28
+def get_pred_meta_dset(data_pred:sp.csr_matrix, dset:Union[XCDataset,SXCDataset], meta_name:str, 
+                       meta_prefix:Optional[str]='lnk'):
+    args = ['data_meta', 'lbl_meta', 'meta_info', 'prefix']
+    kwargs = {k: getattr(dset.meta[meta_name], k) for k in [o for o in vars(dset.meta[meta_name]).keys() if not o.startswith('__') and o not in args]}
+    meta = MetaXCDataset(meta_prefix, data_pred, dset.meta[meta_name].lbl_meta, dset.meta[meta_name].meta_info, **kwargs)
+    return XCDataset(dset.data, **dset.meta, **{f'{meta_prefix}_meta': meta})
+    
+
+# %% ../nbs/16_analysis.ipynb 29
 @dispatch
 def get_pred_sparse(out:XCPredictionOutput, n_lbl:int):
     pred_ptr = torch.concat([torch.zeros((1,), dtype=torch.long), out.pred_ptr.cumsum(dim=0)])
@@ -165,14 +174,14 @@ def get_output(fname:str, n_lbl:int, pred_type:Optional[str]='repr_output'):
     return preds, targ
     
 
-# %% ../nbs/16_analysis.ipynb 29
+# %% ../nbs/16_analysis.ipynb 30
 def load_prediction_and_block(pkl_file:str, config_file:str, config_key:str, pred_file:str, use_sxc_sampler=True):
     block = build_block(pkl_file, config_file, use_sxc_sampler, config_key)
     pred = sparse.load_npz(pred_file)
     return pred, block
     
 
-# %% ../nbs/16_analysis.ipynb 30
+# %% ../nbs/16_analysis.ipynb 31
 class PredictionBlock:
 
     def __init__(self, dset, pred, num_preds=10, pattern=r'.*_text'):
@@ -196,7 +205,7 @@ class PredictionBlock:
         return {k:v for k,v in x.items() if re.match(self.pattern, k)}
         
 
-# %% ../nbs/16_analysis.ipynb 32
+# %% ../nbs/16_analysis.ipynb 33
 class TextDataset:
     
     def __init__(
@@ -265,7 +274,7 @@ class TextDataset:
             raise ValueError(f'Invalid file extension: {fname}')
             
 
-# %% ../nbs/16_analysis.ipynb 38
+# %% ../nbs/16_analysis.ipynb 39
 class CompareDataset:
 
     def __init__(self, dset1, dset2, dset1_prefix='1.', dset2_prefix='2.', pattern=r'.*_text'):
@@ -311,7 +320,7 @@ class CompareDataset:
                 file.write('\n')
             
 
-# %% ../nbs/16_analysis.ipynb 40
+# %% ../nbs/16_analysis.ipynb 41
 class Indices:
 
     def __init__(self, topk=10):
