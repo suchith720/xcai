@@ -18,6 +18,7 @@ from plum import dispatch
 from .basics import *
 from .data import *
 from .sdata import *
+from .core import store_attr
 from .learner import XCPredictionOutput
 
 import xclib.utils.sparse as xc_sparse
@@ -26,7 +27,7 @@ import xclib.data.data_utils as du
 
 from IPython.display import HTML
 
-# %% ../nbs/16_analysis.ipynb 8
+# %% ../nbs/16_analysis.ipynb 14
 def pointwise_eval(pred_lbl:sparse.csr_matrix, data_lbl:sparse.csr_matrix, data_lbl_filterer:Optional[np.ndarray]=None,
                    topk:Optional[int]=5, metric:Optional[str]='P', return_type:Optional[str]='M'):
     
@@ -55,7 +56,7 @@ def pointwise_eval(pred_lbl:sparse.csr_matrix, data_lbl:sparse.csr_matrix, data_
     else: return np.ravel(scores.sum(axis=1))
     
 
-# %% ../nbs/16_analysis.ipynb 10
+# %% ../nbs/16_analysis.ipynb 16
 def equal_volume_split(data_lbl:sparse.csr_matrix, n_split:int):
     lbl_cnt = data_lbl.getnnz(axis=0)
     lbl_idx = np.argsort(-lbl_cnt)
@@ -81,7 +82,7 @@ def equal_volume_split(data_lbl:sparse.csr_matrix, n_split:int):
     return splits,info
     
 
-# %% ../nbs/16_analysis.ipynb 11
+# %% ../nbs/16_analysis.ipynb 17
 def get_decile_stats(pred_lbl:sparse.csr_matrix, data_lbl:sparse.csr_matrix, data_lbl_filterer:np.ndarray, 
                      n_split:Optional[int]=5, topk:Optional[int]=5, metric:Optional[str]='P'):
     
@@ -91,7 +92,7 @@ def get_decile_stats(pred_lbl:sparse.csr_matrix, data_lbl:sparse.csr_matrix, dat
     return info, values
 
 
-# %% ../nbs/16_analysis.ipynb 12
+# %% ../nbs/16_analysis.ipynb 18
 def barplot(scores:Dict, title:Optional[str]='', ylabel:Optional[str]='', figsize:Optional[Tuple]=(15,10), fname:Optional[str]=None):
     n_proc,n_split = len(scores),len(list(scores.values())[0][0])
     idx, width = np.arange(n_split), 0.8/n_proc
@@ -120,7 +121,7 @@ def barplot(scores:Dict, title:Optional[str]='', ylabel:Optional[str]='', figsiz
     if fname is not None: plt.savefig(fname)
     
 
-# %% ../nbs/16_analysis.ipynb 13
+# %% ../nbs/16_analysis.ipynb 19
 def decile_plot(preds:Dict, data_lbl:sparse.csr_matrix, data_lbl_filterer:Optional[np.array]=None, 
                 n_split:Optional[int]=5, topk:Optional[int]=5, metric:Optional[str]='P', figsize:Optional[Tuple]=(15,10), 
                 title:Optional[str]='', fname:Optional[str]=None):
@@ -133,7 +134,7 @@ def decile_plot(preds:Dict, data_lbl:sparse.csr_matrix, data_lbl_filterer:Option
     barplot(scores, title, f'{metric}@{topk}', figsize, fname)
     
 
-# %% ../nbs/16_analysis.ipynb 21
+# %% ../nbs/16_analysis.ipynb 27
 def get_pred_dset(pred:sp.csr_matrix, dset:Union[XCDataset,SXCDataset]):
     args = ['data_info', 'lbl_info', 'data_lbl', 'data_lbl_filterer']
     kwargs = {k: getattr(dset.data, k) for k in [o for o in vars(dset.data).keys() if not o.startswith('__') and o not in args]}
@@ -141,7 +142,7 @@ def get_pred_dset(pred:sp.csr_matrix, dset:Union[XCDataset,SXCDataset]):
     return XCDataset(data, **dset.meta)
     
 
-# %% ../nbs/16_analysis.ipynb 22
+# %% ../nbs/16_analysis.ipynb 28
 @dispatch
 def get_pred_sparse(out:XCPredictionOutput, n_lbl:int):
     pred_ptr = torch.concat([torch.zeros((1,), dtype=torch.long), out.pred_ptr.cumsum(dim=0)])
@@ -164,14 +165,14 @@ def get_output(fname:str, n_lbl:int, pred_type:Optional[str]='repr_output'):
     return preds, targ
     
 
-# %% ../nbs/16_analysis.ipynb 23
+# %% ../nbs/16_analysis.ipynb 29
 def load_prediction_and_block(pkl_file:str, config_file:str, config_key:str, pred_file:str, use_sxc_sampler=True):
     block = build_block(pkl_file, config_file, use_sxc_sampler, config_key)
     pred = sparse.load_npz(pred_file)
     return pred, block
     
 
-# %% ../nbs/16_analysis.ipynb 24
+# %% ../nbs/16_analysis.ipynb 30
 class PredictionBlock:
 
     def __init__(self, dset, pred, num_preds=10, pattern=r'.*_text'):
@@ -195,13 +196,19 @@ class PredictionBlock:
         return {k:v for k,v in x.items() if re.match(self.pattern, k)}
         
 
-# %% ../nbs/16_analysis.ipynb 26
+# %% ../nbs/16_analysis.ipynb 32
 class TextDataset:
     
-    def __init__(self, dset, pattern='.*_text$'):
-        self.dset, self.pattern = dset, pattern
-        colors = list(COLORS.keys())
-        self.colors = [colors[i] for i in np.random.permutation(len(colors))]
+    def __init__(
+        self, 
+        dset, 
+        combine_info:Optional[bool]=False, 
+        pattern:Optional[str]='.*_text$',
+        sort_by:Optional[str]=None,
+    ):
+        store_attr('dset,pattern,combine_info,sort_by')
+        if not isinstance(self.dset, XCDataset): self.dset = XCDataset._initialize(dset)
+        self.colors = np.random.choice(list(COLORS), len(COLORS), replace=False)
     
     def __getitem__(self, idx):
         o = self.dset[idx]
@@ -213,8 +220,9 @@ class TextDataset:
     @property
     def n_lbl(self): return self.dset.n_lbl
 
-    def show(self, idxs=None, k=10):
-        if idxs is None: idxs = np.random.permutation(self.dset.n_data)[:k]
+    def show(self, idxs:Optional[List]=None, k=10):
+        if idxs is None: 
+            idxs = np.random.permutation(self.dset.n_data)[:k]
         for idx in idxs:
             for i,(k,v) in enumerate(self[idx].items()):
                 key = colored(k, self.colors[i % len(self.colors)], attrs=["reverse", "blink"])
@@ -222,14 +230,29 @@ class TextDataset:
                 print(key, value)
             print()
 
-    def dump_txt(self, fname, idxs):
+    def combine_by_prefix(self, item:Dict):
+        combined_item = dict()
+        for k,v in item.items():
+            p,q = k.split('_', maxsplit=1)
+            x = combined_item.setdefault(p, {}); x[q] = v
+            
+        if self.sort_by is not None:
+            for n,x in combined_item.items():
+                if self.sort_by in x and n.count('2') == 1:
+                    idx = np.argsort(x[self.sort_by])
+                    for k,v in x.items(): x[k] = [v[i] for i in idx]
+                        
+        return {f'{k}_({"|".join(v.keys())})' if len(v) > 1 else f'{k}_{list(v.keys())[0]}':[o for o in zip(*v.values())] if len(v) > 1 else list(v.values())[0] for k,v in combined_item.items()}
+        
+    def dump_txt(self, fname:str, idxs:List):
         with open(fname, 'w') as file:
             for idx in idxs:
-                for i,(k,v) in enumerate(self[idx].items()):
-                    file.write(f'{k}: {v}\n')
-                file.write('\n')
+                item = self.combine_by_prefix(self[idx]) if self.combine_info else self[idx]
+                for i,(k,v) in enumerate(item.items()):
+                    file.write(f'{i+1}. {k}: {v}\n')
+                file.write('\n============================================\n\n')
             
-    def dump_csv(self, fname, idxs):
+    def dump_csv(self, fname:str, idxs:List):
         df = pd.DataFrame([self[idx] for idx in idxs])
         df.to_csv(fname, index=False)
 
@@ -242,7 +265,7 @@ class TextDataset:
             raise ValueError(f'Invalid file extension: {fname}')
             
 
-# %% ../nbs/16_analysis.ipynb 27
+# %% ../nbs/16_analysis.ipynb 38
 class CompareDataset:
 
     def __init__(self, dset1, dset2, dset1_prefix='1.', dset2_prefix='2.', pattern=r'.*_text'):
@@ -288,7 +311,7 @@ class CompareDataset:
                 file.write('\n')
             
 
-# %% ../nbs/16_analysis.ipynb 28
+# %% ../nbs/16_analysis.ipynb 40
 class Indices:
 
     def __init__(self, topk=10):
