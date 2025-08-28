@@ -146,7 +146,7 @@ def get_pred_dset(pred:sp.csr_matrix, dset:Union[XCDataset,SXCDataset]):
 def get_pred_meta_dset(data_pred:sp.csr_matrix, dset:Union[XCDataset,SXCDataset], meta_name:str, 
                        meta_prefix:Optional[str]='lnk'):
     kwargs = {k: getattr(dset.meta[meta_name], k) for k in [o for o in vars(dset.meta[meta_name]).keys() if not o.startswith('__')]}
-    kwargs['prefix'] = f'{meta_prefix}_meta'
+    kwargs['prefix'] = meta_prefix
     kwargs['data_meta'] = data_pred
     meta = type(dset.meta[meta_name])(**kwargs)
     return type(dset)(dset.data, **dset.meta, **{f'{meta_prefix}_meta': meta})
