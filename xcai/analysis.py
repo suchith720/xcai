@@ -138,8 +138,8 @@ def decile_plot(preds:Dict, data_lbl:sparse.csr_matrix, data_lbl_filterer:Option
 def get_pred_dset(pred:sp.csr_matrix, dset:Union[XCDataset,SXCDataset]):
     args = ['data_info', 'lbl_info', 'data_lbl', 'data_lbl_filterer']
     kwargs = {k: getattr(dset.data, k) for k in [o for o in vars(dset.data).keys() if not o.startswith('__') and o not in args]}
-    data = MainXCDataset(dset.data.data_info, pred, dset.data.lbl_info, dset.data.data_lbl_filterer, **kwargs)
-    return XCDataset(data, **dset.meta)
+    data = type(dset.data)(dset.data.data_info, pred, dset.data.lbl_info, dset.data.data_lbl_filterer, **kwargs)
+    return type(dset)(data, **dset.meta)
     
 
 # %% ../nbs/16_analysis.ipynb 28
@@ -147,8 +147,8 @@ def get_pred_meta_dset(data_pred:sp.csr_matrix, dset:Union[XCDataset,SXCDataset]
                        meta_prefix:Optional[str]='lnk'):
     args = ['data_meta', 'lbl_meta', 'meta_info', 'prefix']
     kwargs = {k: getattr(dset.meta[meta_name], k) for k in [o for o in vars(dset.meta[meta_name]).keys() if not o.startswith('__') and o not in args]}
-    meta = MetaXCDataset(meta_prefix, data_pred, dset.meta[meta_name].lbl_meta, dset.meta[meta_name].meta_info, **kwargs)
-    return XCDataset(dset.data, **dset.meta, **{f'{meta_prefix}_meta': meta})
+    meta = type(dset.meta[meta_name])(meta_prefix, data_pred, dset.meta[meta_name].lbl_meta, dset.meta[meta_name].meta_info, **kwargs)
+    return type(dset)(dset.data, **dset.meta, **{f'{meta_prefix}_meta': meta})
     
 
 # %% ../nbs/16_analysis.ipynb 29
