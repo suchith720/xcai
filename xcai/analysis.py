@@ -211,8 +211,8 @@ class TextDataset:
     def __init__(
         self, 
         dset, 
-        combine_info:Optional[bool]=False, 
         pattern:Optional[str]='.*_text$',
+        combine_info:Optional[bool]=False,
         sort_by:Optional[str]=None,
     ):
         store_attr('dset,pattern,combine_info,sort_by')
