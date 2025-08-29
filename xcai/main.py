@@ -103,11 +103,12 @@ def get_metadata_representation(mname:str, meta_info:Dict, collator:XCCollator, 
 def _get_cluster_mapping(meta_repr:Optional[Union[torch.Tensor,str]]=None, cluster_sz:Optional[int]=3, mname:Optional[str]=None, 
                         meta_info:Optional[Dict]=None, collator:Optional[XCCollator]=None, normalize:Optional[bool]=True, 
                         use_layer_norm:Optional[bool]=True, use_encoder_parallel:Optional[bool]=True):
-    if cluster_sz > 1:
-        if meta_repr is None: 
-            meta_repr = get_metadata_representation(mname, meta_info, collator, normalize=normalize, use_layer_norm=use_layer_norm)
-        elif isinstance(meta_repr, str): meta_repr = torch.load(meta_repr)
+    if meta_repr is None: 
+        meta_repr = get_metadata_representation(mname, meta_info, collator, normalize=normalize, use_layer_norm=use_layer_norm)
+    elif isinstance(meta_repr, str):
+        meta_repr = torch.load(meta_repr)
             
+    if cluster_sz > 1:
         clusters = BalancedClusters.proc(meta_repr.half(), min_cluster_sz=cluster_sz)
     
         metadata_idx2cluster = torch.zeros(meta_repr.shape[0], dtype=torch.int64)
