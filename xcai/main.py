@@ -71,6 +71,8 @@ def get_metadata_representation(mname:str, meta_info:Dict, collator:XCCollator, 
     model = DBT024.from_pretrained(mname, margin=0.3, tau=0.1, n_negatives=10, apply_softmax=True, 
                                    normalize=normalize, use_layer_norm=use_layer_norm, 
                                    use_encoder_parallel=use_encoder_parallel)
+    model.init_dr_head()
+    
     args = XCLearningArguments(
         output_dir='.',
         per_device_train_batch_size=1024,
