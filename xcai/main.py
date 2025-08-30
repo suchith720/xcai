@@ -131,7 +131,7 @@ def get_cluster_mapping(do_inference:bool, use_pretrained:bool, num_metadata:int
                         normalize:Optional[bool]=True, use_layer_norm:Optional[bool]=None, output_dir:Optional[str]=None, **kwargs):
     if do_inference and not use_pretrained:
         metadata_idx2cluster, meta_repr = None, None
-        num_meta_cluster = get_cluster_size(num_metadata, cluster_size)
+        num_meta_cluster = get_cluster_size(num_metadata, cluster_size) if cluster_size > 1 else num_metadata
     else:
         map_file = None if output_dir is None else f'{output_dir}/cluster_info.pth'
         if map_file is not None and os.path.exists(map_file):
