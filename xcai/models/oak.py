@@ -63,6 +63,12 @@ class CrossAttention(nn.Module):
     def init_output_zero(self):
         nn.init.zeros_(self.o.weight); nn.init.zeros_(self.o.bias)
 
+    def freeze(self):
+        for p in self.parameters(): p.requires_grad_(False)
+
+    def unfreeze(self):
+        for p in self.parameters(): p.requires_grad_(True)
+
     def forward(
         self, 
         q: torch.Tensor,
@@ -195,11 +201,17 @@ class Encoder(DistilBertPreTrainedModel):
     def freeze_transformer(self):
         for p in self.distilbert.parameters(): p.requires_grad_(False)
 
+    def freeze_combiner(self):
+        self.cross_head.freeze()
+
     def unfreeze_transformer(self):
         for p in self.distilbert.parameters(): p.requires_grad_(True)
 
     def unfreeze_meta_embeddings(self):
         self.meta_embeddings.requires_grad_(True)
+
+    def unfreeze_combiner(self):
+        self.cross_head.unfreeze()
 
     @torch.no_grad()
     def set_meta_embeddings(self, embed:torch.Tensor):
@@ -363,6 +375,14 @@ class OAK000(nn.Module):
     def init_cross_head(self):
         assert self.encoder is not None, "`self.encoder` is not initialized."
         self.encoder.cross_head.post_init()
+
+    def freeze_memory(self):
+        assert self.encoder is not None, "`self.encoder` is not initialized."
+        self.encoder.freeze_memory()
+
+    def unfreeze_memory(self):
+        assert self.encoder is not None, "`self.encoder` is not initialized."
+        self.encoder.unfreeze_memory()
 
     def compute_loss(self, inp_repr, targ_repr, targ_ptr, targ_idx, ptarg_ptr, ptarg_idx):
         return self.rep_loss_fn(inp_repr, targ_repr, targ_ptr, targ_idx, ptarg_ptr, ptarg_idx)
@@ -588,6 +608,16 @@ class Encoder003(Encoder):
 
     def freeze_pretrained_meta_embeddings(self):
         self.pretrained_meta_embeddings.requires_grad_(False)
+
+    def freeze_memory(self):
+        self.freeze_combiner()
+        self.freeze_meta_embeddings()
+        self.freeze_pretrained_meta_embeddings()
+
+    def unfreeze_memory(self):
+        self.unfreeze_combiner()
+        self.unfreeze_meta_embeddings()
+        self.unfreeze_pretrained_meta_embeddings()
 
     def unfreeze_pretrained_meta_embeddings(self):
         self.pretrained_meta_embeddings.requires_grad_(True)
