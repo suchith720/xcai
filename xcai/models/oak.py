@@ -1739,7 +1739,7 @@ class OAK015(OAK011):
         data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask, 
                          data_aug_meta_prefix=self.data_aug_meta_prefix, **data_meta_kwargs)
         
-        loss = None; lbl2data_o = EncoderOutput()
+        loss = None; lbl2data_o = EncoderOutput(); neg2data_o = EncoderOutput()
         if (
             lbl2data_input_ids is not None and 
             neg2data_input_ids is not None
@@ -1778,6 +1778,9 @@ class OAK015(OAK011):
             
             lbl2data_repr=lbl2data_o.rep,
             lbl2data_fused_repr=lbl2data_o.fused_rep,
+
+            neg2data_repr=neg2data_o.rep,
+            neg2data_fused_repr=neg2data_o.fused_rep,
         )
             
 
@@ -1832,7 +1835,7 @@ class OAK016(OAK011):
         data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask, 
                          data_aug_meta_prefix=self.data_aug_meta_prefix, **data_meta_kwargs)
         
-        loss = None; lbl2data_o = EncoderOutput()
+        loss = None; lbl2data_o = EncoderOutput(); neg2data_o = EncoderOutput()
         if (
             lbl2data_input_ids is not None and 
             neg2data_input_ids is not None
@@ -1871,5 +1874,8 @@ class OAK016(OAK011):
             
             lbl2data_repr=lbl2data_o.rep,
             lbl2data_fused_repr=lbl2data_o.fused_rep,
+
+            neg2data_repr=neg2data_o.rep,
+            neg2data_fused_repr=neg2data_o.fused_rep,
         )
             

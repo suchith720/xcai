@@ -630,14 +630,12 @@ class XCDataset(BaseXCDataset):
         return cls(data, **meta)
 
     def _verify_inputs(self):
-        self.n_data, self.n_lbl = self.data.n_data, self.data.n_lbl
-        if len(self.meta):
-            self.n_meta = len(self.meta)
-            for meta in self.meta.values():
-                if meta.n_data != self.n_data: 
-                    raise ValueError(f'`meta`({meta.n_data}) and `data`({self.n_data}) should have the same number of datapoints.')
-                if self.n_lbl is not None and meta.n_lbl is not None and meta.n_lbl != self.n_lbl: 
-                    raise ValueError(f'`meta`({meta.n_lbl}) and `data`({self.n_lbl}) should have the same number of labels.')
+        self.n_data, self.n_lbl, self.n_meta = self.data.n_data, self.data.n_lbl, len(self.meta)
+        for meta in self.meta.values():
+            if meta.n_data != self.n_data: 
+                raise ValueError(f'`meta`({meta.n_data}) and `data`({self.n_data}) should have the same number of datapoints.')
+            if self.n_lbl is not None and meta.n_lbl is not None and meta.n_lbl != self.n_lbl: 
+                raise ValueError(f'`meta`({meta.n_lbl}) and `data`({self.n_lbl}) should have the same number of labels.')
 
     def enable_indexing(self):
         self.data.enable_indexing()

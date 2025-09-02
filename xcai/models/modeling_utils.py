@@ -29,6 +29,8 @@ class XCModelOutput(ModelOutput):
     data_fused_repr: Optional[torch.FloatTensor] = None
     lbl2data_repr: Optional[torch.FloatTensor] = None
     lbl2data_fused_repr: Optional[torch.FloatTensor] = None
+    neg2data_repr: Optional[torch.FloatTensor] = None
+    neg2data_fused_repr: Optional[torch.FloatTensor] = None
         
 
 # %% ../../nbs/21_models.modeling_utils.ipynb 18

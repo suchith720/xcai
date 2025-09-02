@@ -5,17 +5,22 @@ __all__ = ['get_sparse_matrix', 'RLLossWeights', 'RLLossWeightsCumuluative', 'Ac
 
 # %% ../nbs/31_bandits.ipynb 2
 import torch, numpy as np
-from typing import Optional
+from typing import Optional, Tuple
 
 # %% ../nbs/31_bandits.ipynb 9
-def get_sparse_matrix(data_idx:torch.Tensor, n_data:torch.Tensor, scores:Optional[torch.Tensor]=None):
+def get_sparse_matrix(data_idx:torch.Tensor, n_data:torch.Tensor, scores:Optional[torch.Tensor]=None, 
+                      size:Optional[Tuple]=None):
     data_ptr = torch.cat([torch.zeros(1, device=n_data.device, dtype=n_data.dtype), n_data.cumsum(0)])
     if scores is None: scores = torch.ones_like(data_idx)
     if data_idx.shape != scores.shape: raise ValueError(f'`data_idx` and `scores` should have same shape.')
-    return torch.sparse_csr_tensor(data_ptr, data_idx, scores, device=data_ptr.device)
+    return (
+        torch.sparse_csr_tensor(data_ptr, data_idx, scores, device=data_ptr.device)
+        if size is None else
+        torch.sparse_csr_tensor(data_ptr, data_idx, scores, device=data_ptr.device, size=size)
+    )
     
 
-# %% ../nbs/31_bandits.ipynb 10
+# %% ../nbs/31_bandits.ipynb 11
 class RLLossWeights(torch.nn.Module):
     def __init__(self, num_samples, std=0.1, lr=0.001, reward_func=None,
                  collector=10, min=0.1, rest_init=0.1) -> None:
@@ -69,8 +74,8 @@ class RLLossWeights(torch.nn.Module):
         pred = inp@targ.T
         
         _, idx = torch.unique(torch.cat([inp2targ_idx, pinp2targ_idx]), return_inverse=True)
-        gt = get_sparse_matrix(idx[len(inp2targ_idx):], n_pinp2targ).to_dense()[:, idx[:len(inp2targ_idx)]]
-    
+        gt = get_sparse_matrix(idx[len(inp2targ_idx):], n_pinp2targ, size=(len(n_pinp2targ), idx.max()+1)).to_dense()[:, idx[:len(inp2targ_idx)]]
+        
         self.step_counter += 1
         self.collect(pred, gt)
         if self.step_counter % self.collector == 0:
@@ -92,7 +97,7 @@ class RLLossWeights(torch.nn.Module):
         return f"{self.mu}"
         
 
-# %% ../nbs/31_bandits.ipynb 11
+# %% ../nbs/31_bandits.ipynb 12
 class RLLossWeightsCumuluative(RLLossWeights):
     def __init__(self, num_samples=1, std=0.01, lr=0.01, m=0.8,
                  reward_func=None, collector=10, min=0.1, rest_init=0.1) -> None:
@@ -116,7 +121,7 @@ class RLLossWeightsCumuluative(RLLossWeights):
         pred = inp@targ.T
         
         _, idx = torch.unique(torch.cat([inp2targ_idx, pinp2targ_idx]), return_inverse=True)
-        gt = get_sparse_matrix(idx[len(inp2targ_idx):], n_pinp2targ).to_dense()[:, idx[:len(inp2targ_idx)]]
+        gt = get_sparse_matrix(idx[len(inp2targ_idx):], n_pinp2targ, size=(len(n_pinp2targ), idx.max()+1)).to_dense()[:, idx[:len(inp2targ_idx)]]
     
         self.step_counter += 1
         self.collect(pred, gt)
@@ -139,7 +144,7 @@ class RLLossWeightsCumuluative(RLLossWeights):
             self.zero_grad()
             
 
-# %% ../nbs/31_bandits.ipynb 13
+# %% ../nbs/31_bandits.ipynb 14
 def AccMiniBatch(pred, gt):
     gt = gt.to(pred.device)
     indices = pred.topk(largest=True, dim=1, k=1)[1]

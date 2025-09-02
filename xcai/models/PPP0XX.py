@@ -40,6 +40,7 @@ class XCModelOutput(ModelOutput):
     dr_loss: Optional[torch.FloatTensor] = None
     data_repr: Optional[torch.FloatTensor] = None
     lbl2data_repr: Optional[torch.FloatTensor] = None
+    neg2data_repr: Optional[torch.FloatTensor] = None
     data_embed: Optional[torch.FloatTensor] = None
     lbl2data_embed: Optional[torch.FloatTensor] = None
     data_hidden_states: Optional[Tuple[torch.FloatTensor, ...]] = None
@@ -1497,7 +1498,7 @@ class DBT023(DistilBertPreTrainedModel):
                                     output_hidden_states=output_hidden_states,
                                     return_dict=return_dict)
         
-        loss, lbl2data_repr = None, None
+        loss, lbl2data_repr, neg2data_repr = None, None, None
         if (
             lbl2data_input_ids is not None and 
             neg2data_input_ids is not None
@@ -1522,6 +1523,7 @@ class DBT023(DistilBertPreTrainedModel):
             loss=loss,
             data_repr=data_repr,
             lbl2data_repr=lbl2data_repr,
+            neg2data_repr=neg2data_repr,
         )
         
 
@@ -1588,7 +1590,7 @@ class DBT024(DistilBertPreTrainedModel):
                                     output_hidden_states=output_hidden_states,
                                     return_dict=return_dict)
         
-        loss, lbl2data_repr = None, None
+        loss, lbl2data_repr, neg2data_repr = None, None, None
         if (
             lbl2data_input_ids is not None and 
             neg2data_input_ids is not None
@@ -1615,5 +1617,6 @@ class DBT024(DistilBertPreTrainedModel):
             loss=loss,
             data_repr=data_repr,
             lbl2data_repr=lbl2data_repr,
+            neg2data_repr=neg2data_repr,
         )
         
