@@ -3,12 +3,13 @@
 # %% auto 0
 __all__ = ['show_data', 'Info', 'Filterer', 'get_tok_sparse', 'compute_inv_doc_freq', 'get_tok_idf', 'prepare_batch',
            'store_attr', 'get_attr', 'sorted_metric', 'display_metric', 'get_tensor_statistics', 'total_recall',
-           'get_best_model', 'get_output_sparse', 'get_output', 'load_config', 'get_config_key', 'ScoreFusion',
-           'retain_randk', 'random_topk', 'robustness_analysis', 'ShowMetric']
+           'get_best_model', 'get_output_sparse', 'get_output', 'load_config', 'get_config_key', 'load_state_dict',
+           'ScoreFusion', 'retain_randk', 'random_topk', 'robustness_analysis', 'ShowMetric']
 
 # %% ../nbs/00_core.ipynb 2
 import pandas as pd, numpy as np, logging, sys, re, os, torch, json, inspect, torch.nn.functional as F
 
+from safetensors import safe_open
 from sklearn.tree import DecisionTreeClassifier
 from IPython.display import display
 from scipy import sparse
@@ -314,7 +315,16 @@ def get_config_key(fname):
     return key, fname 
     
 
-# %% ../nbs/00_core.ipynb 44
+# %% ../nbs/00_core.ipynb 43
+def load_state_dict(fname:str, device=0):
+    tensors = {}
+    with safe_open(fname, framework="pt", device=0) as f:
+        for k in f.keys():
+            tensors[k] = f.get_tensor(k)
+    return tensors
+    
+
+# %% ../nbs/00_core.ipynb 46
 class ScoreFusion():
     
     def __init__(self, prop:Optional[np.array]=None, max_depth:Optional[int]=7):
@@ -357,7 +367,7 @@ class ScoreFusion():
         return beta*(res+score_a)+score_b
     
 
-# %% ../nbs/00_core.ipynb 46
+# %% ../nbs/00_core.ipynb 48
 def retain_randk(matrix:sparse.csr_matrix, topk:Optional[int]=3):
     data, indices, indptr = [], [], np.zeros_like(matrix.indptr)
     for i,row in tqdm(enumerate(matrix), total=matrix.shape[0]):
@@ -377,7 +387,7 @@ def retain_randk(matrix:sparse.csr_matrix, topk:Optional[int]=3):
     return o
     
 
-# %% ../nbs/00_core.ipynb 48
+# %% ../nbs/00_core.ipynb 50
 def random_topk(data_lbl, topk=5):
     data,indices,indptr = [],[],[0]
     for i,j in tqdm(zip(data_lbl.indptr, data_lbl.indptr[1:]), total=data_lbl.shape[0]):
@@ -395,7 +405,7 @@ def random_topk(data_lbl, topk=5):
     return o
     
 
-# %% ../nbs/00_core.ipynb 49
+# %% ../nbs/00_core.ipynb 51
 def robustness_analysis(block, meta_name:str, analysis_type:str='missing', pct:float=0.5, topk:int=3):
     data_meta = random_topk(block.test.dset.meta[f'{meta_name}_meta'].data_meta, topk=topk)
     
@@ -414,7 +424,7 @@ def robustness_analysis(block, meta_name:str, analysis_type:str='missing', pct:f
     return block
     
 
-# %% ../nbs/00_core.ipynb 51
+# %% ../nbs/00_core.ipynb 53
 class ShowMetric:
 
     ORDER = ['P@1', 'P@5', 'N@5', 'PSP@1', 'PSP@5', 'R@200']
