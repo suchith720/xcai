@@ -45,7 +45,7 @@ def parse_args():
     parser.add_argument('--text_mode', action='store_true')
     parser.add_argument('--use_oracle', action='store_true')
 
-    parser.add_argument('--pickle_dir', type=str, required=True)
+    parser.add_argument('--pickle_dir', type=str, default=None)
     
     parser.add_argument('--prediction_suffix', type=str, default='')
 

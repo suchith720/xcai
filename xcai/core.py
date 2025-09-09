@@ -4,10 +4,11 @@
 __all__ = ['show_data', 'Info', 'Filterer', 'get_tok_sparse', 'compute_inv_doc_freq', 'get_tok_idf', 'prepare_batch',
            'store_attr', 'get_attr', 'sorted_metric', 'display_metric', 'get_tensor_statistics', 'total_recall',
            'get_best_model', 'get_output_sparse', 'get_output', 'load_config', 'get_config_key', 'load_state_dict',
-           'ScoreFusion', 'retain_randk', 'random_topk', 'robustness_analysis', 'ShowMetric']
+           'load_metrics_from_string', 'ScoreFusion', 'retain_randk', 'random_topk', 'robustness_analysis',
+           'ShowMetric']
 
 # %% ../nbs/00_core.ipynb 2
-import pandas as pd, numpy as np, logging, sys, re, os, torch, json, inspect, torch.nn.functional as F
+import pandas as pd, numpy as np, logging, sys, re, os, torch, json, inspect, torch.nn.functional as F, ast
 
 from safetensors import safe_open
 from sklearn.tree import DecisionTreeClassifier
@@ -323,6 +324,25 @@ def load_state_dict(fname:str, device=0):
             tensors[k] = f.get_tensor(k)
     return tensors
     
+
+# %% ../nbs/00_core.ipynb 44
+def load_metrics_from_string(text, show_metrics:Optional[bool]=True):
+    content = text.split('\n')
+
+    metric = dict()
+    for i in range(0, len(content), 2):
+        k, v = content[i], content[i+1]
+        k = k.split(" ")[0]
+        metric[k] = ast.literal_eval(v)
+
+    if show_metrics:
+        print('{')
+        for k,v in metric.items():
+            print(f"\t'{k}' :", f"{v},")
+        print('}')
+
+    return metric
+
 
 # %% ../nbs/00_core.ipynb 46
 class ScoreFusion():
