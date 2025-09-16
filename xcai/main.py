@@ -21,6 +21,8 @@ from .transform import AugmentMetaInputIdsTfm
 from .learner import XCLearningArguments, XCLearner
 
 from .models.PPP0XX import DBT024
+from .models.distillation import TCH001
+from .models.classifiers import CLS001
 from .clustering.cluster import BalancedClusters, get_cluster_size
 
 from xclib.utils.sparse import retain_topk
