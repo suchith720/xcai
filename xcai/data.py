@@ -938,11 +938,13 @@ class XCDataBlock:
         return pred_dset
         
     @classmethod
-    def from_cfg(cls, 
-                 cfg:Union[str,Dict],
-                 collate_fn:Optional[Callable]=None,
-                 valid_pct:Optional[float]=0.2,
-                 seed=None):
+    def from_cfg(
+        cls, 
+        cfg:Union[str,Dict],
+        collate_fn:Optional[Callable]=None,
+        valid_pct:Optional[float]=0.2,
+        seed=None
+    ):
         if isinstance(cfg, str): cfg = cls.load_cfg(cfg)
 
         blks = dict()

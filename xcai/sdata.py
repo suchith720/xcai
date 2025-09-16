@@ -292,13 +292,25 @@ class SXCDataBlock(XCDataBlock):
         if isinstance(cfg, str): cfg = cls.load_cfg(cfg)
 
         blocks = dict()
-        for o in ['train', 'valid', 'test']:
-            if o in cfg['path']:
+        for split in ['train', 'valid', 'test']:
+            
+            if split in cfg['path']:
+                
                 params = cfg['parameters'].copy()
                 params.update(kwargs)
-                if o != 'train': 
-                    params['meta_dropout_remove'], params['meta_dropout_replace'] = None, None
-                blocks[o] = SBaseXCDataBlock.from_file(**cfg['path'][o], **params, collate_fn=collate_fn)
+                
+                if split != 'train': params['meta_dropout_remove'], params['meta_dropout_replace'] = None, None
+
+                if split != 'train' and 'train' in blocks:
+                    if 'lbl_info' not in cfg['path'][split]:
+                        cfg['path'][split]['lbl_info'] = blocks['train'].dset.data.lbl_info
+    
+                    if blocks['train'].dset.meta is not None:
+                        for meta_name in blocks['train'].dset.meta:
+                            if 'meta_info' not in cfg['path'][split][meta_name]:
+                                cfg['path'][split][meta_name]['meta_info'] = blocks['train'].dset.meta[meta_name].meta_info
+                                
+                blocks[split] = SBaseXCDataBlock.from_file(**cfg['path'][o], **params, collate_fn=collate_fn)
                 
         return cls(**blocks)
         
