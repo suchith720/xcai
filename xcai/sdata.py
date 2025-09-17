@@ -307,7 +307,7 @@ class SXCDataBlock(XCDataBlock):
     
                     if blocks['train'].dset.meta is not None:
                         for meta_name in blocks['train'].dset.meta:
-                            if 'meta_info' not in cfg['path'][split][meta_name]:
+                            if meta_name in cfg['path'][split] and 'meta_info' not in cfg['path'][split][meta_name]:
                                 cfg['path'][split][meta_name]['meta_info'] = blocks['train'].dset.meta[meta_name].meta_info
                                 
                 blocks[split] = SBaseXCDataBlock.from_file(**cfg['path'][split], **params, collate_fn=collate_fn)

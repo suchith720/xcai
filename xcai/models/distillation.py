@@ -35,11 +35,12 @@ class TCHConfig(DistilBertConfig):
         self,
         n_data:Optional[int]=None,
         n_lbl:Optional[int]=None,
+        n_neg:Optional[int]=None,
         embed_dim:Optional[int]=None,
         normalize:Optional[bool]=True,
         **kwargs,
     ):
-        self.n_data, self.n_lbl, self.embed_dim, self.normalize = n_data, n_lbl, embed_dim, normalize
+        self.n_data, self.n_lbl, self.n_neg, self.embed_dim, self.normalize = n_data, n_lbl, n_neg, embed_dim, normalize
         super().__init__(**kwargs)
         
 
@@ -50,6 +51,12 @@ class TCH001(DistilBertPreTrainedModel):
         super().__init__(config, **kwargs)
         self.data_repr = nn.Embedding(config.n_data, config.dim)
         self.lbl_repr = nn.Embedding(config.n_lbl, config.dim)
+        self.register_buffer("neg2lbl_idx", None if config.n_neg is None else torch.arange(config.n_neg), persistent=True)
+
+    @torch.no_grad()
+    def set_neg2lbl_idx_mapping(self, neg2lbl_idx:torch.Tensor):
+        assert neg2lbl_idx.shape[0] == self.neg2lbl_idx.shape[0], f"Shape mismatch, `neg2lbl_idx` should have {self.neg2lbl_idx.shape[0]} elements."
+        self.neg2lbl_idx.copy_(neg2lbl_idx)
 
     def get_lbl_embeddings(self):
         return self.lbl_repr.weight
@@ -83,11 +90,11 @@ class TCH001(DistilBertPreTrainedModel):
         return TCHOutput(
             data_repr=self.data_repr(data_idx),
             lbl2data_repr= self.lbl_repr(lbl2data_idx),
-            neg2data_repr=None if neg2data_idx is None else self.lbl_repr(neg2data_idx) 
+            neg2data_repr=None if neg2data_idx is None else self.lbl_repr(self.neg2lbl_idx[neg2data_idx]) 
         )
         
 
-# %% ../../nbs/17_models.distillation.ipynb 29
+# %% ../../nbs/17_models.distillation.ipynb 30
 class TCH002(DistilBertPreTrainedModel):
 
     def __init__(self, config:TCHConfig, **kwargs):
@@ -136,7 +143,7 @@ class TCH002(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/17_models.distillation.ipynb 37
+# %% ../../nbs/17_models.distillation.ipynb 38
 class TCH003(DistilBertPreTrainedModel):
 
     def __init__(self, config:TCHConfig, **kwargs):
@@ -168,7 +175,7 @@ class TCH003(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/17_models.distillation.ipynb 45
+# %% ../../nbs/17_models.distillation.ipynb 46
 class TCH004(DistilBertPreTrainedModel):
 
     def __init__(self, config:TCHConfig, **kwargs):
@@ -207,7 +214,7 @@ class TCH004(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/17_models.distillation.ipynb 54
+# %% ../../nbs/17_models.distillation.ipynb 55
 @dataclass
 class DTLOutput(ModelOutput):
     loss:Optional[torch.FloatTensor]=None
@@ -217,7 +224,7 @@ class DTLOutput(ModelOutput):
     lbl2data_fused_repr:Optional[torch.FloatTensor] = None
     
 
-# %% ../../nbs/17_models.distillation.ipynb 56
+# %% ../../nbs/17_models.distillation.ipynb 57
 class DTLConfig(DistilBertConfig):
 
     def __init__(
@@ -253,7 +260,7 @@ class DTLConfig(DistilBertConfig):
         super().__init__(**kwargs)
         
 
-# %% ../../nbs/17_models.distillation.ipynb 58
+# %% ../../nbs/17_models.distillation.ipynb 59
 class DTL001(DistilBertPreTrainedModel):
     use_representation,use_generation = True,False
     _tied_weights_keys = ["m_student.encoder.distilbert"]
@@ -336,7 +343,7 @@ class DTL001(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/17_models.distillation.ipynb 69
+# %% ../../nbs/17_models.distillation.ipynb 70
 class DTL002(DTL001):
     use_representation,use_generation = True,False
     _tied_weights_keys = ["m_student.encoder.distilbert"]
@@ -360,7 +367,7 @@ class DTL002(DTL001):
         return loss
         
 
-# %% ../../nbs/17_models.distillation.ipynb 80
+# %% ../../nbs/17_models.distillation.ipynb 81
 class DTL003(DTL001):
     use_representation,use_generation = True,False
     _tied_weights_keys = ["m_student.encoder.distilbert"]
@@ -428,7 +435,7 @@ class DTL003(DTL001):
         )
         
 
-# %% ../../nbs/17_models.distillation.ipynb 92
+# %% ../../nbs/17_models.distillation.ipynb 93
 class DTL004(DTL001):
     use_representation,use_generation = True,False
     _tied_weights_keys = ["m_student.encoder.distilbert"]
