@@ -446,7 +446,8 @@ def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:i
             torch.save(lbl_repr, f'{pred_dir}/label_repr{prediction_suffix}.pth')
 
             if save_teacher:
-                teacher = TCH001(DistilBertConfig(), n_data=trn_repr.shape[0], n_lbl=lbl_repr.shape[0])
+                config = TCHConfig(n_data=trn_repr.shape[0], n_lbl=lbl_repr.shape[0])
+                teacher = TCH001(config)
                 teacher.init_embeddings(trn_repr, lbl_repr)
                 teacher.freeze_embeddings()
                 teacher.save_pretrained(f'{learn.args.output_dir}/teacher')
