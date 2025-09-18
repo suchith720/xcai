@@ -37,7 +37,7 @@ class TCHConfig(DistilBertConfig):
         n_lbl:Optional[int]=None,
         n_neg:Optional[int]=None,
         embed_dim:Optional[int]=None,
-        normalize:Optional[bool]=True,
+        normalize:Optional[bool]=False,
         **kwargs,
     ):
         self.n_data, self.n_lbl, self.n_neg, self.embed_dim, self.normalize = n_data, n_lbl, n_neg, embed_dim, normalize
@@ -162,6 +162,7 @@ class TCH003(DistilBertPreTrainedModel):
 
     @torch.no_grad()
     def init_embeddings(self, data_repr:torch.Tensor):
+        assert self.data_repr.shape == data_repr, f"Shape mismatch: `data_repr` shape should be {self.data_repr.shape}."
         self.data_repr.weight.copy_(data_repr)
 
     def freeze_embeddings(self):
@@ -317,8 +318,8 @@ class DTL001(DistilBertPreTrainedModel):
         loss = None
         if student_o.loss is not None:
             with torch.no_grad(): teacher_o = self.m_teacher(data_idx=data_idx, lbl2data_idx=lbl2data_idx)
-            teacher_data_repr = getattr(student_o, self.config.teacher_data_repr_name, None)
-            teacher_lbl2data_repr = getattr(student_o, self.config.teacher_lbl2data_repr_name, None)
+            teacher_data_repr = getattr(teacher_o, self.config.teacher_data_repr_name, None)
+            teacher_lbl2data_repr = getattr(teacher_o, self.config.teacher_lbl2data_repr_name, None)
 
             tdsl_loss = 0.0
             if teacher_data_repr is not None and student_lbl2data_repr is not None and self.config.teacher_data_student_label_loss_weight > 0:
@@ -399,9 +400,9 @@ class DTL003(DTL001):
         if student_o.loss is not None:
             with torch.no_grad(): 
                 teacher_o = self.m_teacher(data_idx=data_idx, lbl2data_idx=lbl2data_idx, neg2data_idx=neg2data_idx)
-            teacher_data_repr = getattr(student_o, self.config.teacher_data_repr_name, None)
-            teacher_lbl2data_repr = getattr(student_o, self.config.teacher_lbl2data_repr_name, None)
-            teacher_neg2data_repr = getattr(student_o, self.config.teacher_neg2data_repr_name, None)
+            teacher_data_repr = getattr(teacher_o, self.config.teacher_data_repr_name, None)
+            teacher_lbl2data_repr = getattr(teacher_o, self.config.teacher_lbl2data_repr_name, None)
+            teacher_neg2data_repr = getattr(teacher_o, self.config.teacher_neg2data_repr_name, None)
 
             tdsl_loss = 0.0
             if (
@@ -469,9 +470,9 @@ class DTL004(DTL001):
         if student_o.loss is not None:
             with torch.no_grad(): 
                 teacher_o = self.m_teacher(data_idx=data_idx, lbl2data_idx=lbl2data_idx, neg2data_idx=neg2data_idx)
-            teacher_data_repr = getattr(student_o, self.config.teacher_data_repr_name, None)
-            teacher_lbl2data_repr = getattr(student_o, self.config.teacher_lbl2data_repr_name, None)
-            teacher_neg2data_repr = getattr(student_o, self.config.teacher_neg2data_repr_name, None)
+            teacher_data_repr = getattr(teacher_o, self.config.teacher_data_repr_name, None)
+            teacher_lbl2data_repr = getattr(teacher_o, self.config.teacher_lbl2data_repr_name, None)
+            teacher_neg2data_repr = getattr(teacher_o, self.config.teacher_neg2data_repr_name, None)
 
             tdsl_loss = 0.0
             if (
