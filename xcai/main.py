@@ -4,7 +4,7 @@
 __all__ = ['parse_args', 'check_inference_mode', 'get_metadata_representation', 'get_cluster_mapping', 'Filter',
            'filter_metadata_dset', 'filter_metadata_block', 'retain_topk_metadata', 'retain_topk_labels',
            'get_valid_dset', 'get_config', 'tokenize_info', 'augment_metadata', 'get_pkl_file', 'build_block',
-           'load_model', 'get_output', 'main']
+           'raw_mapping', 'load_model', 'get_output', 'main']
 
 # %% ../nbs/36_main.ipynb 3
 import os, torch, scipy.sparse as sp, joblib, argparse, pickle, numpy as np, inspect
@@ -24,6 +24,8 @@ from .models.PPP0XX import DBT024
 from .models.distillation import TCH001
 from .models.classifiers import CLS001
 from .clustering.cluster import BalancedClusters, get_cluster_size
+
+from sugar.core import *
 
 from xclib.utils.sparse import retain_topk
 
@@ -399,6 +401,19 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
         
 
 # %% ../nbs/36_main.ipynb 25
+def raw_mapping(src_file, targ_file):
+    src_ids, src_txt = load_raw_file(src_file)
+    targ_ids, targ_txt = load_raw_file(targ_file)
+
+    assert set(src_ids).difference(targ_ids) == 0
+    
+    src2targ_idx = torch.zeros(len(targ_ids), dtype=torch.long)
+    
+    targ_ids2idx = {k:i for i,k in enumerate(targ_ids)}
+    for i,id in enumerate(src_ids): src2targ_idx[i] = targ_ids2idx[id]
+
+
+# %% ../nbs/36_main.ipynb 26
 def load_model(output_dir:str, model_fn:Callable, model_args:Dict, init_fn:Callable, init_args:Optional[Dict]=dict(), 
                do_inference:Optional[bool]=False, use_pretrained:Optional[bool]=False):
     if do_inference:
@@ -413,7 +428,7 @@ def load_model(output_dir:str, model_fn:Callable, model_args:Dict, init_fn:Calla
     return model
     
 
-# %% ../nbs/36_main.ipynb 27
+# %% ../nbs/36_main.ipynb 28
 def get_output(pred_idx:torch.Tensor, pred_ptr:torch.Tensor, pred_score:torch.Tensor, n_lbl:int, **kwargs):
     n_data = pred_ptr.shape[0]
     pred_ptr = torch.cat([torch.zeros((1,), dtype=torch.long), pred_ptr.cumsum(dim=0)])
@@ -421,7 +436,7 @@ def get_output(pred_idx:torch.Tensor, pred_ptr:torch.Tensor, pred_score:torch.Te
     return pred
     
 
-# %% ../nbs/36_main.ipynb 29
+# %% ../nbs/36_main.ipynb 30
 def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:int=None, train_k:int=None, save_teacher:bool=False, 
          save_classifier:bool=False, resume_from_checkpoint:Optional[bool]=None):
     eval_dataset = learn.eval_dataset if eval_dataset is None else eval_dataset
