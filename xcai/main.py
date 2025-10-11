@@ -446,9 +446,7 @@ def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:i
     eval_dataset = learn.eval_dataset if eval_dataset is None else eval_dataset
     train_dataset = learn.train_dataset if train_dataset is None else train_dataset
     
-    do_infer = args.do_train_inference or args.do_test_inference or args.save_train_prediction \
-            or args.save_test_prediction or args.save_representation or args.score_data_lbl \
-            or args.score_data_meta or args.score_lbl_meta
+    do_infer = check_inference_mode(args)
     
     if do_infer:
         trn_repr = tst_repr = lbl_repr = trn_pred = tst_pred = None
