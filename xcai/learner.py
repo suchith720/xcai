@@ -908,13 +908,11 @@ def get_meta_representation(self:XCLearner, dataloader: DataLoader, to_cpu:Optio
     
     for step, inputs in tqdm(enumerate(dataloader), total=len(dataloader)):
         inputs = inputs.to(self.model.device)
-        
         with torch.no_grad():
             if hasattr(self.model, 'get_meta_representation'):
                 data = getattr(self.model.get_meta_representation(**inputs), self.args.metadata_representation_attribute)
             else:
                 data = getattr(self.model(**inputs), self.args.metadata_representation_attribute)
-            
         data_host = self._gather_host_output(data, data_host)
         if self.args.representation_accumulation_steps is not None and (step + 1) % self.args.representation_accumulation_steps == 0:
             all_data, data_host = self._gather_all_output(data_host, all_data, to_cpu=to_cpu), None
@@ -1161,7 +1159,23 @@ def _get_data_representation(self:XCLearner, dataset:Optional[Dataset]=None, to_
         raise ValueError('`dataset` is None, could not create data representation.')
         
 
-# %% ../nbs/06_learner.ipynb 63
+# %% ../nbs/06_learner.ipynb 64
+@patch
+def _get_metadata_representation(self:XCLearner, dataset:Optional[Dataset]=None, meta_name:Optional[str]=None, 
+                                 to_cpu:Optional[bool]=True):
+    if dataset is not None:
+        meta_name = f'{self.args.data_aug_meta_name}_meta' if meta_name is None else f'{meta_name}_meta'
+        assert meta_name is not None, "Provide name of the metadata."
+
+        dset = type(dataset.data)(data_info=getattr(dataset.meta[meta_name], 'meta_info'))
+        dataloader = self.get_test_dataloader(dset)
+        meta_rep = self.get_meta_representation(dataloader, to_cpu=to_cpu)        
+        return meta_rep
+    else:
+        raise ValueError('`dataset` is None, could not create data representation.')
+        
+
+# %% ../nbs/06_learner.ipynb 66
 @patch
 def get_data_and_lbl_representation(self:XCLearner, dataset:Optional[Dataset], to_cpu:Optional[bool]=True):
     with torch.no_grad():
@@ -1169,7 +1183,7 @@ def get_data_and_lbl_representation(self:XCLearner, dataset:Optional[Dataset], t
     return data_rep,lbl_rep
     
 
-# %% ../nbs/06_learner.ipynb 64
+# %% ../nbs/06_learner.ipynb 67
 @patch
 def mix_metadata(self:XCLearner, epochs_trained:int):
     if epochs_trained == self.args.maximum_mix_metadata_epochs: pct = 1
@@ -1180,7 +1194,7 @@ def mix_metadata(self:XCLearner, epochs_trained:int):
                                         pct=pct, k=self.args.mix_metadata_k)
     
 
-# %% ../nbs/06_learner.ipynb 65
+# %% ../nbs/06_learner.ipynb 68
 @patch
 def _validate_group_by_cluster(self:XCLearner):
     if self.args.group_by_cluster and (not hasattr(self.model,'use_representation') or  not getattr(unwrap_model(self.model),'use_representation')):
