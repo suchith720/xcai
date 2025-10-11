@@ -442,7 +442,7 @@ def get_output(pred_idx:torch.Tensor, pred_ptr:torch.Tensor, pred_score:torch.Te
 
 # %% ../nbs/36_main.ipynb 30
 def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:int=None, train_k:int=None, save_teacher:bool=False, 
-         save_classifier:bool=False, resume_from_checkpoint:Optional[bool]=None, save_dir:Optional[str]=None):
+         save_classifier:bool=False, resume_from_checkpoint:Optional[bool]=None, save_dir:Optional[str]=None, metadata_name:Optional[str]=None):
     eval_dataset = learn.eval_dataset if eval_dataset is None else eval_dataset
     train_dataset = learn.train_dataset if train_dataset is None else train_dataset
     
