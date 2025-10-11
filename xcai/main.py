@@ -495,14 +495,17 @@ def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:i
                 meta_repr = learn._get_metadata_representation(eval_dataset, meta_name=metadata_name)
                 meta_name = f'{learn.args.data_aug_meta_name}_meta' if metadata_name is None else f'{metadata_name}_meta'
                 if args.score_data_meta:
-                    trn_meta = eval_dataset.meta[meta_name].score_data_meta(trn_repr, meta_repr, batch_size=1024, normalize=args.normalize)
-                    sp.save_npz(f"{save_dir}/trn_meta.npz", trn_meta)
+                    if meta_name in train_dataset.meta:
+                        trn_meta = train_dataset.meta[meta_name].score_data_meta(trn_repr, meta_repr, batch_size=1024, normalize=args.normalize)
+                        sp.save_npz(f"{save_dir}/trn_meta.npz", trn_meta)
 
-                    tst_meta = eval_dataset.meta[meta_name].score_data_meta(tst_repr, meta_repr, batch_size=1024, normalize=args.normalize)
-                    sp.save_npz(f"{save_dir}/tst_meta.npz", tst_meta)
+                    if meta_name in eval_dataset.meta:
+                        tst_meta = eval_dataset.meta[meta_name].score_data_meta(tst_repr, meta_repr, batch_size=1024, normalize=args.normalize)
+                        sp.save_npz(f"{save_dir}/tst_meta.npz", tst_meta)
 
                 if args.score_lbl_meta:
-                    lbl_meta = eval_dataset.meta[meta_name].score_lbl_meta(lbl_repr, meta_repr, batch_size=1024, normalize=args.normalize)
+                    dset = train_dataset if meta_name in train_dataset.meta else eval_dataset
+                    lbl_meta = dset.meta[meta_name].score_lbl_meta(lbl_repr, meta_repr, batch_size=1024, normalize=args.normalize)
                     sp.save_npz(f"{save_dir}/lbl_meta.npz", lbl_meta)
                     
         if args.do_test_inference:
