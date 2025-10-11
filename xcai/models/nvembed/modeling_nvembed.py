@@ -8,7 +8,6 @@ from contextlib import nullcontext
 from transformers import AutoModel, PreTrainedTokenizerFast, BatchEncoding, DataCollatorWithPadding
 from transformers.modeling_utils import PreTrainedModel
 from transformers.models.auto import AutoTokenizer
-from transformers.models.mistral.modeling_mistral import MISTRAL_INPUTS_DOCSTRING
 from transformers.modeling_outputs import BaseModelOutputWithPast
 from transformers.modeling_attn_mask_utils import _prepare_4d_attention_mask, _prepare_4d_attention_mask_for_sdpa
 from transformers import MistralModel, MistralConfig
@@ -32,14 +31,13 @@ class NVEmbedFeatures(TypedDict):
 
 class BidirectionalMistralModel(MistralModel):
     config_class = BidirectionalMistralConfig
-
+    
     def __init__(self, config: MistralConfig):
         super().__init__(config)
         for layer in self.layers:
             layer.self_attn.is_causal = False
         self._attn_implementation = "eager"
 
-    @add_start_docstrings_to_model_forward(MISTRAL_INPUTS_DOCSTRING)
     def forward(
         self,
         input_ids: torch.LongTensor = None,
@@ -178,7 +176,7 @@ class BidirectionalMistralModel(MistralModel):
             hidden_states=all_hidden_states,
             attentions=all_self_attns,
         )
-
+    
 def _move_to_device(maybe_tensor, device: torch.device):
     if torch.is_tensor(maybe_tensor):
         return maybe_tensor.to(device, non_blocking=device.type == "cuda")
@@ -196,7 +194,7 @@ def _move_to_device(maybe_tensor, device: torch.device):
 def move_to_device(sample, device: torch.device):
     if device.type == "cpu":
         return sample
-
+    
     if len(sample) == 0:
         return {}
     return _move_to_device(sample, device)
@@ -313,11 +311,11 @@ class LatentAttentionModel(PreTrainedModel):
             if self.output_normalize:
                 hiddens = torch.nn.functional.normalize(hiddens, p=2, dim=-1)
         return hiddens
-
+    
 class NVEmbedModel(PreTrainedModel):
     config_class = NVEmbedConfig
     _no_split_modules = ["MistralDecoderLayer", "LatentAttentionModel"]
-
+    
     def __init__(self, config: NVEmbedConfig):
         super().__init__(config)
         self.latent_attention_model = AutoModel.from_config(config.latent_attention_config)
@@ -335,7 +333,7 @@ class NVEmbedModel(PreTrainedModel):
     def add_pad_token(self):
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.padding_side = self.padding_side
-
+    
     def prepare_kwargs_from_batch(self, batch_dict: dict, instruction_lens: int, device: torch.device):
         batch_dict = move_to_device(batch_dict, device)
         attention_mask = batch_dict['attention_mask'].clone() if 'attention_mask' in batch_dict else None
@@ -395,30 +393,30 @@ class NVEmbedModel(PreTrainedModel):
         return encoded_embeds
 
     def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor, pool_mask: Optional[torch.Tensor]=None, return_dict: bool=True):
-        ## decoder only layer
-        outputs = self.embedding_model(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-        )
-
-        ## latent attention layer
-        embeds = self.latent_attention_model(
-            outputs.last_hidden_state,
-            pool_mask,
-        )
-
+        autocast_ctx = torch.autocast if torch.cuda.is_available() else nullcontext
+        with autocast_ctx("cuda"):
+            ## decoder only layer
+            outputs = self.embedding_model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+            )
+            ## latent attention layer
+            embeds = self.latent_attention_model(
+                outputs.last_hidden_state,
+                pool_mask,
+            )
         if not return_dict:
             return (embeds,)
         return {"sentence_embeddings": embeds}
-
-
+        
+    
     @torch.no_grad()
     def encode(self, prompts: List[str], instruction: str="", max_length: int=4096, **kwargs):
         if self.padding_side == "right" and self.is_mask_instruction == True and len(instruction) > 0:
             instruction_lens = len(self.tokenizer.tokenize(instruction))
         else:
             instruction_lens = 0
-
+        
         device = next(self.embedding_model.parameters()).device
         batch_dict = input_transform_func(self.tokenizer,
                                           {"input_texts": [prompt for prompt in prompts]},
