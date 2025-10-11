@@ -27,7 +27,7 @@ from plum import dispatch
 from .core import *
 from .graph.operations import *
 
-# %% ../nbs/02_data.ipynb 8
+# %% ../nbs/02_data.ipynb 9
 def _read_sparse_file(fname:Optional[str]=None):
     if fname is None: return
     elif fname.endswith('.txt'): return du.read_sparse_file(fname)
@@ -35,37 +35,38 @@ def _read_sparse_file(fname:Optional[str]=None):
     else: raise ValueError(f'Invalid file extension : {fname}')
     
 
-# %% ../nbs/02_data.ipynb 9
+# %% ../nbs/02_data.ipynb 10
 class MainXCData:
     
     @classmethod
     @delegates(Info.from_txt)
     def from_file(cls, data_info:str, lbl_info:Optional[Union[str, Dict]]=None, data_lbl:Optional[str]=None, data_lbl_filterer:Optional[str]=None, 
-                  main_max_data_sequence_length:Optional[int]=None, main_max_lbl_sequence_length:Optional[int]=None, **kwargs):
+                  main_max_data_sequence_length:Optional[int]=None, main_max_lbl_sequence_length:Optional[int]=None, 
+                  data_prompt_func:Optional[Callable]=None, lbl_prompt_func:Optional[Callable]=None, **kwargs):
         return {
             'data_lbl': _read_sparse_file(data_lbl),
-            'data_info': Info.from_txt(data_info, max_sequence_length=main_max_data_sequence_length, **kwargs),
-            'lbl_info': Info.from_txt(lbl_info, max_sequence_length=main_max_lbl_sequence_length, **kwargs) if isinstance(lbl_info, str) else lbl_info,
+            'data_info': Info.from_txt(data_info, max_sequence_length=main_max_data_sequence_length, prompt_func=data_prompt_func, **kwargs),
+            'lbl_info': Info.from_txt(lbl_info, max_sequence_length=main_max_lbl_sequence_length, prompt_func=lbl_prompt_func, **kwargs) if isinstance(lbl_info, str) else lbl_info,
             'data_lbl_filterer': Filterer.load_filter(data_lbl_filterer),
         }
     
 
-# %% ../nbs/02_data.ipynb 11
+# %% ../nbs/02_data.ipynb 12
 class MetaXCData:
     
     @classmethod
     @delegates(Info.from_txt)
     def from_file(cls, prefix:str, data_meta:str, lbl_meta:Optional[str]=None, meta_info:Optional[str]=None, 
-                  meta_max_sequence_length:Optional[int]=None, **kwargs):
+                  meta_max_sequence_length:Optional[int]=None, meta_prompt_func:Optional[Callable]=None, **kwargs):
         return {
             'prefix': prefix,
             'data_meta': _read_sparse_file(data_meta),
             'lbl_meta': _read_sparse_file(lbl_meta),
-            'meta_info': Info.from_txt(meta_info, max_sequence_length=meta_max_sequence_length, **kwargs) if isinstance(meta_info, str) else meta_info,
+            'meta_info': Info.from_txt(meta_info, max_sequence_length=meta_max_sequence_length, prompt_func=meta_prompt_func, **kwargs) if isinstance(meta_info, str) else meta_info,
         }
     
 
-# %% ../nbs/02_data.ipynb 17
+# %% ../nbs/02_data.ipynb 18
 class BaseXCDataset(Dataset):
     def __init__(self):
         self.n_data, self.n_lbl, self.n_meta, self.n_samples = None, None, None, None
@@ -155,7 +156,7 @@ class BaseXCDataset(Dataset):
         return cls(**kwargs)
         
 
-# %% ../nbs/02_data.ipynb 19
+# %% ../nbs/02_data.ipynb 20
 class MainXCDataset(BaseXCDataset):
     def __init__(
         self,
@@ -251,7 +252,7 @@ class MainXCDataset(BaseXCDataset):
         return super().score_data_lbl(self.data_lbl, data_repr, lbl_repr, batch_size=batch_size, normalize=normalize)
         
 
-# %% ../nbs/02_data.ipynb 20
+# %% ../nbs/02_data.ipynb 21
 @patch
 def __getitem__(cls:MainXCDataset, idx:int):
     x = {f'data_{k}': v[idx] for k,v in cls.data_info.items() if k in cls.data_info_keys}
@@ -269,7 +270,7 @@ def __getitem__(cls:MainXCDataset, idx:int):
     return x
     
 
-# %% ../nbs/02_data.ipynb 32
+# %% ../nbs/02_data.ipynb 33
 class MetaXCDataset(BaseXCDataset):
 
     def __init__(
@@ -434,7 +435,7 @@ class MetaXCDataset(BaseXCDataset):
         return self.score_data_lbl(self.lbl_meta, lbl_repr, meta_repr, batch_size=batch_size, normalize=normalize)
     
 
-# %% ../nbs/02_data.ipynb 48
+# %% ../nbs/02_data.ipynb 49
 class Operations:
 
     @staticmethod
@@ -624,7 +625,7 @@ class Operations:
         return dset._getitems(valid_idx)
         
 
-# %% ../nbs/02_data.ipynb 50
+# %% ../nbs/02_data.ipynb 51
 class MetaXCDatasets(dict):
 
     def __init__(self, meta:Dict):
@@ -640,7 +641,7 @@ class MetaXCDatasets(dict):
         delattr(self, key)
         
 
-# %% ../nbs/02_data.ipynb 51
+# %% ../nbs/02_data.ipynb 52
 class XCDataset(BaseXCDataset):
 
     def __init__(self, data:MainXCDataset, **kwargs):
@@ -765,7 +766,7 @@ class XCDataset(BaseXCDataset):
                                                            meta_info=self.data.lbl_info, **kwargs)
 
 
-# %% ../nbs/02_data.ipynb 63
+# %% ../nbs/02_data.ipynb 64
 class XCCollator:
 
     def __init__(self, tfms):
@@ -775,7 +776,7 @@ class XCCollator:
         return self.tfms(x)
         
 
-# %% ../nbs/02_data.ipynb 80
+# %% ../nbs/02_data.ipynb 81
 class BaseXCDataBlock:
 
     @delegates(DataLoader.__init__)
@@ -869,7 +870,7 @@ class BaseXCDataBlock:
         return cls._getitems(rnd_idx[:cut])
         
 
-# %% ../nbs/02_data.ipynb 90
+# %% ../nbs/02_data.ipynb 91
 class XCDataBlock:
 
     def __init__(self, train=None, valid=None, test=None):

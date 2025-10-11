@@ -94,20 +94,22 @@ class Info():
         return n_info[0]
 
     @classmethod
-    def from_txt(cls, 
-                 fname:str, 
-                 sep:Optional[str]='->', 
-                 info_column_names:Optional[List]=None, 
-                 enc:Optional[str]='latin-1',
-                 use_tokenizer:Optional[bool]=False,
-                 tokenizer:Optional[Union[str,PreTrainedTokenizerBase]]=None,
-                 tokenization_column:Optional[str]=None,
-                 max_sequence_length:Optional[int]=None,
-                 padding:Optional[bool]=True,
-                 return_tensors:Optional[str]=None,
-                 prompt_func:Optional[Callable]=None,
-                 keep_attention_mask:Optional[bool]=True,
-                 **kwargs):
+    def from_txt(
+        cls, 
+        fname:str, 
+        sep:Optional[str]='->', 
+        info_column_names:Optional[List]=None, 
+        enc:Optional[str]='latin-1',
+        use_tokenizer:Optional[bool]=False,
+        tokenizer:Optional[Union[str,PreTrainedTokenizerBase]]=None,
+        tokenization_column:Optional[str]=None,
+        max_sequence_length:Optional[int]=None,
+        padding:Optional[bool]=True,
+        return_tensors:Optional[str]=None,
+        prompt_func:Optional[Callable]=None,
+        keep_attention_mask:Optional[bool]=True,
+        **kwargs
+    ):
         if fname is None: return
         self = cls()
         self.info = self.read_info(fname, sep, info_column_names, enc)
