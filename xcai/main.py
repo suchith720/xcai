@@ -69,7 +69,7 @@ def parse_args():
 
 # %% ../nbs/36_main.ipynb 6
 def check_inference_mode(args):
-    return args.do_train_inference or args.do_test_inference or args.save_train_prediction or args.save_test_prediction or args.save_representation
+    return args.do_train_inference or args.do_test_inference or args.save_train_prediction or args.save_test_prediction or args.save_representation or args.score_data_lbl or args.score_data_meta or args.score_lbl_meta
     
 
 # %% ../nbs/36_main.ipynb 8
@@ -447,7 +447,8 @@ def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:i
     train_dataset = learn.train_dataset if train_dataset is None else train_dataset
     
     do_infer = args.do_train_inference or args.do_test_inference or args.save_train_prediction \
-            or args.save_test_prediction or args.save_representation
+            or args.save_test_prediction or args.save_representation or args.score_data_lbl \
+            or args.score_data_meta or args.score_lbl_meta
     
     if do_infer:
         trn_repr = tst_repr = lbl_repr = trn_pred = tst_pred = None
