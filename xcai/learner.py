@@ -908,7 +908,13 @@ def get_meta_representation(self:XCLearner, dataloader: DataLoader, to_cpu:Optio
     
     for step, inputs in tqdm(enumerate(dataloader), total=len(dataloader)):
         inputs = inputs.to(self.model.device)
-        with torch.no_grad(): data = getattr(self.model.get_meta_representation(**inputs), self.args.metadata_representation_attribute)
+        
+        with torch.no_grad():
+            if hasattr(self.model, 'get_meta_representation'):
+                data = getattr(self.model.get_meta_representation(**inputs), self.args.metadata_representation_attribute)
+            else:
+                data = getattr(self.model(**inputs), self.args.metadata_representation_attribute)
+            
         data_host = self._gather_host_output(data, data_host)
         if self.args.representation_accumulation_steps is not None and (step + 1) % self.args.representation_accumulation_steps == 0:
             all_data, data_host = self._gather_all_output(data_host, all_data, to_cpu=to_cpu), None

@@ -49,6 +49,10 @@ def parse_args():
     parser.add_argument('--text_mode', action='store_true')
     parser.add_argument('--use_oracle', action='store_true')
 
+    parser.add_argument('--score_data_lbl', action='store_true')
+    parser.add_argument('--score_data_meta', action='store_true')
+    parser.add_argument('--score_lbl_meta', action='store_true')
+
     parser.add_argument('--pickle_dir', type=str, default=None)
     
     parser.add_argument('--prediction_suffix', type=str, default='')
@@ -473,6 +477,26 @@ def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:i
                 classifier.freeze_representation()
                 classifier.save_pretrained(f'{learn.args.output_dir}/representation')
 
+        if args.score_data_lbl or args.score_data_meta or args.score_lbl_meta:
+            trn_repr, lbl_repr = learn.get_data_and_lbl_representation(train_dataset)
+            tst_repr = learn._get_data_representation(eval_dataset)
+
+            save_dir = f'{learn.args.output_dir}/matrices' if save_dir is None else f'{save_dir}/matrices'
+            os.makedirs(save_dir, exist_ok=True)
+            
+            if args.score_data_lbl:
+                trn_lbl = train_dataset.data.score_data_lbl(trn_repr, lbl_repr, batch_size=1024, normalize=args.normalize)
+                sp.save_npz(f"{save_dir}/trn_lbl.npz", trn_lbl)
+                
+                tst_lbl = eval_dataset.data.score_data_lbl(tst_repr, lbl_repr, batch_size=1024, normalize=args.normalize)
+                sp.save_npz(f"{save_dir}/tst_lbl.npz", tst_lbl)
+
+            if args.score_data_meta:
+                pass
+
+            if args.score_lbl_meta:
+                pass
+                
         if args.do_test_inference:
             o = learn.predict(eval_dataset)
             print(o.metrics)

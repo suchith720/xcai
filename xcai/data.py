@@ -121,6 +121,21 @@ class BaseXCDataset(Dataset):
             curr_data_lbl = retain_topk(curr_data_lbl, k=topk)
         return curr_data_lbl
 
+    def score_data_lbl(self, data_lbl:sparse.csr_matrix, data_repr:torch.Tensor, lbl_repr:torch.Tensor, batch_size:Optional[int]=64, normalize:Optional[bool]=True):
+        data_repr = F.normalize(data_repr, dim=1) if normalize else data_repr
+        lbl_repr = F.normalize(lbl_repr, dim=1) if normalize else lbl_repr
+        curr_data_lbl = data_lbl.copy()
+        rows, cols = data_lbl.nonzero()
+        dl = DataLoader(list(zip(rows, cols)), batch_size=batch_size, shuffle=False)
+        score = None
+        for b in tqdm(dl, total=len(dl)): 
+            sc = data_repr[b[0]].unsqueeze(1)@lbl_repr[b[1]].unsqueeze(2)
+            sc = sc.squeeze()
+            score = sc if score is None else torch.hstack([score, sc])
+        curr_data_lbl.data[:] = score
+        curr_data_lbl.eliminate_zeros()
+        return curr_data_lbl
+
     @staticmethod
     def get_info(prefix:str, idxs:List, info:Dict, info_keys:List):
         output = dict()
@@ -229,6 +244,11 @@ class MainXCDataset(BaseXCDataset):
         kwargs['data_lbl'] = self.data_lbl[:, idxs] if self.data_lbl is not None else None
         kwargs['data_lbl_filterer'] = Filterer.sample_y(self.data_lbl_filterer, sz=self.data_lbl.shape, idx=idxs) if self.data_lbl_filterer is not None else None
         return type(self)(**kwargs)
+
+    def score_data_lbl(self, data_repr:torch.Tensor, lbl_repr:torch.Tensor, batch_size:Optional[int]=64, normalize:Optional[bool]=True):
+        assert self.data_lbl.shape == (data_repr.shape[0], lbl_repr.shape[0]), \
+        f"Shape mismatch; `self.data_lbl`: {self.data_lbl.shape}, `data_repr`: {data_repr.shape[0]}, `lbl_repr`: {lbl_repr.shape[0]}."
+        return super().score_data_lbl(self.data_lbl, data_repr, lbl_repr, batch_size=batch_size, normalize=normalize)
         
 
 # %% ../nbs/02_data.ipynb 20
@@ -257,7 +277,7 @@ class MetaXCDataset(BaseXCDataset):
         prefix:str,
         data_meta:sparse.csr_matrix, 
         lbl_meta:Optional[sparse.csr_matrix]=None, 
-        meta_info:Optional[Dict]=None, 
+        meta_info:Optional[Dict]=None,
         n_data_meta_samples:Optional[int]=None,
         n_lbl_meta_samples:Optional[int]=None,
         meta_info_keys:Optional[List]=None,
@@ -402,6 +422,16 @@ class MetaXCDataset(BaseXCDataset):
         df = pd.DataFrame({k:[o[k] for o in d] for k in d[0]})
         with pd.option_context('display.max_colwidth', None):
             display(df)
+
+    def score_data_meta(self, data_repr:torch.Tensor, meta_repr:torch.Tensor, batch_size:Optional[int]=64, normalize:Optional[bool]=True):
+        assert self.data_meta.shape == (data_repr.shape[0], meta_repr.shape[0]), \
+        f"Shape mismatch; `self.data_meta`: {self.data_meta.shape}, `data_repr`: {data_repr.shape[0]}, `meta_repr`: {meta_repr.shape[0]}."
+        return self.score_data_lbl(self.data_meta, data_repr, meta_repr, batch_size=batch_size, normalize=normalize)
+
+    def score_lbl_meta(self, lbl_repr:torch.Tensor, meta_repr:torch.Tensor, batch_size:Optional[int]=64, normalize:Optional[bool]=True):
+        assert self.lbl_meta.shape == (lbl_repr.shape[0], meta_repr.shape[0]), \
+        f"Shape mismatch; `self.lbl_meta`: {self.lbl_meta.shape}, `lbl_repr`: {lbl_repr.shape[0]}, `meta_repr`: {meta_repr.shape[0]}."
+        return self.score_data_lbl(self.lbl_meta, lbl_repr, meta_repr, batch_size=batch_size, normalize=normalize)
     
 
 # %% ../nbs/02_data.ipynb 48
