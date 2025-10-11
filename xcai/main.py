@@ -491,7 +491,7 @@ def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:i
                 sp.save_npz(f"{save_dir}/tst_lbl{prediction_suffix}.npz", tst_lbl)
 
             if args.score_data_meta or args.score_lbl_meta:
-                meta_repr = learn._get_metadata_representation(eval_dataset, meta_name=metadata_name)
+                meta_repr = learn._get_metadata_representation(eval_dataset if meta_name in eval_dataset.meta else train_dataset, meta_name=metadata_name)
                 meta_name = f'{learn.args.data_aug_meta_name}_meta' if metadata_name is None else f'{metadata_name}_meta'
                 if args.score_data_meta:
                     if meta_name in train_dataset.meta:
