@@ -40,7 +40,9 @@ PARAM = {
     'padding': False,
     'return_tensors': None,
     'sep': '->',
-    'prompt_func': None,
+    'data_prompt_func': None,
+    'lbl_prompt_func': None,
+    'meta_prompt_func': None,
     
     # PadFeatTfm
     #-------------------------
