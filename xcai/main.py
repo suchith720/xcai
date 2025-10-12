@@ -485,10 +485,10 @@ def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:i
             
             if args.score_data_lbl:
                 trn_lbl = train_dataset.data.score_data_lbl(trn_repr, lbl_repr, batch_size=1024, normalize=args.normalize)
-                sp.save_npz(f"{save_dir}/trn_lbl{prediction_suffix}.npz", trn_lbl)
+                if trn_lbl is not None: sp.save_npz(f"{save_dir}/trn_lbl{prediction_suffix}.npz", trn_lbl)
                 
                 tst_lbl = eval_dataset.data.score_data_lbl(tst_repr, lbl_repr, batch_size=1024, normalize=args.normalize)
-                sp.save_npz(f"{save_dir}/tst_lbl{prediction_suffix}.npz", tst_lbl)
+                if tst_lbl is not None: sp.save_npz(f"{save_dir}/tst_lbl{prediction_suffix}.npz", tst_lbl)
 
             if args.score_data_meta or args.score_lbl_meta:
                 meta_name = f'{learn.args.data_aug_meta_name}_meta' if metadata_name is None else f'{metadata_name}_meta'
@@ -496,16 +496,16 @@ def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:i
                 if args.score_data_meta:
                     if meta_name in train_dataset.meta:
                         trn_meta = train_dataset.meta[meta_name].score_data_meta(trn_repr, meta_repr, batch_size=1024, normalize=args.normalize)
-                        sp.save_npz(f"{save_dir}/trn_meta{prediction_suffix}.npz", trn_meta)
+                        if trn_meta is not None: sp.save_npz(f"{save_dir}/trn_meta{prediction_suffix}.npz", trn_meta)
 
                     if meta_name in eval_dataset.meta:
                         tst_meta = eval_dataset.meta[meta_name].score_data_meta(tst_repr, meta_repr, batch_size=1024, normalize=args.normalize)
-                        sp.save_npz(f"{save_dir}/tst_meta{prediction_suffix}.npz", tst_meta)
+                        if tst_meta is not None: sp.save_npz(f"{save_dir}/tst_meta{prediction_suffix}.npz", tst_meta)
 
                 if args.score_lbl_meta:
                     dset = train_dataset if meta_name in train_dataset.meta else eval_dataset
                     lbl_meta = dset.meta[meta_name].score_lbl_meta(lbl_repr, meta_repr, batch_size=1024, normalize=args.normalize)
-                    sp.save_npz(f"{save_dir}/lbl_meta{prediction_suffix}.npz", lbl_meta)
+                    if lbl_meta is not None: sp.save_npz(f"{save_dir}/lbl_meta{prediction_suffix}.npz", lbl_meta)
                     
         if args.do_test_inference:
             o = learn.predict(eval_dataset)
