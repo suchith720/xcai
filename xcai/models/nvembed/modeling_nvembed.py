@@ -21,7 +21,7 @@ from torch.utils.data import DataLoader
 
 from .configuration_nvembed import NVEmbedConfig, LatentAttentionConfig, BidirectionalMistralConfig
 from .cache_utils import Cache, DynamicCache
-from .mistral.modeling_mistral import MistralModel, MistralConfig
+from .mistral import MistralModel, MistralConfig
 
 logger = logging.get_logger(__name__)
 
@@ -126,10 +126,6 @@ class BidirectionalMistralModel(MistralModel):
         all_hidden_states = () if output_hidden_states else None
         all_self_attns = () if output_attentions else None
         next_decoder_cache = None
-
-        # debug
-        breakpoint()
-        # debug
 
         for decoder_layer in self.layers:
             if output_hidden_states:
