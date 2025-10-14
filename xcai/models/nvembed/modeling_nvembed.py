@@ -10,8 +10,6 @@ from transformers.modeling_utils import PreTrainedModel
 from transformers.models.auto import AutoTokenizer
 from transformers.modeling_outputs import BaseModelOutputWithPast
 from transformers.modeling_attn_mask_utils import _prepare_4d_attention_mask, _prepare_4d_attention_mask_for_sdpa
-from transformers import MistralModel, MistralConfig
-from transformers.cache_utils import Cache, DynamicCache
 from transformers.utils import (
     add_start_docstrings_to_model_forward,
     logging,
@@ -20,7 +18,10 @@ from einops import rearrange, repeat
 from tqdm.auto import tqdm
 from datasets import Dataset
 from torch.utils.data import DataLoader
+
 from .configuration_nvembed import NVEmbedConfig, LatentAttentionConfig, BidirectionalMistralConfig
+from .cache_utils import Cache, DynamicCache
+from .mistral.modeling_mistral import MistralModel, MistralConfig
 
 logger = logging.get_logger(__name__)
 
@@ -81,19 +82,7 @@ class BidirectionalMistralModel(MistralModel):
             use_legacy_cache = not isinstance(past_key_values, Cache)
             if use_legacy_cache:
                 past_key_values = DynamicCache.from_legacy_cache(past_key_values)
-
-            # get_usable_length
-            def get_usable_length(cache, new_seq_length: int, layer_idx: Optional[int] = 0) -> int:
-                max_length = cache.get_max_cache_shape()
-                previous_seq_length = cache.get_seq_length(layer_idx)
-                if max_length is not None and previous_seq_length + new_seq_length > max_length:
-                    return max_length - new_seq_length
-                return previous_seq_length
-
-            past_key_values_length = get_usable_length(past_key_values, seq_length)
-            # get_usable_length
-
-            # past_key_values_length = past_key_values.get_usable_length(seq_length)
+            past_key_values_length = past_key_values.get_usable_length(seq_length)
 
         if position_ids is None:
             device = input_ids.device if input_ids is not None else inputs_embeds.device
