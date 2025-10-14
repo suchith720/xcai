@@ -62,7 +62,12 @@ class RepresentationHead(torch.nn.Module):
 # %% ../../../nbs/34_models.NVM0XX.ipynb 13
 class NVM009Encoder(NVEmbedModel):
     
-    def __init__(self, config):
+    def __init__(
+        self, 
+        config,
+        normalize:Optional[bool]=True,
+    ):
+        self.normalize = normalize
         super().__init__(config)
         
     @delegates(NVEmbedModel.__call__)
@@ -82,8 +87,10 @@ class NVM009Encoder(NVEmbedModel):
             outputs.last_hidden_state,
             pool_mask,
         )
-        return outputs, F.normalize(Pooling.mean_pooling(embeds, attention_mask), dim=1)
-    
+        embeds = Pooling.mean_pooling(embeds, attention_mask)
+        embeds = F.normalize(embeds, dim=1) if self.normalize else embeds
+        return outputs, embeds
+        
 
 # %% ../../../nbs/34_models.NVM0XX.ipynb 14
 class NVM009(NVEmbedModel):
