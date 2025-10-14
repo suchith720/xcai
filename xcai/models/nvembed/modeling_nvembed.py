@@ -31,7 +31,7 @@ class NVEmbedFeatures(TypedDict):
 
 class BidirectionalMistralModel(MistralModel):
     config_class = BidirectionalMistralConfig
-    
+
     def __init__(self, config: MistralConfig):
         super().__init__(config)
         for layer in self.layers:
@@ -81,7 +81,19 @@ class BidirectionalMistralModel(MistralModel):
             use_legacy_cache = not isinstance(past_key_values, Cache)
             if use_legacy_cache:
                 past_key_values = DynamicCache.from_legacy_cache(past_key_values)
-            past_key_values_length = past_key_values.get_usable_length(seq_length)
+
+            # get_usable_length
+            def get_usable_length(cache, new_seq_length: int, layer_idx: Optional[int] = 0) -> int:
+                max_length = cache.get_max_cache_shape()
+                previous_seq_length = cache.get_seq_length(layer_idx)
+                if max_length is not None and previous_seq_length + new_seq_length > max_length:
+                    return max_length - new_seq_length
+                return previous_seq_length
+
+            past_key_values_length = get_usable_length(past_key_values, seq_length)
+            # get_usable_length
+
+            # past_key_values_length = past_key_values.get_usable_length(seq_length)
 
         if position_ids is None:
             device = input_ids.device if input_ids is not None else inputs_embeds.device
@@ -176,7 +188,7 @@ class BidirectionalMistralModel(MistralModel):
             hidden_states=all_hidden_states,
             attentions=all_self_attns,
         )
-    
+
 def _move_to_device(maybe_tensor, device: torch.device):
     if torch.is_tensor(maybe_tensor):
         return maybe_tensor.to(device, non_blocking=device.type == "cuda")
@@ -194,7 +206,7 @@ def _move_to_device(maybe_tensor, device: torch.device):
 def move_to_device(sample, device: torch.device):
     if device.type == "cpu":
         return sample
-    
+
     if len(sample) == 0:
         return {}
     return _move_to_device(sample, device)
@@ -311,11 +323,11 @@ class LatentAttentionModel(PreTrainedModel):
             if self.output_normalize:
                 hiddens = torch.nn.functional.normalize(hiddens, p=2, dim=-1)
         return hiddens
-    
+
 class NVEmbedModel(PreTrainedModel):
     config_class = NVEmbedConfig
     _no_split_modules = ["MistralDecoderLayer", "LatentAttentionModel"]
-    
+
     def __init__(self, config: NVEmbedConfig):
         super().__init__(config)
         self.latent_attention_model = AutoModel.from_config(config.latent_attention_config)
@@ -333,7 +345,7 @@ class NVEmbedModel(PreTrainedModel):
     def add_pad_token(self):
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.padding_side = self.padding_side
-    
+
     def prepare_kwargs_from_batch(self, batch_dict: dict, instruction_lens: int, device: torch.device):
         batch_dict = move_to_device(batch_dict, device)
         attention_mask = batch_dict['attention_mask'].clone() if 'attention_mask' in batch_dict else None
@@ -408,15 +420,15 @@ class NVEmbedModel(PreTrainedModel):
         if not return_dict:
             return (embeds,)
         return {"sentence_embeddings": embeds}
-        
-    
+
+
     @torch.no_grad()
     def encode(self, prompts: List[str], instruction: str="", max_length: int=4096, **kwargs):
         if self.padding_side == "right" and self.is_mask_instruction == True and len(instruction) > 0:
             instruction_lens = len(self.tokenizer.tokenize(instruction))
         else:
             instruction_lens = 0
-        
+
         device = next(self.embedding_model.parameters()).device
         batch_dict = input_transform_func(self.tokenizer,
                                           {"input_texts": [prompt for prompt in prompts]},
