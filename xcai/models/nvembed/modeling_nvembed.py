@@ -127,6 +127,10 @@ class BidirectionalMistralModel(MistralModel):
         all_self_attns = () if output_attentions else None
         next_decoder_cache = None
 
+        # debug
+        breakpoint()
+        # debug
+
         for decoder_layer in self.layers:
             if output_hidden_states:
                 all_hidden_states += (hidden_states,)

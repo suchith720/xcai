@@ -4,7 +4,7 @@ from transformers import AutoConfig
 from transformers.configuration_utils import PretrainedConfig
 from transformers.models.auto import CONFIG_MAPPING
 
-from mistral import MistralConfig
+from .mistral import MistralConfig
 
 NVEMBED_TYPE = "nvembed"
 LATENT_ATTENTION_TYPE = "latent_attention"
