@@ -107,7 +107,7 @@ class BaseXCDataset(Dataset):
     def prune_data_lbl(self, data_lbl:sparse.csr_matrix, data_repr:torch.Tensor, lbl_repr:torch.Tensor, batch_size:Optional[int]=64, 
                        thresh:Optional[float]=0.1, topk:Optional[int]=None):
         data_repr,lbl_repr = F.normalize(data_repr, dim=1), F.normalize(lbl_repr, dim=1)
-        curr_data_lbl = data_lbl.copy()
+        
         rows, cols = data_lbl.nonzero()
         dl = DataLoader(list(zip(rows, cols)), batch_size=batch_size, shuffle=False)
         score = None
@@ -116,8 +116,11 @@ class BaseXCDataset(Dataset):
             sc = sc.squeeze()
             sc = torch.where(sc < thresh, 0, sc)
             score = sc if score is None else torch.hstack([score, sc])
-        curr_data_lbl.data[:] = score
+            
+        curr_data_lbl = sp.coo_matrix((score, (rows, cols)), shape=data_lbl.shape, dtype=np.float32)
+        curr_data_lbl = curr_data_lbl.tocsr()
         curr_data_lbl.eliminate_zeros()
+        curr_data_lbl.sort_indices()
         if topk is not None: 
             curr_data_lbl = retain_topk(curr_data_lbl, k=topk)
         return curr_data_lbl
@@ -125,7 +128,7 @@ class BaseXCDataset(Dataset):
     def score_data_lbl(self, data_lbl:sparse.csr_matrix, data_repr:torch.Tensor, lbl_repr:torch.Tensor, batch_size:Optional[int]=64, normalize:Optional[bool]=True):
         data_repr = F.normalize(data_repr, dim=1) if normalize else data_repr
         lbl_repr = F.normalize(lbl_repr, dim=1) if normalize else lbl_repr
-        curr_data_lbl = data_lbl.copy().astype(np.float32)
+        
         rows, cols = data_lbl.nonzero()
         dl = DataLoader(list(zip(rows, cols)), batch_size=batch_size, shuffle=False)
         score = None
@@ -133,8 +136,11 @@ class BaseXCDataset(Dataset):
             sc = data_repr[b[0]].unsqueeze(1)@lbl_repr[b[1]].unsqueeze(2)
             sc = sc.squeeze()
             score = sc if score is None else torch.hstack([score, sc])
-        curr_data_lbl.data[:] = score
+
+        curr_data_lbl = sp.coo_matrix((score, (rows, cols)), shape=data_lbl.shape, dtype=np.float32)
+        curr_data_lbl = curr_data_lbl.tocsr()
         curr_data_lbl.eliminate_zeros()
+        curr_data_lbl.sort_indices()
         return curr_data_lbl
 
     @staticmethod
