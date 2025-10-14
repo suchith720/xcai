@@ -105,12 +105,13 @@ class NVM009(NVEmbedModel):
         apply_softmax:Optional[bool]=False,
         n_negatives:Optional[int]=10,
         use_encoder_parallel:Optional[bool]=True,
+        normalize:Optional[bool]=True,
         *args, 
         **kwargs
     ):
         super().__init__(config, *args, **kwargs)
         store_attr('use_encoder_parallel')
-        self.encoder = NVM009Encoder(config)
+        self.encoder = NVM009Encoder(config, normalize=normalize)
         self.loss_fn = MultiTriplet(margin=margin, n_negatives=n_negatives, tau=tau, 
                                     apply_softmax=apply_softmax, reduce='mean')
         self.post_init()
