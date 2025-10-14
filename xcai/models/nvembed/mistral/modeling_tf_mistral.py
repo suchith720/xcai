@@ -528,7 +528,7 @@ class TFMistralMainLayer(keras.layers.Layer):
     @unpack_inputs
     def call(
         self,
-        input_ids: Optional[tf.Tensor] = None,
+        input_ids: tf.Tensor = None,
         attention_mask: Optional[tf.Tensor] = None,
         position_ids: Optional[tf.Tensor] = None,
         past_key_values: Optional[List[tf.Tensor]] = None,
@@ -770,7 +770,7 @@ class TFMistralModel(TFMistralPreTrainedModel):
     @add_start_docstrings_to_model_forward(MISTRAL_INPUTS_DOCSTRING)
     def call(
         self,
-        input_ids: Optional[tf.Tensor] = None,
+        input_ids: tf.Tensor = None,
         attention_mask: Optional[tf.Tensor] = None,
         position_ids: Optional[tf.Tensor] = None,
         past_key_values: Optional[List[tf.Tensor]] = None,
@@ -837,7 +837,7 @@ class TFMistralForCausalLM(TFMistralPreTrainedModel, TFCausalLanguageModelingLos
     @add_start_docstrings_to_model_forward(MISTRAL_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     def call(
         self,
-        input_ids: Optional[tf.Tensor] = None,
+        input_ids: tf.Tensor = None,
         attention_mask: Optional[tf.Tensor] = None,
         position_ids: Optional[tf.Tensor] = None,
         past_key_values: Optional[List[tf.Tensor]] = None,
@@ -849,10 +849,11 @@ class TFMistralForCausalLM(TFMistralPreTrainedModel, TFCausalLanguageModelingLos
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, TFCausalLMOutputWithPast]:
         r"""
-        labels (`tf.Tensor` of shape `(batch_size, sequence_length)`, *optional*):
-            Labels for computing the masked language modeling loss. Indices should either be in `[0, ..., config.vocab_size]`
-            or -100 (see `input_ids` docstring). Tokens with indices set to `-100` are ignored
-            (masked), the loss is only computed for the tokens with labels in `[0, ..., config.vocab_size]`.
+        Args:
+            labels (`tf.Tensor` of shape `(batch_size, sequence_length)`, *optional*):
+                Labels for computing the masked language modeling loss. Indices should either be in `[0, ..., config.vocab_size]`
+                or -100 (see `input_ids` docstring). Tokens with indices set to `-100` are ignored
+                (masked), the loss is only computed for the tokens with labels in `[0, ..., config.vocab_size]`.
         """
 
         # decoder outputs consists of (dec_features, layer_state, dec_hidden, dec_attn)
@@ -962,7 +963,7 @@ class TFMistralForSequenceClassification(TFMistralPreTrainedModel, TFSequenceCla
     @add_start_docstrings_to_model_forward(MISTRAL_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     def call(
         self,
-        input_ids: Optional[tf.Tensor] = None,
+        input_ids: tf.Tensor = None,
         attention_mask: Optional[tf.Tensor] = None,
         position_ids: Optional[tf.Tensor] = None,
         past_key_values: Optional[List[tf.Tensor]] = None,
@@ -974,10 +975,11 @@ class TFMistralForSequenceClassification(TFMistralPreTrainedModel, TFSequenceCla
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, TFSequenceClassifierOutputWithPast]:
         r"""
-        labels (`tf.Tensor` of shape `(batch_size, sequence_length)`, *optional*):
-            Labels for computing the masked language modeling loss. Indices should either be in `[0, ...,
-            config.vocab_size]` or -100 (see `input_ids` docstring). Tokens with indices set to `-100` are ignored
-            (masked), the loss is only computed for the tokens with labels in `[0, ..., config.vocab_size]`.
+        Args:
+            labels (`tf.Tensor` of shape `(batch_size, sequence_length)`, *optional*):
+                Labels for computing the masked language modeling loss. Indices should either be in `[0, ...,
+                config.vocab_size]` or -100 (see `input_ids` docstring). Tokens with indices set to `-100` are ignored
+                (masked), the loss is only computed for the tokens with labels in `[0, ..., config.vocab_size]`.
         """
 
         transformer_outputs = self.model(
@@ -994,30 +996,39 @@ class TFMistralForSequenceClassification(TFMistralPreTrainedModel, TFSequenceCla
         hidden_states = transformer_outputs[0]
         logits = self.score(hidden_states)
         logits_shape = shape_list(logits)
-        batch_size = logits_shape[0]
+        in_logits = None
 
         if self.config.pad_token_id is None:
-            last_non_pad_token = tf.fill((batch_size,), value=logits_shape[1] - 1)
+            sequence_lengths = -1
         else:
             if input_ids is not None:
-                token_indices = tf.range(shape_list(input_ids)[-1])
-                non_pad_mask = tf.cast(input_ids != self.config.pad_token_id, token_indices.dtype)
-                last_non_pad_token = tf.reduce_max(token_indices * non_pad_mask, axis=-1)
+                sequence_lengths = (
+                    tf.argmax(tf.cast(tf.math.equal(input_ids, self.config.pad_token_id), input_ids.dtype), axis=-1)
+                    - 1
+                )
+                sequence_lengths = tf.where(
+                    sequence_lengths >= 0,
+                    sequence_lengths,
+                    tf.cast(shape_list(input_ids[-1]), sequence_lengths.dtype) - 1,
+                )
+                in_logits = tf.gather(logits, sequence_lengths, batch_dims=1, axis=1)
             else:
-                last_non_pad_token = tf.fill((batch_size,), value=logits_shape[1] - 1)
+                sequence_lengths = -1
                 logger.warning_once(
                     f"{self.__class__.__name__} will not detect padding tokens in `inputs_embeds`. Results may be "
                     "unexpected if using padding tokens in conjunction with `inputs_embeds.`"
                 )
         loss = None
 
-        pooled_logits = tf.gather(logits, last_non_pad_token, batch_dims=1, axis=1)
-
         if labels is not None:
             if self.config.pad_token_id is None and logits_shape[0] != 1:
                 raise ValueError("Cannot handle batch sizes > 1 if no padding token is defined.")
 
-            loss = self.hf_compute_loss(tf.reshape(labels, [-1]), tf.reshape(pooled_logits, [-1, self.num_labels]))
+            if not tf.is_tensor(sequence_lengths):
+                in_logits = logits[0 : logits_shape[0], sequence_lengths]
+
+            loss = self.hf_compute_loss(tf.reshape(labels, [-1]), tf.reshape(in_logits, [-1, self.num_labels]))
+        pooled_logits = in_logits if in_logits is not None else logits
 
         if not return_dict:
             output = (pooled_logits,) + transformer_outputs[1:]
