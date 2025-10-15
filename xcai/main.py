@@ -441,8 +441,9 @@ def get_output(pred_idx:torch.Tensor, pred_ptr:torch.Tensor, pred_score:torch.Te
     
 
 # %% ../nbs/36_main.ipynb 30
-def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:int=None, train_k:int=None, save_teacher:bool=False, 
-         save_classifier:bool=False, resume_from_checkpoint:Optional[bool]=None, save_dir:Optional[str]=None, metadata_name:Optional[str]=None):
+def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:int=None, train_k:int=None, 
+         save_teacher:bool=False, save_classifier:bool=False, resume_from_checkpoint:Optional[bool]=None, 
+         save_dir:Optional[str]=None, save_dir_name:Optional[str]=None, metadata_name:Optional[str]=None):
     eval_dataset = learn.eval_dataset if eval_dataset is None else eval_dataset
     train_dataset = learn.train_dataset if train_dataset is None else train_dataset
     
@@ -451,8 +452,9 @@ def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:i
     if do_infer:
         trn_repr = tst_repr = lbl_repr = trn_pred = tst_pred = None
         prediction_suffix = f'_{args.prediction_suffix}' if len(args.prediction_suffix) else ''
-        
-        pred_dir = f'{learn.args.output_dir}/predictions' if save_dir is None else f'{save_dir}/predictions'
+
+        save_dir_name = 'predictions' if save_dir_name is None else save_dir_name
+        pred_dir = f'{learn.args.output_dir}/{save_dir_name}' if save_dir is None else f'{save_dir}/{save_dir_name}'
         os.makedirs(pred_dir, exist_ok=True)
 
         if args.save_representation:
