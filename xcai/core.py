@@ -457,7 +457,7 @@ def robustness_analysis(block, meta_name:str, analysis_type:str='missing', pct:f
 # %% ../nbs/00_core.ipynb 54
 class ShowMetric:
 
-    METRIC_ORDER = ['P@1', 'P@5', 'N@5', 'PSP@1', 'PSP@5', 'R@200']
+    METRIC_ORDER = ['P@1', 'P@5', 'N@5', 'N@10', 'MRR@10', 'R@100', 'R@200']
     DSET_ORDER = ['msmarco', 'nq', 'fiqa', 'hotpotqa', 'fever', 'dbpedia-entity', 'quora', 'trec-covid', 
                   'climate-fever', 'scifact', 'scidocs', 'arguana', 'nfcorpus', 'webis-touche2020', 'cqadupstack']
     
@@ -478,7 +478,9 @@ class ShowMetric:
         return df[order]
 
     @staticmethod
-    def show(o, metric_order=None, dset_order=None):
+    def show(o, metric_order=None, dset_order=None, combine_dset=None):
+        if combine_dset is not None: o = combine_metrics_for_dataset(o)
+        
         metric_order = METRIC_ORDER if metric_order is None else metric_order
         dset_order = DSET_ORDER if dset_order is None else dset_order
         
