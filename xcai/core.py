@@ -457,8 +457,10 @@ def robustness_analysis(block, meta_name:str, analysis_type:str='missing', pct:f
 # %% ../nbs/00_core.ipynb 54
 class ShowMetric:
 
-    ORDER = ['P@1', 'P@5', 'N@5', 'PSP@1', 'PSP@5', 'R@200']
-
+    METRIC_ORDER = ['P@1', 'P@5', 'N@5', 'PSP@1', 'PSP@5', 'R@200']
+    DSET_ORDER = ['msmarco', 'nq', 'fiqa', 'hotpotqa', 'fever', 'dbpedia-entity', 'quora', 'trec-covid', 
+                  'climate-fever', 'scifact', 'scidocs', 'arguana', 'nfcorpus', 'webis-touche2020', 'cqadupstack']
+    
     @staticmethod
     def show_df(df):
         with pd.option_context('display.precision',2,'display.max_colwidth',None,'display.max_columns',None):
@@ -476,8 +478,12 @@ class ShowMetric:
         return df[order]
 
     @staticmethod
-    def show(o, order=None):
-        df = ShowMetric.convert_df_and_remove_prefix(o, order)
+    def show(o, metric_order=None, dset_order=None):
+        metric_order = METRIC_ORDER if metric_order is None else metric_order
+        dset_order = DSET_ORDER if dset_order is None else dset_order
+        
+        df = ShowMetric.convert_df_and_remove_prefix(o, metric_order)
+        df = df.loc[dset_order]
         for k in df.columns:
             if isinstance(df[k].iloc[0], float) and '@' in k: df[k] = df[k] * 100
         ShowMetric.show_df(df)
