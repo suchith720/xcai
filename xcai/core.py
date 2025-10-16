@@ -479,7 +479,7 @@ class ShowMetric:
 
     @staticmethod
     def show(o, metric_order=None, dset_order=None, combine_dset=None):
-        if combine_dset is not None: o = combine_metrics_for_dataset(o)
+        if combine_dset is not None: o = combine_metrics_for_dataset(o, combine_dset)
         
         metric_order = METRIC_ORDER if metric_order is None else metric_order
         dset_order = DSET_ORDER if dset_order is None else dset_order
