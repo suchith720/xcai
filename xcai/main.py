@@ -56,6 +56,7 @@ def parse_args():
     parser.add_argument('--pickle_dir', type=str, default=None)
     
     parser.add_argument('--prediction_suffix', type=str, default='')
+    parser.add_argument('--save_dir_name', type=str, default=None)
 
     parser.add_argument('--exact', action='store_true')
     parser.add_argument('--dataset', type=str)
