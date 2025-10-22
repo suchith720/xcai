@@ -125,6 +125,7 @@ class BaseXCDataset(Dataset):
             curr_data_lbl = retain_topk(curr_data_lbl, k=topk)
         return curr_data_lbl
 
+    @staticmethod
     def score_data_lbl(self, data_lbl:sparse.csr_matrix, data_repr:torch.Tensor, lbl_repr:torch.Tensor, batch_size:Optional[int]=64, normalize:Optional[bool]=True):
         data_repr = F.normalize(data_repr, dim=1) if normalize else data_repr
         lbl_repr = F.normalize(lbl_repr, dim=1) if normalize else lbl_repr
@@ -256,7 +257,7 @@ class MainXCDataset(BaseXCDataset):
         if self.data_lbl is not None:
             assert self.data_lbl.shape == (data_repr.shape[0], lbl_repr.shape[0]), \
             f"Shape mismatch; `self.data_lbl`: {self.data_lbl.shape}, `data_repr`: {data_repr.shape[0]}, `lbl_repr`: {lbl_repr.shape[0]}."
-            return super().score_data_lbl(self.data_lbl, data_repr, lbl_repr, batch_size=batch_size, normalize=normalize)
+            return BaseXCDataset.score_data_lbl(self.data_lbl, data_repr, lbl_repr, batch_size=batch_size, normalize=normalize)
             
 
 # %% ../nbs/02_data.ipynb 28
@@ -435,13 +436,13 @@ class MetaXCDataset(BaseXCDataset):
         if self.data_meta is not None:
             assert self.data_meta.shape == (data_repr.shape[0], meta_repr.shape[0]), \
             f"Shape mismatch; `self.data_meta`: {self.data_meta.shape}, `data_repr`: {data_repr.shape[0]}, `meta_repr`: {meta_repr.shape[0]}."
-            return self.score_data_lbl(self.data_meta, data_repr, meta_repr, batch_size=batch_size, normalize=normalize)
+            return BaseXCDataset.score_data_lbl(self.data_meta, data_repr, meta_repr, batch_size=batch_size, normalize=normalize)
 
     def score_lbl_meta(self, lbl_repr:torch.Tensor, meta_repr:torch.Tensor, batch_size:Optional[int]=64, normalize:Optional[bool]=True):
         if self.lbl_meta is not None:
             assert self.lbl_meta.shape == (lbl_repr.shape[0], meta_repr.shape[0]), \
             f"Shape mismatch; `self.lbl_meta`: {self.lbl_meta.shape}, `lbl_repr`: {lbl_repr.shape[0]}, `meta_repr`: {meta_repr.shape[0]}."
-            return self.score_data_lbl(self.lbl_meta, lbl_repr, meta_repr, batch_size=batch_size, normalize=normalize)
+            return BaseXCDataset.score_data_lbl(self.lbl_meta, lbl_repr, meta_repr, batch_size=batch_size, normalize=normalize)
         
 
 # %% ../nbs/02_data.ipynb 56
