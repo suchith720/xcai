@@ -126,7 +126,7 @@ class BaseXCDataset(Dataset):
         return curr_data_lbl
 
     @staticmethod
-    def score_data_lbl(self, data_lbl:sparse.csr_matrix, data_repr:torch.Tensor, lbl_repr:torch.Tensor, batch_size:Optional[int]=64, normalize:Optional[bool]=True):
+    def score_data_lbl(data_lbl:sparse.csr_matrix, data_repr:torch.Tensor, lbl_repr:torch.Tensor, batch_size:Optional[int]=64, normalize:Optional[bool]=True):
         data_repr = F.normalize(data_repr, dim=1) if normalize else data_repr
         lbl_repr = F.normalize(lbl_repr, dim=1) if normalize else lbl_repr
         
