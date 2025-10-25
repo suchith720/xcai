@@ -340,7 +340,10 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
     if do_build:
         if isinstance(config, str) and os.path.exists(config): 
             config = load_config(config, config_key)
-            if only_test and 'train' in config['path']: del config['path']['train'] 
+            if only_test and 'train' in config['path']:
+                if 'lbl_info' not in config['path']['test']:
+                    config['path']['test']['lbl_info'] = config['path']['train']['lbl_info']
+                del config['path']['train'] 
     
         if use_sxc:
             block = SXCBlock.from_cfg(config, config_key, padding=True, return_tensors='pt', data_dir=data_dir, **kwargs)
