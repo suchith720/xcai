@@ -16,7 +16,7 @@ from transformers import DistilBertConfig
 from .sdata import SMainXCDataset, SXCDataBlock, SXCDataset
 from .data import XCDataBlock, XCDataset, XCCollator
 from .block import NXCBlock, SXCBlock, XCBlock, CFGS
-from .core import Info, get_best_model, load_config
+from .core import Info, get_best_model, get_last_model, load_config
 from .transform import AugmentMetaInputIdsTfm
 from .learner import XCLearningArguments, XCLearner
 
@@ -423,10 +423,11 @@ def raw_mapping(src_file, targ_file):
 
 # %% ../nbs/36_main.ipynb 26
 def load_model(output_dir:str, model_fn:Callable, model_args:Dict, init_fn:Callable, init_args:Optional[Dict]=dict(), 
-               do_inference:Optional[bool]=False, use_pretrained:Optional[bool]=False):
+               do_inference:Optional[bool]=False, use_pretrained:Optional[bool]=False, type:Optional[str]='best'):
     if do_inference:
         os.environ['WANDB_MODE'] = 'disabled'
-        if not use_pretrained: model_args['mname'] = f'{output_dir}/{os.path.basename(get_best_model(output_dir))}'
+        fname = get_best_model(output_dir) if type == "best" else get_last_model(output_dir)
+        if not use_pretrained: model_args['mname'] = f'{output_dir}/{os.path.basename(fname)}'
 
     model = model_fn(**model_args)
     

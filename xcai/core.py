@@ -3,9 +3,9 @@
 # %% auto 0
 __all__ = ['show_data', 'Info', 'Filterer', 'get_tok_sparse', 'compute_inv_doc_freq', 'get_tok_idf', 'prepare_batch',
            'store_attr', 'get_attr', 'sorted_metric', 'display_metric', 'get_tensor_statistics', 'total_recall',
-           'get_best_model', 'get_output_sparse', 'get_output', 'load_config', 'get_config_key', 'load_state_dict',
-           'load_metrics_from_string', 'combine_metrics_for_dataset', 'ScoreFusion', 'retain_randk', 'random_topk',
-           'robustness_analysis', 'ShowMetric']
+           'get_best_model', 'get_last_model', 'get_output_sparse', 'get_output', 'load_config', 'get_config_key',
+           'load_state_dict', 'load_metrics_from_string', 'combine_metrics_for_dataset', 'ScoreFusion', 'retain_randk',
+           'random_topk', 'robustness_analysis', 'ShowMetric']
 
 # %% ../nbs/00_core.ipynb 2
 import pandas as pd, numpy as np, logging, sys, re, os, torch, json, inspect, torch.nn.functional as F, ast
@@ -277,6 +277,10 @@ def get_best_model(mdir:str, pat:Optional[str]=r'^checkpoint-(\d+)'):
     fname = f'{mdir}/checkpoint-{nm}/trainer_state.json'
     with open(fname, 'r') as file: mname = json.load(file)['best_model_checkpoint']
     return f'{mdir}/checkpoint-{nm}' if mname is None else mname
+
+def get_last_model(mdir:str, pat:Optional[str]=r'^checkpoint-(\d+)'):
+    nm = sorted([int(re.match(pat, o).group(1)) for o in os.listdir(mdir) if re.match(pat, o)])[-1]
+    return f'{mdir}/checkpoint-{nm}'
     
 
 # %% ../nbs/00_core.ipynb 39
