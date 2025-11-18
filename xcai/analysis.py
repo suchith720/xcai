@@ -153,7 +153,7 @@ def get_lbl_and_pred_dset(pred:sp.csr_matrix, dset:Union[XCDataset,SXCDataset]):
     
 
 # %% ../nbs/16_analysis.ipynb 29
-def get_lbl_and_pred_dset_with_meta(pred:sp.csr_matrix, meta:sp.csr_matrix, meta_info:Dict, meta_name:str, dset:Union[XCDataset,SXCDataset]):
+def get_lbl_and_pred_dset_with_meta(pred:sp.csr_matrix, meta_name:str, meta:sp.csr_matrix, meta_info:Dict, dset:Union[XCDataset,SXCDataset]):
     kwargs = {k: getattr(dset.data, k) for k in [o for o in vars(dset.data).keys() if not o.startswith('__')]}
     data = type(dset.data)(**kwargs)
     
