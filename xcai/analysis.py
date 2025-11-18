@@ -258,7 +258,7 @@ class TextDataset:
         if self.sort_by is not None:
             for n,x in combined_item.items():
                 if self.sort_by in x and n.count('2') == 1:
-                    idx = np.argsort(x[self.sort_by])
+                    idx = np.argsort(x[self.sort_by])[::-1]
                     for k,v in x.items(): x[k] = [v[i] for i in idx]
                         
         return {f'{k}_({"|".join(v.keys())})' if len(v) > 1 else f'{k}_{list(v.keys())[0]}':[o for o in zip(*v.values())] if len(v) > 1 else list(v.values())[0] for k,v in combined_item.items()}
