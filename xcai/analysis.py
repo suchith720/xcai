@@ -163,7 +163,7 @@ def get_lbl_and_pred_dset_with_meta(pred:sp.csr_matrix, meta_name:str, meta:sp.c
     kwargs = {'prefix':meta_name, 'data_meta': meta, 'meta_info': meta_info, 'return_scores': True}
     meta_dset = SMetaXCDataset(**kwargs) if isinstance(dset, SXCDataset) else MetaXCDataset(**kwargs)
     
-    return type(dset)(data, **{'pred_meta': pred_dset, f'{meta_name}_meta': meta_dset})
+    return type(dset)(data, **{f'{meta_name}_meta': meta_dset, 'pred_meta': pred_dset})
     
 
 # %% ../nbs/16_analysis.ipynb 30
