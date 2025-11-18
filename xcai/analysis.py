@@ -6,7 +6,7 @@ __all__ = ['pointwise_eval', 'equal_volume_split', 'get_decile_stats', 'barplot'
            'load_prediction_and_block', 'PredictionBlock', 'TextDataset', 'CompareDataset', 'Indices']
 
 # %% ../nbs/16_analysis.ipynb 2
-import os,torch, torch.multiprocessing as mp, pickle, numpy as np, re, scipy.sparse as sp
+import os, torch, torch.multiprocessing as mp, pickle, numpy as np, re, scipy.sparse as sp, json
 from typing import Optional, Dict, List, Tuple, Union
 from torch.utils.data import Dataset
 from scipy import sparse
@@ -148,7 +148,7 @@ def get_lbl_pred_dset(pred:sp.csr_matrix, dset:Union[XCDataset,SXCDataset]):
     data = type(dset.data)(**kwargs)
     
     kwargs = {'prefix':'pred', 'data_meta': pred, 'meta_info': dset.data.lbl_info, 'return_scores': True}
-    return type(dset)(data, **{'pred_meta': MetaXCDataset(**kwargs) if isinstance(dset, XCDataset) else SMetaXCDataset(**kwargs)})
+    return type(dset)(data, **{'pred_meta': SMetaXCDataset(**kwargs) if isinstance(dset, SXCDataset) else MetaXCDataset(**kwargs)})
     
 
 # %% ../nbs/16_analysis.ipynb 29
