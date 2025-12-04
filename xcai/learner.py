@@ -137,9 +137,11 @@ class XCDataParallel(DataParallel):
         super().__init__(**kwargs)
         
     def _get_feat_name(self, x:Optional[Dict[str, Any]]):
+        # return a list of features in the batch, eg. 'pcat2data', 'plbl2data', 'pcat2lbl', 'cat2lbl', 'data', 'cat2data', 'lbl2data'
         return list(set([k.split('_', maxsplit=1)[0] for k in x]))
     
     def _extract_feat(self, x:Optional[Dict[str, Any]], prefix:str):
+        # extract features based of the prefix
         return {k:v for k,v in x.items() if re.match(f'^{prefix}_(?!.*2ptr)', k) or re.match(f'^.*_{prefix}2ptr$', k)}
 
     def scatter(

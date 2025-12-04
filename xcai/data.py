@@ -485,7 +485,7 @@ class Operations:
         args = {k: kwargs.get(k, getattr(dset.data, k)) for k in args}
         
         data_dset = type(dset.data)(data_info, sp.hstack([data_lbl, data_meta]), combined_info, 
-                                    dset.data.data_lbl_filterer, **kwargs)
+                                    dset.data.data_lbl_filterer, **args)
         return type(dset)(data_dset)
 
     @staticmethod
@@ -729,6 +729,17 @@ class XCDataset(BaseXCDataset):
 
     def data_meta_dset(self, meta_name):
         return self.meta[f'{meta_name}_meta']
+
+    def meta_dset(self, meta_name):
+        assert meta_name in self.meta, (
+            f"Metadata key '{meta_name}' not found. "
+            f"Available keys: {list(self.meta.keys())}"
+        )
+        _keys_to_ignore = ["data_info", "data_lbl", "lbl_info", "data_lbl_filterer", "curr_data_lbl", "data_lbl_scores"]
+        args = [o for o in vars(self.data).keys() if not o.startswith('__') and o not in _keys_to_ignore]
+        args = {k: kwargs.get(k, getattr(dset.data, k)) for k in args}
+        
+        return type(dset.data)(data_info=dset.meta[meta_name].meta_info, **args)
         
     def __getitem__(self, idx:int):
         x = self.data[idx]
