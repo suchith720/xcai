@@ -2,21 +2,26 @@
 
 # %% auto 0
 __all__ = ['UPMAConfig', 'get_memory_module', 'UPMAEncoderOutput', 'UPMAModelOutput', 'FFN', 'UPMAEmbeddingMemory', 'UPMAModel',
-           'Parameters', 'UPA000']
+           'Parameters', 'UPMAEncoder', 'UPA000']
 
 # %% ../../nbs/41_models.upma.ipynb 3
-import torch, torch.nn as nn, re
+import torch, torch.nn as nn, re, os
+from tqdm.auto import tqdm
 from dataclasses import dataclass
 from torch.nn.parallel import DataParallel
+from torch.utils.data import DataLoader
 from typing import Optional, Union, Tuple, Any, Dict, Sequence
 
 from transformers import DistilBertConfig, DistilBertModel, PretrainedConfig, PreTrainedModel
 from transformers.modeling_outputs import BaseModelOutput, ModelOutput
-from transformers.models.distilbert.modeling_distilbert import Embeddings, TransformerBlock
+from transformers.models.distilbert.modeling_distilbert import Embeddings, TransformerBlock, create_sinusoidal_embeddings
 from transformers.activations import get_activation
+from transformers.modeling_attn_mask_utils import _prepare_4d_attention_mask_for_sdpa
 
 from ..core import *
 from ..losses import *
+from ..data import MainXCDataset
+from ..sdata import SMainXCDataset, identity_collate_fn
 from ..learner import XCDataParallel
 from .modeling_utils import Pooling
 
@@ -52,13 +57,18 @@ class UPMAConfig(DistilBertConfig):
         use_calib_loss: Optional[bool] = False,
 
         use_encoder_parallel: Optional[bool] = False,
+        
+        initialize_memory_embeddings_from_injection_layer_mean: Optional[bool] = True,
+        metadata_embedding_file: Optional[str] = None,
+        
         **kwargs,
     ):
         store_attr('num_total_metadata,num_input_metadata,pad_metadata_idx,metadata_dropout,memory_module_name')
         store_attr('data_aug_meta_prefix,lbl2data_aug_meta_prefix,data_enrich,lbl2data_enrich')
         store_attr('margin,num_negatives,tau,apply_softmax')
         store_attr('calib_margin,calib_num_negatives,calib_tau,calib_apply_softmax')
-        store_attr('calib_loss_weight,use_calib_loss')
+        store_attr('calib_loss_weight,use_calib_loss,use_encoder_parallel')
+        store_attr('initialize_memory_embeddings_from_injection_layer_mean,metadata_embedding_file')
         
         super().__init__(**kwargs)
         
@@ -98,6 +108,7 @@ class FFN(nn.Module):
         output_dim:int,
     ):
         super().__init__()
+        self.config = config
         self.dropout = nn.Dropout(p=config.dropout)
         self.chunk_size_feed_forward = config.chunk_size_feed_forward
         self.seq_len_dim = 1
@@ -124,6 +135,7 @@ class UPMAEmbeddingMemory(nn.Module):
         config: PretrainedConfig
     ):
         super().__init__()
+        self.config = config
         self.metadata_embeddings = nn.Embedding(config.num_total_metadata, config.dim, padding_idx=config.pad_metadata_idx)
         self.rank_embeddings = nn.Embedding(config.num_input_metadata, config.dim)
         
@@ -136,6 +148,18 @@ class UPMAEmbeddingMemory(nn.Module):
             "position_ids", torch.arange(config.num_input_metadata).expand((1, -1)), persistent=False
         )
         
+    def get_metadata_embeddings(self) -> torch.Tensor:
+        return self.metadata_embeddings.weight
+
+    def set_metadata_embeddings(self, new_embeddings: torch.Tensor):
+        self.metadata_embeddings.weight.copy_(new_embeddings)
+
+    def get_rank_embeddings(self) -> torch.Tensor:
+        return self.rank_embeddings.weight
+
+    def set_rank_embeddings(self, new_embeddings: torch.Tensor):
+        self.rank_embeddings.weight.copy_(new_embeddings)
+        
     def forward(
         self,
         input_idx: torch.Tensor,
@@ -147,7 +171,7 @@ class UPMAEmbeddingMemory(nn.Module):
         # `input_idx`: (bs, num_input_metadata)
         # `input_scores`: (bs, num_input_metadata)
         
-        if input_ids is not None:
+        if input_idx is not None:
             input_embeds = self.metadata_embeddings(input_idx) # (bs, num_input_metadata, dim)
             
         if input_embeds.size(1) != self.num_input_metadata:
@@ -401,7 +425,121 @@ class Parameters:
         return inputs
         
 
-# %% ../../nbs/41_models.upma.ipynb 51
+# %% ../../nbs/41_models.upma.ipynb 33
+class UPMAEncoder(UPMAModel):
+
+    @classmethod
+    def from_pretrained(
+        cls,
+        config:PretrainedConfig,
+        meta_dset:Optional[Union[MainXCDataset, SMainXCDataset]] = None,
+        batch_size:Optional[int] = 100,
+    ):
+        src_model = DistilBertModel.from_pretrained('distilbert-base-uncased')
+        targ_model = cls(config)
+
+        targ_model.init_weights()
+        targ_model.eval()
+        
+        src_sd, targ_sd = src_model.state_dict(), targ_model.state_dict()
+        src_keys, targ_keys = set(src_sd.keys()), set(targ_sd.keys())
+        
+        for k in src_keys.intersection(targ_keys):
+            assert targ_sd[k].shape == src_sd[k].shape, (
+                f"Shape mismatch at key '{k}'. "
+                f"Expected {targ_sd[k].shape}, but got {src_sd[k].shape} in source state_dict."
+            )
+            targ_sd[k].copy_(src_sd[k])
+
+        diff_keys = targ_keys.difference(src_keys)
+        transformer_keys = [k for k in src_keys if k.startswith("transformer")]
+        for k in transformer_keys:
+            targ_k = k.split('.', maxsplit=1)[1]
+            
+            assert targ_k in targ_sd, (
+                f"Unexpected key '{targ_k}' encountered, not found in target state_dict."
+            )
+            
+            assert targ_sd[targ_k].shape == src_sd[k].shape, (
+                f"Shape mismatch at key '{k}'. "
+                f"Expected {targ_sd[targ_k].shape}, but got {src_sd[k].shape} in source state_dict."
+            )
+            
+            targ_sd[targ_k].copy_(src_sd[k])
+            diff_keys.remove(targ_k)
+
+        if config.initialize_memory_embeddings_from_injection_layer_mean:
+            targ_model.initialize_memory_embeddings_from_injection_layer_mean(
+                meta_dset,
+                save_file=config.metadata_embedding_file,
+                batch_size=batch_size,
+                use_encoder_parallel=config.use_encoder_parallel,
+            )
+            
+        return targ_model
+
+    def initialize_memory_embeddings_from_injection_layer_mean(
+        self,
+        meta_dset:Optional[Union[MainXCDataset, SMainXCDataset]] = None,
+        save_file:Optional[str] = None,
+        batch_size:Optional[int] = 100,
+        use_encoder_parallel:Optional[bool] = True
+    ):
+        if save_file is not None and os.path.exists(save_file):
+            meta_embeds = torch.load(save_file)
+        else:
+            if meta_dset is None: 
+                raise ValueError(
+                    f"Invalid argument: 'meta_dset' cannot be None. "
+                    f"Please pass a valid dataset."
+                )
+                
+            meta_embeds, device = [], next(self.parameters()).device
+            meta_dl = DataLoader(meta_dset, batch_size=batch_size, collate_fn=identity_collate_fn)
+    
+            model = XCDataParallel(module=self) if use_encoder_parallel else self
+            for batch in tqdm(meta_dl):
+                for k, v in batch.items(): 
+                    if isinstance(v, torch.Tensor): batch[k] = v.to(device)
+                output = model(**batch, data_inject_memory=False, data_output_hidden_states=True)
+                embeds = output.hidden_states[self.config.memory_injection_layer - 1]
+                meta_embeds.append(Pooling.mean_pooling(embeds, batch['data_attention_mask']))
+            meta_embeds = torch.cat(meta_embeds, dim=0)
+            if save_file is not None: torch.save(meta_embeds, save_file)
+            
+        self.memory_module.set_metadata_embeddings(meta_embeds)
+        return meta_embeds
+    
+    def forward(
+        self, 
+        data_input_ids: torch.Tensor, 
+        data_attention_mask: torch.Tensor,
+        data_aug_meta_prefix: Optional[str]=None,
+        data_inject_memory: Optional[bool]=True,
+        data_output_attentions: Optional[bool] = None,
+        data_output_hidden_states: Optional[bool] = None,
+        data_return_dict: Optional[bool] = None,
+        **kwargs
+    ):
+        meta_kwargs = Parameters.from_data_aug_meta_prefix_for_encoder(data_aug_meta_prefix, **kwargs)
+        meta_kwargs = meta_kwargs.get(data_aug_meta_prefix, dict())
+        
+        output = super().forward(
+            input_ids=data_input_ids, 
+            attention_mask=data_attention_mask,
+            inject_memory=data_inject_memory,
+            output_attentions=data_output_attentions,
+            output_hidden_states=data_output_hidden_states,
+            return_dict=data_return_dict,
+            **meta_kwargs
+        )
+        
+        # NOTE: Pooling can be done according to modified attention mask.
+        data_repr = Pooling.mean_pooling(output[0], data_attention_mask)
+        return UPMAEncoderOutput(repr=data_repr, **output)
+        
+
+# %% ../../nbs/41_models.upma.ipynb 41
 class UPA000(PreTrainedModel):
     
     def __init__(
