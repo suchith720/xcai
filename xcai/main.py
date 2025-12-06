@@ -463,12 +463,13 @@ def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:i
         os.makedirs(pred_dir, exist_ok=True)
 
         if args.save_representation:
-            trn_repr, lbl_repr = learn.get_data_and_lbl_representation(train_dataset)
-            tst_repr = learn._get_data_representation(eval_dataset)
+            trn_repr = None if train_dataset is None else learn._get_data_representation(train_dataset)
+            tst_repr = None if eval_dataset is None else learn._get_data_representation(eval_dataset)
+            lbl_repr = learn._get_lbl_representation(eval_dataset if train_dataset is None else train_dataset)
 
-            torch.save(trn_repr, f'{pred_dir}/train_repr{prediction_suffix}.pth')
-            torch.save(tst_repr, f'{pred_dir}/test_repr{prediction_suffix}.pth')
-            torch.save(lbl_repr, f'{pred_dir}/label_repr{prediction_suffix}.pth')
+            if trn_repr is not None: torch.save(trn_repr, f'{pred_dir}/train_repr{prediction_suffix}.pth')
+            if tst_repr is not None: torch.save(tst_repr, f'{pred_dir}/test_repr{prediction_suffix}.pth')
+            if lbl_repr is not None: torch.save(lbl_repr, f'{pred_dir}/label_repr{prediction_suffix}.pth')
 
             if save_teacher:
                 config = TCHConfig(n_data=trn_repr.shape[0], n_lbl=lbl_repr.shape[0])
