@@ -282,7 +282,7 @@ class LossOperations:
         sorted_vals, sort_idx = torch.sort(topk_vals, descending=True, dim=-1)
         sorted_idx = provisional_idx.gather(1, sort_idx)
         
-        return sorted_vals, sort_idx
+        return sorted_vals, sorted_idx
         
 
 # %% ../nbs/04_losses.ipynb 86
@@ -550,7 +550,7 @@ class MultiRankingFromScores(BaseLoss, LossOperations):
 # %% ../nbs/04_losses.ipynb 110
 MultiRankingWithNegatives = mix_classes(BaseWithNegatives, MultiRankingFromScores)
 
-# %% ../nbs/04_losses.ipynb 116
+# %% ../nbs/04_losses.ipynb 117
 class MultiSoupConFromScores(BaseLoss, LossOperations):
 
     def __init__(
@@ -590,6 +590,7 @@ class MultiSoupConFromScores(BaseLoss, LossOperations):
 
         pos_scores = scores[pos_incidence]
         scores[pos_incidence] = torch.finfo(scores.dtype).min
+        n_inp2targ = pos_incidence.sum(dim=1)
         scores = scores.repeat_interleave(n_inp2targ, dim=0)
         scores[row_idx, col_idx] = pos_scores
         
@@ -603,7 +604,7 @@ class MultiSoupConFromScores(BaseLoss, LossOperations):
         else: raise ValueError(f'`reduction` cannot be `{self.reduction}`')
         
 
-# %% ../nbs/04_losses.ipynb 117
+# %% ../nbs/04_losses.ipynb 118
 MultiSoupConWithNegatives = mix_classes(BaseWithNegatives, MultiSoupConFromScores)
 
 # %% ../nbs/04_losses.ipynb 124
