@@ -213,6 +213,11 @@ class DBT009Encoder(DistilBertPreTrainedModel):
     def init_dr_head(self):
         torch.nn.init.eye_(self.dr_transform.weight)
         torch.nn.init.eye_(self.dr_projector.weight)
+
+    def _init_weights(self, module: nn.Module):
+        super()._init_weights(module)
+        if isinstance(module, DBT009Encoder):
+            module.init_dr_head()
         
     @delegates(BertModel.__call__)
     def forward(
@@ -250,14 +255,9 @@ class DBT009(DistilBertPreTrainedModel):
             'apply_softmax': config.apply_softmax, 'reduce': config.reduction,
         }
         self.loss_fn = get_loss_function(config.loss_function)(**loss_kwargs)        
-        self.post_init(); self.remap_post_init()
-
-    def _init_weights(self, module: nn.Module):
-        super()._init_weights(module)
-        if isinstance(module, DBT009Encoder):
-            module.init_dr_head()
+        self.post_init()
         
-    def remap_post_init(self):
+    def _tie_weights(self):
         self.distilbert = self.encoder.distilbert
     
     def forward(
@@ -1470,6 +1470,11 @@ class DBT023Encoder(DistilBertPreTrainedModel):
     def init_dr_head(self):
         torch.nn.init.eye_(self.transform.weight)
         torch.nn.init.eye_(self.projector.weight)
+
+    def _init_weights(self, module: nn.Module):
+        super()._init_weights(module)
+        if isinstance(module, DBT023Encoder):
+            module.init_dr_head()
         
     @delegates(BertModel.__call__)
     def forward(
@@ -1504,15 +1509,10 @@ class DBT023(DistilBertPreTrainedModel):
         self.config = config
         self.encoder = DBT023Encoder(config)
         self.loss_fn = MarginMSEWithNegatives()
-        self.post_init(); self.remap_post_init()
+        self.post_init()
 
-    def remap_post_init(self):
+    def _tie_weights(self):
         self.distilbert = self.encoder.distilbert
-        
-    def _init_weights(self, module: nn.Module):
-        super()._init_weights(module)
-        if isinstance(module, DBT023Encoder):
-            module.init_dr_head()
             
     def forward(
         self,
@@ -1590,13 +1590,8 @@ class DBT024(DistilBertPreTrainedModel):
         self.loss_fn = get_loss_function(config.loss_function)(**loss_kwargs)
         
         self.post_init(); self.remap_post_init()
-        
-    def _init_weights(self, module: nn.Module):
-        super()._init_weights(module)
-        if isinstance(module, DBT023Encoder):
-            module.init_dr_head()
             
-    def remap_post_init(self):
+    def _tie_weights(self):
         self.distilbert = self.encoder.distilbert
 
     def forward(
