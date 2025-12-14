@@ -16,7 +16,7 @@ from fastcore.meta import *
 from .torch_core import *
 from .core import *
 
-# %% ../nbs/04_losses.ipynb 37
+# %% ../nbs/04_losses.ipynb 38
 def get_sparse_matrix(data_idx:torch.Tensor, n_data:torch.Tensor, scores:Optional[torch.Tensor]=None, 
                       size:Optional[Tuple]=None):
     data_ptr = torch.cat([torch.zeros(1, device=n_data.device, dtype=n_data.dtype), n_data.cumsum(0)])
@@ -29,13 +29,13 @@ def get_sparse_matrix(data_idx:torch.Tensor, n_data:torch.Tensor, scores:Optiona
     )
     
 
-# %% ../nbs/04_losses.ipynb 38
+# %% ../nbs/04_losses.ipynb 39
 def mix_classes(class_a, class_b, name=None):
     name = name or f"{class_a.__name__}And{class_b.__name__}"
     return type(name, (class_a, class_b), {})
     
 
-# %% ../nbs/04_losses.ipynb 40
+# %% ../nbs/04_losses.ipynb 41
 class BaseLoss(nn.Module):
 
     def __init__(
@@ -55,7 +55,7 @@ class BaseLoss(nn.Module):
         self.reduce = v
         
 
-# %% ../nbs/04_losses.ipynb 42
+# %% ../nbs/04_losses.ipynb 43
 class MultiCrossEntropy(BaseLoss):
 
     def __init__(
@@ -70,7 +70,7 @@ class MultiCrossEntropy(BaseLoss):
         self.o = torch.ones(tn_targ, dtype=torch.int64) if tn_targ is not None else None
         
 
-# %% ../nbs/04_losses.ipynb 45
+# %% ../nbs/04_losses.ipynb 46
 @patch
 def forward(
     cls:MultiCrossEntropy,
@@ -122,7 +122,7 @@ def forward(
     else: raise ValueError(f'`reduction` cannot be `{cls.reduction}`')
 
 
-# %% ../nbs/04_losses.ipynb 64
+# %% ../nbs/04_losses.ipynb 65
 class Calibration(BaseLoss):
 
     def __init__(
@@ -137,7 +137,7 @@ class Calibration(BaseLoss):
         store_attr('margin,tau,n_negatives,apply_softmax')
         
 
-# %% ../nbs/04_losses.ipynb 65
+# %% ../nbs/04_losses.ipynb 66
 @patch
 def forward(
     cls:Calibration,
@@ -181,7 +181,7 @@ def forward(
     else: raise ValueError(f'`reduction` cannot be `{cls.reduction}`')
         
 
-# %% ../nbs/04_losses.ipynb 88
+# %% ../nbs/04_losses.ipynb 89
 class LossOperations:
 
     # BaseMultiTriplet
@@ -276,7 +276,7 @@ class LossOperations:
     def masked_inclusive_topk(values:torch.Tensor, mask:torch.Tensor, k:int):
         biased_vals = torch.where(mask.bool(), torch.finfo(values.dtype).max, values)
         
-        provisional_vals, provisional_idx = torch.topk(biased_vals, k, dim=-1)
+        provisional_vals, provisional_idx = torch.topk(biased_vals, min(k, values.shape[-1]), dim=-1)
         topk_vals = values.gather(1, provisional_idx)
         
         sorted_vals, sort_idx = torch.sort(topk_vals, descending=True, dim=-1)
@@ -285,7 +285,7 @@ class LossOperations:
         return sorted_vals, sorted_idx
         
 
-# %% ../nbs/04_losses.ipynb 90
+# %% ../nbs/04_losses.ipynb 91
 class BaseMultiTriplet(BaseLoss, LossOperations):
 
     def __init__(
@@ -371,7 +371,7 @@ class BaseMultiTriplet(BaseLoss, LossOperations):
         else: raise ValueError(f'`reduction` cannot be `{self.reduction}`')
     
 
-# %% ../nbs/04_losses.ipynb 92
+# %% ../nbs/04_losses.ipynb 93
 class MultiTriplet(BaseMultiTriplet):
 
     def forward(
@@ -392,7 +392,7 @@ class MultiTriplet(BaseMultiTriplet):
                                apply_softmax=apply_softmax, n_negatives=n_negatives, **kwargs)
         
 
-# %% ../nbs/04_losses.ipynb 93
+# %% ../nbs/04_losses.ipynb 94
 class MultiTripletFromInBatchScores(BaseMultiTriplet):
 
     def forward(
@@ -501,7 +501,7 @@ class BaseWithNegatives:
 # %% ../nbs/04_losses.ipynb 109
 MultiTripletWithNegatives = mix_classes(BaseWithNegatives, MultiTripletFromScores)
 
-# %% ../nbs/04_losses.ipynb 121
+# %% ../nbs/04_losses.ipynb 120
 class MultiRankingFromScores(BaseLoss, LossOperations):
 
     def __init__(
@@ -546,10 +546,10 @@ class MultiRankingFromScores(BaseLoss, LossOperations):
         else: raise ValueError(f'`reduction` cannot be `{self.reduction}`')
         
 
-# %% ../nbs/04_losses.ipynb 122
+# %% ../nbs/04_losses.ipynb 121
 MultiRankingWithNegatives = mix_classes(BaseWithNegatives, MultiRankingFromScores)
 
-# %% ../nbs/04_losses.ipynb 129
+# %% ../nbs/04_losses.ipynb 128
 class MultiSoupConFromScores(BaseLoss, LossOperations):
 
     def __init__(
@@ -603,10 +603,10 @@ class MultiSoupConFromScores(BaseLoss, LossOperations):
         else: raise ValueError(f'`reduction` cannot be `{self.reduction}`')
         
 
-# %% ../nbs/04_losses.ipynb 130
+# %% ../nbs/04_losses.ipynb 129
 MultiSoupConWithNegatives = mix_classes(BaseWithNegatives, MultiSoupConFromScores)
 
-# %% ../nbs/04_losses.ipynb 136
+# %% ../nbs/04_losses.ipynb 135
 class MarginMSEWithNegatives(BaseLoss):
 
     def forward(
@@ -643,7 +643,7 @@ class MarginMSEWithNegatives(BaseLoss):
         return F.mse_loss(margins.flatten(), labels.flatten())
         
 
-# %% ../nbs/04_losses.ipynb 151
+# %% ../nbs/04_losses.ipynb 150
 class Cosine(BaseLoss):
 
     def __init__(self, 
@@ -651,7 +651,7 @@ class Cosine(BaseLoss):
         super().__init__(**kwargs)
         
 
-# %% ../nbs/04_losses.ipynb 152
+# %% ../nbs/04_losses.ipynb 151
 @patch
 def forward(cls:Cosine, 
             inp:torch.FloatTensor,
@@ -676,7 +676,7 @@ def forward(cls:Cosine,
     else: raise ValueError(f'`reduction` cannot be `{cls.reduction}`')
         
 
-# %% ../nbs/04_losses.ipynb 158
+# %% ../nbs/04_losses.ipynb 157
 class Entropy(BaseLoss):
 
     def __init__(self, 
@@ -689,7 +689,7 @@ class Entropy(BaseLoss):
         store_attr('margin,tau,apply_softmax,n_negatives')
         
 
-# %% ../nbs/04_losses.ipynb 159
+# %% ../nbs/04_losses.ipynb 158
 @patch
 def forward(cls:Entropy, 
             inp:torch.FloatTensor,
@@ -724,7 +724,7 @@ def forward(cls:Entropy,
     else: raise ValueError(f'`reduction` cannot be `{cls.reduction}`')
         
 
-# %% ../nbs/04_losses.ipynb 165
+# %% ../nbs/04_losses.ipynb 164
 class Triplet(BaseLoss):
 
     def __init__(self, 
@@ -737,7 +737,7 @@ class Triplet(BaseLoss):
         store_attr('margin,tau,apply_softmax,n_negatives')
 
 
-# %% ../nbs/04_losses.ipynb 166
+# %% ../nbs/04_losses.ipynb 165
 @patch
 def forward(cls:Triplet, 
             inp:torch.FloatTensor, 

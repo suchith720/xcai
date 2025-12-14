@@ -250,8 +250,7 @@ class DBT009(DistilBertPreTrainedModel):
             'margin': config.margin, 'n_negatives': config.num_negatives, 'tau': config.tau, 
             'apply_softmax': config.apply_softmax, 'reduce': config.reduction,
         }
-        self.loss_fn = get_loss_function(config.loss_function)(**loss_kwargs)
-        
+        self.loss_fn = get_loss_function(config.loss_function)(**loss_kwargs)        
         self.post_init(); self.remap_post_init()
 
     def _init_weights(self, module: nn.Module):
@@ -307,7 +306,7 @@ class DBT009(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 48
+# %% ../../nbs/14_models.PPP0XX.ipynb 46
 class DBT010Encoder(DBT009Encoder):
     
     def __init__(self, config, repr_type:Optional[str]='pool', *args, **kwargs):
@@ -342,7 +341,7 @@ class DBT010Encoder(DBT009Encoder):
         return o, F.normalize(Pooling.mean_pooling(rep, attention_mask), dim=1)
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 49
+# %% ../../nbs/14_models.PPP0XX.ipynb 47
 class DBT010(DBT009):
     
     def __init__(self, config, repr_type:Optional['str']='pool', *args, **kwargs):
@@ -400,7 +399,7 @@ class DBT010(DBT009):
         )
             
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 57
+# %% ../../nbs/14_models.PPP0XX.ipynb 55
 class DBT011(DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -477,7 +476,7 @@ class DBT011(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 63
+# %% ../../nbs/14_models.PPP0XX.ipynb 61
 class DBT012Encoder(DBT009Encoder):
 
     @delegates(BertModel.__call__)
@@ -498,7 +497,7 @@ class DBT012Encoder(DBT009Encoder):
         return o, F.log_softmax(Pooling.mean_pooling(rep, attention_mask), dim=-1)
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 64
+# %% ../../nbs/14_models.PPP0XX.ipynb 62
 class DBT012(DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -574,7 +573,7 @@ class DBT012(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 70
+# %% ../../nbs/14_models.PPP0XX.ipynb 68
 class DBT022(DBT009):
     
     def __init__(self, config, c_lw:Optional[float]=0.1, *args, **kwargs):
@@ -628,7 +627,7 @@ class DBT022(DBT009):
             lbl2data_repr=lbl2data_repr,
         )
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 78
+# %% ../../nbs/14_models.PPP0XX.ipynb 76
 class DBT013Encoder(DistilBertForMaskedLM):
     
     def __init__(self, config):
@@ -667,7 +666,7 @@ class DBT013Encoder(DistilBertForMaskedLM):
         return o,logits,rep
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 79
+# %% ../../nbs/14_models.PPP0XX.ipynb 77
 class DBT013(DistilBertForMaskedLM):
     use_generation,use_representation = True,True
     _tied_weights_keys = ["encoder.distilbert", "encoder.vocab_transform", "encoder.vocab_layer_norm", "encoder.vocab_projector"]
@@ -750,7 +749,7 @@ class DBT013(DistilBertForMaskedLM):
         )
     
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 85
+# %% ../../nbs/14_models.PPP0XX.ipynb 83
 class DBT014Encoder(DBT013Encoder):
     
     def __init__(self, config, *args, **kwargs):
@@ -780,7 +779,7 @@ class DBT014Encoder(DBT013Encoder):
         return o,logits,rep
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 86
+# %% ../../nbs/14_models.PPP0XX.ipynb 84
 class DBT014(DBT013):
     
     def __init__(self, config, *args, **kwargs):
@@ -837,7 +836,7 @@ class DBT014(DBT013):
         )
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 92
+# %% ../../nbs/14_models.PPP0XX.ipynb 90
 class DBT017(DBT013):
     
     @delegates(DBT013.__init__)
@@ -930,7 +929,7 @@ class DBT017(DBT013):
         )
     
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 99
+# %% ../../nbs/14_models.PPP0XX.ipynb 97
 class DBT021Encoder(DistilBertPreTrainedModel):
     
     def __init__(
@@ -1002,7 +1001,7 @@ class DBT021Encoder(DistilBertPreTrainedModel):
         return o, F.normalize(Pooling.mean_pooling(rep, attention_mask), dim=1)
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 100
+# %% ../../nbs/14_models.PPP0XX.ipynb 98
 class DBT021(DBT010):
 
     @delegates(DBT010.__init__)
@@ -1120,7 +1119,7 @@ class DBT021(DBT010):
         )
     
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 106
+# %% ../../nbs/14_models.PPP0XX.ipynb 104
 class Fuser(nn.Module):
     
     def __init__(self, config: PretrainedConfig):
@@ -1176,7 +1175,7 @@ class Fuser(nn.Module):
         else: return (o,)
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 115
+# %% ../../nbs/14_models.PPP0XX.ipynb 113
 class DBT018Encoder(DBT013Encoder):
     
     def __init__(self, config, tn_meta:Optional[int]=None):
@@ -1271,7 +1270,7 @@ class DBT018Encoder(DBT013Encoder):
         return o,logits,rep
     
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 116
+# %% ../../nbs/14_models.PPP0XX.ipynb 114
 class DBT018(DBT013):
     
     @delegates(DBT013.__init__)
@@ -1347,7 +1346,7 @@ class DBT018(DBT013):
         )
     
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 125
+# %% ../../nbs/14_models.PPP0XX.ipynb 123
 class DBT020(DBT018):
     
     @delegates(DBT018.__init__)
@@ -1452,7 +1451,7 @@ class DBT020(DBT018):
         )
     
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 134
+# %% ../../nbs/14_models.PPP0XX.ipynb 132
 class DBT023Encoder(DistilBertPreTrainedModel):
     
     def __init__(
@@ -1493,7 +1492,7 @@ class DBT023Encoder(DistilBertPreTrainedModel):
         return o, F.normalize(rep, dim=1) if self.config.normalize else rep
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 135
+# %% ../../nbs/14_models.PPP0XX.ipynb 133
 class DBT023(DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -1572,7 +1571,7 @@ class DBT023(DistilBertPreTrainedModel):
         )
         
 
-# %% ../../nbs/14_models.PPP0XX.ipynb 144
+# %% ../../nbs/14_models.PPP0XX.ipynb 142
 class DBT024(DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
