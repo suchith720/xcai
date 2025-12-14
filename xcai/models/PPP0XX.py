@@ -256,6 +256,11 @@ class DBT009(DistilBertPreTrainedModel):
         }
         self.loss_fn = get_loss_function(config.loss_function)(**loss_kwargs)        
         self.post_init()
+
+    def _init_weights(self, module: nn.Module):
+        super()._init_weights(module)
+        if isinstance(module, BaseLoss):
+            module.init_weights()
         
     def _tie_weights(self):
         self.distilbert = self.encoder.distilbert
