@@ -422,8 +422,9 @@ def raw_mapping(src_file, targ_file):
 
 
 # %% ../nbs/36_main.ipynb 26
-def load_model(output_dir:str, model_fn:Callable, model_args:Dict, init_fn:Callable, init_args:Optional[Dict]=dict(), 
-               do_inference:Optional[bool]=False, use_pretrained:Optional[bool]=False, type:Optional[str]='best'):
+def load_model(output_dir:str, model_fn:Callable, model_args:Dict, init_fn:Optional[Callable]=None, 
+               init_args:Optional[Dict]=dict(), do_inference:Optional[bool]=False, use_pretrained:Optional[bool]=False, 
+               type:Optional[str]='best'):
     if do_inference:
         os.environ['WANDB_MODE'] = 'disabled'
         fname = get_best_model(output_dir) if type == "best" else get_last_model(output_dir)
@@ -431,7 +432,7 @@ def load_model(output_dir:str, model_fn:Callable, model_args:Dict, init_fn:Calla
 
     model = model_fn(**model_args)
     
-    if not do_inference or use_pretrained: 
+    if (not do_inference or use_pretrained) and (init_fn is not None): 
         init_fn(model, **init_args)
 
     return model
