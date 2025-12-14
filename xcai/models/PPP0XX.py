@@ -96,7 +96,6 @@ class DBTConfig(DistilBertConfig):
         normalize: Optional[bool] = False,
         use_layer_norm: Optional[bool] = True,
 
-        
         use_encoder_parallel: Optional[bool] = False,
         loss_function: Optional[str] = "triplet",
         
