@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['UPMAConfig', 'get_memory_module', 'align_tensor', 'alignment_mask', 'UPMAEncoderOutput', 'UPMAModelOutput', 'FFN',
-           'UPMAEmbeddingMemory', 'Parameters', 'UPMAModel', 'UPMAEncoder', 'UPA000']
+           'UPMAEmbeddingMemory', 'UPMAEncoderMemory', 'Parameters', 'UPMAModel', 'UPMAEncoder', 'UPA000']
 
 # %% ../../nbs/41_models.upma.ipynb 3
 import torch, torch.nn as nn, re, os
@@ -237,7 +237,185 @@ class UPMAEmbeddingMemory(nn.Module):
         return self.out_ffn(embeddings), mask # (bs, num_input_metadata, dim), (bs, num_input_metadata)
         
 
-# %% ../../nbs/41_models.upma.ipynb 38
+# %% ../../nbs/41_models.upma.ipynb 40
+class UPMAEncoderMemory(PreTrainedModel):
+    config: UPMAConfig
+    load_tf_weights = None
+    base_model_prefix = "distilbert"
+    supports_gradient_checkpointing = True
+    _supports_flash_attn = True
+    _supports_sdpa = True
+    
+    def __init__(self, config: PretrainedConfig):
+        super().__init__(config)
+        self.embeddings = Embeddings(config)
+        self.n_layers = config.n_layers
+        self.layer = nn.ModuleList([TransformerBlock(config) for _ in range(config.n_layers)])
+        self.gradient_checkpointing = False
+
+        self._use_flash_attention_2 = config._attn_implementation == "flash_attention_2"
+        self._use_sdpa = config._attn_implementation == "sdpa"
+
+    def _init_weights(self, module: nn.Module):
+        if isinstance(module, nn.Linear):
+            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            if module.bias is not None:
+                module.bias.data.zero_()
+        elif isinstance(module, nn.Embedding):
+            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            if module.padding_idx is not None:
+                module.weight.data[module.padding_idx].zero_()
+        elif isinstance(module, nn.LayerNorm):
+            module.bias.data.zero_()
+            module.weight.data.fill_(1.0)
+        elif isinstance(module, Embeddings) and self.config.sinusoidal_pos_embds:
+            create_sinusoidal_embeddings(
+                self.config.max_position_embeddings, self.config.dim, module.position_embeddings.weight
+            )
+            
+    def get_position_embeddings(self) -> nn.Embedding:
+        return self.embeddings.position_embeddings
+
+    def resize_position_embeddings(self, new_num_position_embeddings: int):
+        num_position_embeds_diff = new_num_position_embeddings - self.config.max_position_embeddings
+
+        # no resizing needs to be done if the length stays the same
+        if num_position_embeds_diff == 0:
+            return
+
+        logger.info(f"Setting `config.max_position_embeddings={new_num_position_embeddings}`...")
+        self.config.max_position_embeddings = new_num_position_embeddings
+
+        old_position_embeddings_weight = self.embeddings.position_embeddings.weight.clone()
+
+        self.embeddings.position_embeddings = nn.Embedding(self.config.max_position_embeddings, self.config.dim)
+
+        if self.config.sinusoidal_pos_embds:
+            create_sinusoidal_embeddings(
+                n_pos=self.config.max_position_embeddings, dim=self.config.dim, out=self.position_embeddings.weight
+            )
+        else:
+            with torch.no_grad():
+                if num_position_embeds_diff > 0:
+                    self.embeddings.position_embeddings.weight[:-num_position_embeds_diff] = nn.Parameter(
+                        old_position_embeddings_weight
+                    )
+                else:
+                    self.embeddings.position_embeddings.weight = nn.Parameter(
+                        old_position_embeddings_weight[:num_position_embeds_diff]
+                    )
+        # move position_embeddings to correct device
+        self.embeddings.position_embeddings.to(self.device)
+
+    def get_input_embeddings(self) -> nn.Embedding:
+        return self.embeddings.word_embeddings
+
+    def set_input_embeddings(self, new_embeddings: nn.Embedding):
+        self.embeddings.word_embeddings = new_embeddings
+
+    def _prune_heads(self, heads_to_prune: dict[int, list[list[int]]]):
+        for layer, heads in heads_to_prune.items():
+            self.transformer.layer[layer].attention.prune_heads(heads)
+
+    def forward(
+        self,
+        input_ids: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        head_mask: Optional[torch.Tensor] = None,
+        inputs_embeds: Optional[torch.Tensor] = None,
+        
+        metadata_idx: Optional[torch.Tensor] = None,
+        metadata_input_ids: Optional[torch.Tensor] = None,
+        metadata_attention_mask: Optional[torch.Tensor] = None,
+        metadata_scores: Optional[torch.Tensor] = None,
+        metadata_data2ptr: Optional[torch.Tensor] = None,
+        metadata_embeds: Optional[torch.Tensor] = None,
+        inject_memory: Optional[bool] = True,
+        
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+    ) -> Union[BaseModelOutput, tuple[torch.Tensor, ...]]:
+         
+        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+        output_hidden_states = (
+            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
+        )
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        if input_ids is not None and inputs_embeds is not None:
+            raise ValueError("You cannot specify both input_ids and inputs_embeds at the same time")
+        elif input_ids is not None:
+            self.warn_if_padding_and_no_attention_mask(input_ids, attention_mask)
+            input_shape = input_ids.size()
+        elif inputs_embeds is not None:
+            input_shape = inputs_embeds.size()[:-1]
+        else:
+            raise ValueError("You have to specify either input_ids or inputs_embeds")
+
+        device = input_ids.device if input_ids is not None else inputs_embeds.device
+
+        head_mask_is_none = head_mask is None
+        # Prepare head mask if needed
+        head_mask = self.get_head_mask(head_mask, self.config.num_hidden_layers)
+
+        embeddings = self.embeddings(input_ids, inputs_embeds)  # (bs, seq_length, dim)
+        
+        def _prepare_attention_mask(attention_mask, input_shape):
+            if self._use_flash_attention_2:
+                attention_mask = attention_mask if (attention_mask is not None and 0 in attention_mask) else None
+            else:
+                if attention_mask is None:
+                    attention_mask = torch.ones(input_shape, device=device)  # (bs, seq_length)
+    
+                if self._use_sdpa and head_mask_is_none and not output_attentions:
+                    attention_mask = _prepare_4d_attention_mask_for_sdpa(
+                        attention_mask, embeddings.dtype, tgt_len=input_shape[1]
+                    )
+            return attention_mask
+
+        attention_mask = _prepare_attention_mask(attention_mask, input_shape)
+                
+        all_hidden_states = () if output_hidden_states else None
+        all_attentions = () if output_attentions else None
+
+        hidden_state = embeddings
+        for i, layer_module in enumerate(self.layer):
+            if output_hidden_states:
+                all_hidden_states = all_hidden_states + (hidden_state,)
+                
+            layer_outputs = layer_module(
+                hidden_state,
+                attention_mask,
+                head_mask[i],
+                output_attentions,
+            )
+
+            hidden_state = layer_outputs[-1]
+
+            if output_attentions:
+                if len(layer_outputs) != 2:
+                    raise ValueError(f"The length of the layer_outputs should be 2, but it is {len(layer_outputs)}")
+
+                attentions = layer_outputs[0]
+                all_attentions = all_attentions + (attentions,)
+            else:
+                if len(layer_outputs) != 1:
+                    raise ValueError(f"The length of the layer_outputs should be 1, but it is {len(layer_outputs)}")
+
+        # Add last layer
+        if output_hidden_states:
+            all_hidden_states = all_hidden_states + (hidden_state,)
+
+        if not return_dict:
+            return tuple(v for v in [hidden_state, all_hidden_states, all_attentions] if v is not None)
+            
+        return BaseModelOutput(
+            last_hidden_state=hidden_state, hidden_states=all_hidden_states, attentions=all_attentions
+        )
+        
+
+# %% ../../nbs/41_models.upma.ipynb 44
 class Parameters:
     
     @staticmethod
@@ -273,7 +451,7 @@ class Parameters:
         return inputs
         
 
-# %% ../../nbs/41_models.upma.ipynb 44
+# %% ../../nbs/41_models.upma.ipynb 50
 class UPMAModel(PreTrainedModel):
     config: UPMAConfig
     load_tf_weights = None
@@ -472,7 +650,7 @@ class UPMAModel(PreTrainedModel):
         )
         
 
-# %% ../../nbs/41_models.upma.ipynb 52
+# %% ../../nbs/41_models.upma.ipynb 58
 class UPMAEncoder(UPMAModel):
 
     @classmethod
@@ -601,7 +779,7 @@ class UPMAEncoder(UPMAModel):
         return UPMAEncoderOutput(repr=data_repr, **output)
         
 
-# %% ../../nbs/41_models.upma.ipynb 62
+# %% ../../nbs/41_models.upma.ipynb 68
 class UPA000(PreTrainedModel):
     
     def __init__(
