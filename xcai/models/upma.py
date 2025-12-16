@@ -727,7 +727,7 @@ class UPMAModel(PreTrainedModel):
         )
         
 
-# %% ../../nbs/41_models.upma.ipynb 66
+# %% ../../nbs/41_models.upma.ipynb 67
 class UPMAEncoder(UPMAModel):
 
     @classmethod
@@ -862,7 +862,7 @@ class UPMAEncoder(UPMAModel):
         return UPMAEncoderOutput(repr=data_repr, **output)
         
 
-# %% ../../nbs/41_models.upma.ipynb 76
+# %% ../../nbs/41_models.upma.ipynb 77
 class UPA000(PreTrainedModel):
     
     def __init__(
