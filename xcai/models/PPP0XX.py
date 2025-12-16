@@ -204,6 +204,7 @@ class DBT009Encoder(DistilBertPreTrainedModel):
     
     def __init__(self, config, *args, **kwargs):
         super().__init__(config, *args, **kwargs)
+        self.config = config
         self.distilbert = DistilBertModel(config)
         self.dr_transform = nn.Linear(config.dim, config.dim)
         self.dr_layer_norm = nn.LayerNorm(config.dim, eps=1e-6)
@@ -234,7 +235,8 @@ class DBT009Encoder(DistilBertPreTrainedModel):
         rep = self.dr_transform(o[0])
         rep = self.dr_layer_norm(rep)
         rep = self.dr_projector(rep)
-        return o, F.normalize(Pooling.mean_pooling(rep, attention_mask), dim=1)
+        rep = Pooling.mean_pooling(rep, attention_mask)
+        return o, F.normalize(rep, dim=1) if self.config.normalize else rep
     
 
 # %% ../../nbs/14_models.PPP0XX.ipynb 39
@@ -1593,8 +1595,12 @@ class DBT024(DistilBertPreTrainedModel):
             'apply_softmax': config.apply_softmax, 'reduce': config.reduction,
         }
         self.loss_fn = get_loss_function(config.loss_function)(**loss_kwargs)
-        
-        self.post_init(); self.remap_post_init()
+        self.post_init()
+
+    def _init_weights(self, module: nn.Module):
+        super()._init_weights(module)
+        if isinstance(module, BaseLoss):
+            module.init_weights()
             
     def _tie_weights(self):
         self.distilbert = self.encoder.distilbert

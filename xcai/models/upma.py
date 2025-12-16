@@ -5,12 +5,12 @@ __all__ = ['UPMAConfig', 'get_memory_module', 'align_tensor', 'alignment_mask', 
            'UPMAEmbeddingMemory', 'UPMAEncoderMemory', 'Parameters', 'UPMAModel', 'UPMAEncoder', 'UPA000']
 
 # %% ../../nbs/41_models.upma.ipynb 3
-import torch, torch.nn as nn, re, os
+import torch, torch.nn as nn, re, os, numpy as np
 from tqdm.auto import tqdm
 from dataclasses import dataclass
 from torch.nn.parallel import DataParallel
 from torch.utils.data import DataLoader
-from typing import Optional, Union, Tuple, Any, Dict, Sequence
+from typing import Optional, Union, Tuple, Any, Dict, Sequence, List
 
 from transformers import DistilBertConfig, DistilBertModel, PretrainedConfig, PreTrainedModel
 from transformers.modeling_outputs import BaseModelOutput, ModelOutput
@@ -31,11 +31,14 @@ class UPMAConfig(DistilBertConfig):
 
     def __init__(
         self,
+        memory_module_names: Optional[Union[str, List[str]]] = "embeddings",
+        memory_injection_layers: Optional[Union[int, List[int]]] = None,
+        
         num_total_metadata: Optional[int] = None,
         num_input_metadata: Optional[int] = 3,
         metadata_dropout: Optional[float] = 0.1,
-        memory_injection_layer: Optional[int] = None,
-        memory_module_name: Optional[str] = "embeddings",
+        
+        n_memory_layers: Optional[int] = 3,
         
         data_aug_meta_prefix: Optional[str] = None, 
         lbl2data_aug_meta_prefix: Optional[str] = None,
@@ -64,7 +67,9 @@ class UPMAConfig(DistilBertConfig):
         
         **kwargs,
     ):
-        store_attr('num_total_metadata,num_input_metadata,metadata_dropout,memory_module_name')
+        store_attr('memory_module_names,memory_injection_layers')
+        store_attr('num_total_metadata,num_input_metadata,metadata_dropout')
+        store_attr('n_memory_layers')
         store_attr('data_aug_meta_prefix,lbl2data_aug_meta_prefix')
         store_attr('data_inject_memory,lbl2data_inject_memory,data_repr_pooling')
         store_attr('margin,num_negatives,tau,apply_softmax')
@@ -74,17 +79,30 @@ class UPMAConfig(DistilBertConfig):
         
         super().__init__(**kwargs)
         
-        if memory_injection_layer is None: self.memory_injection_layer = self.n_layers
-            
-        assert self.memory_injection_layer <= self.n_layers, (
-            f"Invalid memory injection layer: {self.memory_injection_layer}. "
-            f"it must be less than the total number of layers ({self.n_layers})."
+        if isinstance(memory_module_names, str): self.memory_module_names = [memory_module_names]
+        if memory_injection_layers is None: 
+            self.memory_injection_layers = [self.n_layers] * len(self.memory_module_names)
+
+        assert len(self.memory_injection_layers) == len(self.memory_module_names), (
+            f"Mismatch in configuration: expected equal lengths, but got "
+            f"{len(self.memory_injection_layers)} injection layers and "
+            f"{len(self.memory_module_names)} module names."
+        )
+
+        idx = np.argsort(self.memory_injection_layers)
+        self.memory_injection_layers = [self.memory_injection_layers[i] for i in idx]
+        self.memory_module_names = [self.memory_module_names[i] for i in idx]
+        
+        assert np.all([n <= self.n_layers and n > 0 for n in self.memory_injection_layers]), (
+            f"Invalid memory injection layer: {self.memory_injection_layers}. "
+            f"It must be less than or equal to the total number of layers ({self.n_layers}) and greater than zero."
         )
         
 
-# %% ../../nbs/41_models.upma.ipynb 18
+# %% ../../nbs/41_models.upma.ipynb 19
 def get_memory_module(name: str):
     if name == "embeddings": return UPMAEmbeddingMemory
+    elif name == "encoder": return UPMAEncoderMemory
     else: raise ValueError(f"Invalid memory module: {name}")
 
 def align_tensor(tensor:torch.Tensor, indptr:torch.Tensor, pad_tok:Optional[Union[int,float]]=0):
@@ -115,7 +133,7 @@ def alignment_mask(indptr:torch.Tensor):
     return mask
 
 
-# %% ../../nbs/41_models.upma.ipynb 24
+# %% ../../nbs/41_models.upma.ipynb 25
 @dataclass
 class UPMAEncoderOutput(BaseModelOutput):
     repr: Optional[torch.FloatTensor] = None
@@ -127,7 +145,7 @@ class UPMAModelOutput(ModelOutput):
     lbl2data_repr: Optional[torch.FloatTensor] = None
     
 
-# %% ../../nbs/41_models.upma.ipynb 28
+# %% ../../nbs/41_models.upma.ipynb 29
 class FFN(nn.Module):
     def __init__(
         self, 
@@ -156,7 +174,7 @@ class FFN(nn.Module):
         return x
         
 
-# %% ../../nbs/41_models.upma.ipynb 31
+# %% ../../nbs/41_models.upma.ipynb 32
 class UPMAEmbeddingMemory(nn.Module):
     
     def __init__(
@@ -176,6 +194,15 @@ class UPMAEmbeddingMemory(nn.Module):
         self.register_buffer(
             "position_ids", torch.arange(config.num_input_metadata).expand((1, -1)), persistent=False
         )
+
+    @classmethod
+    def from_pretrained(
+        cls, 
+        config:PretrainedConfig
+    ):
+        model = cls(config)
+        model.eval()
+        return model
         
     def get_metadata_embeddings(self) -> torch.Tensor:
         return self.metadata_embeddings.weight
@@ -192,7 +219,7 @@ class UPMAEmbeddingMemory(nn.Module):
     def forward(
         self,
         input_idx: torch.Tensor,
-        embeds: Optional[torch.Tensor] = None,
+        input_embeds: Optional[torch.Tensor] = None,
         scores: Optional[torch.Tensor] = None,
         indptr: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
@@ -205,8 +232,8 @@ class UPMAEmbeddingMemory(nn.Module):
             input_idx, mask = align_tensor(input_idx, indptr, pad_tok=self.config.num_total_metadata) # (bs, num_input_metadata)
             embeds = self.metadata_embeddings(input_idx) # (bs, num_input_metadata, dim)
         else:
-            assert embeds is not None, "Invalid input: both `input_idx` and `embeds` cannot be None." 
-            embeds, mask = align_tensor(embeds, indptr)
+            assert input_embeds is not None, "Invalid input: both `input_idx` and `input_embeds` cannot be None." 
+            embeds, mask = align_tensor(input_embeds, indptr)
             
         if embeds.size(1) != self.config.num_input_metadata:
             raise ValueError(
@@ -234,7 +261,7 @@ class UPMAEmbeddingMemory(nn.Module):
             
         embeddings = self.LayerNorm(embeddings)
         embeddings = self.dropout(embeddings)
-        return self.out_ffn(embeddings), mask # (bs, num_input_metadata, dim), (bs, num_input_metadata)
+        return UPMAEncoderOutput(repr=self.out_ffn(embeddings)), mask # (bs, num_input_metadata, dim), (bs, num_input_metadata)
         
 
 # %% ../../nbs/41_models.upma.ipynb 40
@@ -249,8 +276,8 @@ class UPMAEncoderMemory(PreTrainedModel):
     def __init__(self, config: PretrainedConfig):
         super().__init__(config)
         self.embeddings = Embeddings(config)
-        self.n_layers = config.n_layers
-        self.layer = nn.ModuleList([TransformerBlock(config) for _ in range(config.n_layers)])
+        self.n_layers = config.n_memory_layers
+        self.layer = nn.ModuleList([TransformerBlock(config) for _ in range(config.n_memory_layers)])
         self.gradient_checkpointing = False
 
         self._use_flash_attention_2 = config._attn_implementation == "flash_attention_2"
@@ -317,24 +344,57 @@ class UPMAEncoderMemory(PreTrainedModel):
         for layer, heads in heads_to_prune.items():
             self.transformer.layer[layer].attention.prune_heads(heads)
 
+    @classmethod
+    def from_pretrained(
+        cls,
+        config:PretrainedConfig,
+    ):  
+        src_model = DistilBertModel.from_pretrained('distilbert-base-uncased')
+        
+        targ_model = cls(config)
+        targ_model.init_weights()
+        targ_model.eval()
+        
+        src_sd, targ_sd = src_model.state_dict(), targ_model.state_dict()
+        src_keys, targ_keys = set(src_sd.keys()), set(targ_sd.keys())
+        
+        for k in src_keys.intersection(targ_keys):
+            assert targ_sd[k].shape == src_sd[k].shape, (
+                f"Shape mismatch at key '{k}'. "
+                f"Expected {targ_sd[k].shape}, but got {src_sd[k].shape} in source state_dict."
+            )
+            targ_sd[k].copy_(src_sd[k])
+
+        diff_keys = targ_keys.difference(src_keys)
+        transformer_keys = [k for k in src_keys if k.startswith("transformer")]
+        for k in transformer_keys:
+            targ_k = k.split('.', maxsplit=1)[1]
+            
+            if targ_k in targ_sd:
+                assert targ_sd[targ_k].shape == src_sd[k].shape, (
+                    f"Shape mismatch at key '{k}'. "
+                    f"Expected {targ_sd[targ_k].shape}, but got {src_sd[k].shape} in source state_dict."
+                )
+                
+                targ_sd[targ_k].copy_(src_sd[k])
+                diff_keys.remove(targ_k)
+
+        assert len(diff_keys) == 0, (
+            f"Initialization error: the following parameters were not initialized in the module: {diff_keys}"
+        )            
+        return targ_model
+
     def forward(
         self,
         input_ids: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
+        indptr: Optional[torch.Tensor] = None,
         head_mask: Optional[torch.Tensor] = None,
         inputs_embeds: Optional[torch.Tensor] = None,
-        
-        metadata_idx: Optional[torch.Tensor] = None,
-        metadata_input_ids: Optional[torch.Tensor] = None,
-        metadata_attention_mask: Optional[torch.Tensor] = None,
-        metadata_scores: Optional[torch.Tensor] = None,
-        metadata_data2ptr: Optional[torch.Tensor] = None,
-        metadata_embeds: Optional[torch.Tensor] = None,
-        inject_memory: Optional[bool] = True,
-        
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
+        **kwargs
     ) -> Union[BaseModelOutput, tuple[torch.Tensor, ...]]:
          
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
@@ -374,7 +434,7 @@ class UPMAEncoderMemory(PreTrainedModel):
                     )
             return attention_mask
 
-        attention_mask = _prepare_attention_mask(attention_mask, input_shape)
+        _attention_mask = _prepare_attention_mask(attention_mask, input_shape)
                 
         all_hidden_states = () if output_hidden_states else None
         all_attentions = () if output_attentions else None
@@ -386,7 +446,7 @@ class UPMAEncoderMemory(PreTrainedModel):
                 
             layer_outputs = layer_module(
                 hidden_state,
-                attention_mask,
+                _attention_mask,
                 head_mask[i],
                 output_attentions,
             )
@@ -403,6 +463,9 @@ class UPMAEncoderMemory(PreTrainedModel):
                 if len(layer_outputs) != 1:
                     raise ValueError(f"The length of the layer_outputs should be 1, but it is {len(layer_outputs)}")
 
+        repr = Pooling.mean_pooling(hidden_state, attention_mask)
+        repr, mask = align_tensor(repr, indptr, pad_tok=0.0)
+
         # Add last layer
         if output_hidden_states:
             all_hidden_states = all_hidden_states + (hidden_state,)
@@ -410,12 +473,13 @@ class UPMAEncoderMemory(PreTrainedModel):
         if not return_dict:
             return tuple(v for v in [hidden_state, all_hidden_states, all_attentions] if v is not None)
             
-        return BaseModelOutput(
-            last_hidden_state=hidden_state, hidden_states=all_hidden_states, attentions=all_attentions
+        output = UPMAEncoderOutput(
+            repr=repr, last_hidden_state=hidden_state, hidden_states=all_hidden_states, attentions=all_attentions,
         )
+        return output, mask
         
 
-# %% ../../nbs/41_models.upma.ipynb 44
+# %% ../../nbs/41_models.upma.ipynb 50
 class Parameters:
     
     @staticmethod
@@ -451,7 +515,7 @@ class Parameters:
         return inputs
         
 
-# %% ../../nbs/41_models.upma.ipynb 50
+# %% ../../nbs/41_models.upma.ipynb 56
 class UPMAModel(PreTrainedModel):
     config: UPMAConfig
     load_tf_weights = None
@@ -463,7 +527,7 @@ class UPMAModel(PreTrainedModel):
     def __init__(self, config: PretrainedConfig):
         super().__init__(config)
         self.embeddings = Embeddings(config)
-        self.memory_module = get_memory_module(config.memory_module_name)(config)
+        self.memory_modules = nn.ModuleList([get_memory_module(name).from_pretrained(config) for name in config.memory_module_names])
         
         self.n_layers = config.n_layers
         self.layer = nn.ModuleList([TransformerBlock(config) for _ in range(config.n_layers)])
@@ -582,15 +646,21 @@ class UPMAModel(PreTrainedModel):
         embeddings = self.embeddings(input_ids, inputs_embeds)  # (bs, seq_length, dim)
         
         if inject_memory:
-            memory_embeddings, memory_mask = self.memory_module(
-                input_idx = metadata_idx,
-                embeds = metadata_embeds,
-                scores = metadata_scores,
-                indptr = metadata_data2ptr,
-                input_ids = metadata_input_ids,
-                attention_mask = metadata_attention_mask,
-            ) # (bs, num_input_metadata, dim), (bs, num_input_metadata)
-            memory_mask = torch.cat([attention_mask, memory_mask], dim=1)
+            memory_embeddings, memory_mask, m_mask = [], [], attention_mask
+            
+            for module in self.memory_modules:
+                m_embeddings, _m_mask = module(
+                    input_idx = metadata_idx,
+                    input_embeds = metadata_embeds,
+                    scores = metadata_scores,
+                    indptr = metadata_data2ptr,
+                    input_ids = metadata_input_ids,
+                    attention_mask = metadata_attention_mask,
+                ) # (bs, num_input_metadata, dim), (bs, num_input_metadata)
+                m_mask = torch.cat([m_mask, _m_mask], dim=1)
+                
+                memory_embeddings.append(m_embeddings.repr)
+                memory_mask.append(m_mask)
             
         def _prepare_attention_mask(attention_mask, input_shape):
             if self._use_flash_attention_2:
@@ -611,13 +681,20 @@ class UPMAModel(PreTrainedModel):
         all_attentions = () if output_attentions else None
 
         hidden_state = embeddings
+        memory_injection_ctr, n_memory_injection_layer = 0, len(self.config.memory_injection_layers)
+        
         for i, layer_module in enumerate(self.layer):
             if output_hidden_states:
                 all_hidden_states = all_hidden_states + (hidden_state,)
 
-            if inject_memory and i+1 == self.config.memory_injection_layer:
-                hidden_state = torch.cat([hidden_state, memory_embeddings], dim=1)
-                attention_mask = _prepare_attention_mask(memory_mask, memory_mask.size())
+            if (
+                inject_memory and memory_injection_ctr < n_memory_injection_layer and 
+                i+1 == self.config.memory_injection_layers[memory_injection_ctr]
+            ):
+                m_embeddings, m_mask = memory_embeddings[memory_injection_ctr], memory_mask[memory_injection_ctr]
+                hidden_state = torch.cat([hidden_state, m_embeddings], dim=1)
+                attention_mask = _prepare_attention_mask(m_mask, m_mask.size())
+                memory_injection_ctr += 1
                 
             layer_outputs = layer_module(
                 hidden_state,
@@ -650,7 +727,7 @@ class UPMAModel(PreTrainedModel):
         )
         
 
-# %% ../../nbs/41_models.upma.ipynb 58
+# %% ../../nbs/41_models.upma.ipynb 66
 class UPMAEncoder(UPMAModel):
 
     @classmethod
@@ -694,17 +771,21 @@ class UPMAEncoder(UPMAModel):
             diff_keys.remove(targ_k)
 
         if config.initialize_memory_embeddings_from_injection_layer_mean:
-            targ_model.initialize_memory_embeddings_from_injection_layer_mean(
+            meta_embeds = targ_model.initialize_memory_embeddings_from_injection_layer_mean(
                 meta_dset,
                 save_file=config.metadata_embedding_file,
                 batch_size=batch_size,
                 use_encoder_parallel=config.use_encoder_parallel,
             )
             
+            for module in targ_model.encoder.memory_modules:
+                if isinstance(module, UPMAEmbeddingMemory): module.set_metadata_embeddings(meta_embeds)
+                    
         return targ_model
 
     def initialize_memory_embeddings_from_injection_layer_mean(
         self,
+        memory_injection_layer:int,
         meta_dset:Optional[Union[MainXCDataset, SMainXCDataset]] = None,
         save_file:Optional[str] = None,
         batch_size:Optional[int] = 100,
@@ -727,12 +808,14 @@ class UPMAEncoder(UPMAModel):
                 for k, v in batch.items(): 
                     if isinstance(v, torch.Tensor): batch[k] = v.to(device)
                 output = model(**batch, data_inject_memory=False, data_output_hidden_states=True)
-                embeds = output.hidden_states[self.config.memory_injection_layer - 1]
+                embeds = output.hidden_states[memory_injection_layer]
                 meta_embeds.append(Pooling.mean_pooling(embeds, batch['data_attention_mask']))
             meta_embeds = torch.cat(meta_embeds, dim=0)
-            if save_file is not None: torch.save(meta_embeds, save_file)
             
-        self.memory_module.set_metadata_embeddings(meta_embeds)
+            if save_file is not None:
+                os.makedirs(os.path.dirname(save_file), exist_ok=True)
+                torch.save(meta_embeds, save_file)
+                
         return meta_embeds
     
     def forward(
@@ -766,7 +849,7 @@ class UPMAEncoder(UPMAModel):
             embeds = output[0]
             if 'metadata_data2ptr' in meta_kwargs:
                 memory_mask = alignment_mask(meta_kwargs['metadata_data2ptr'])
-                attention_mask = torch.cat([data_attention_mask, memory_mask], dim=1)
+                attention_mask = torch.cat([data_attention_mask] + [memory_mask for _ in range(len(self.config.memory_injection_layers))], dim=1)
             else:
                 attention_mask = data_attention_mask
                 
@@ -779,7 +862,7 @@ class UPMAEncoder(UPMAModel):
         return UPMAEncoderOutput(repr=data_repr, **output)
         
 
-# %% ../../nbs/41_models.upma.ipynb 68
+# %% ../../nbs/41_models.upma.ipynb 76
 class UPA000(PreTrainedModel):
     
     def __init__(
@@ -849,13 +932,15 @@ class UPA000(PreTrainedModel):
         
         data_meta_kwargs = Parameters.from_aug_meta_prefix_for_feature('data', self.config.data_aug_meta_prefix, **kwargs)
         data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask, 
-                         data_aug_meta_prefix=self.config.data_aug_meta_prefix, data_inject_memory=self.config.data_inject_memory, **data_meta_kwargs)
+                         data_aug_meta_prefix=self.config.data_aug_meta_prefix, data_inject_memory=self.config.data_inject_memory, 
+                         data_output_hidden_states=True, **data_meta_kwargs)
         
         loss = None; lbl2data_o = UPMAEncoderOutput()
         if lbl2data_input_ids is not None:
             lbl2data_meta_kwargs = Parameters.from_aug_meta_prefix_for_feature('lbl', self.config.lbl2data_aug_meta_prefix, **kwargs)
             lbl2data_o = encoder(data_input_ids=lbl2data_input_ids, data_attention_mask=lbl2data_attention_mask, 
-                                 data_aug_meta_prefix=self.config.lbl2data_aug_meta_prefix, data_inject_memory=self.config.lbl2data_inject_memory, **lbl2data_meta_kwargs)
+                                 data_aug_meta_prefix=self.config.lbl2data_aug_meta_prefix, data_inject_memory=self.config.lbl2data_inject_memory, 
+                                 data_output_hidden_states=True, **lbl2data_meta_kwargs)
             
             loss = self.compute_loss(data_o.repr, lbl2data_o.repr,lbl2data_data2ptr,lbl2data_idx,
                                      plbl2data_data2ptr,plbl2data_idx)
