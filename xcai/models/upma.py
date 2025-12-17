@@ -788,16 +788,16 @@ class UPMAEncoder(UPMAModel):
             targ_sd[targ_k].copy_(src_sd[k])
             diff_keys.remove(targ_k)
 
-        if config.initialize_memory_embeddings_from_injection_layer_mean:
-            meta_embeds = targ_model.initialize_memory_embeddings_from_injection_layer_mean(
-                meta_dset,
-                save_file=config.metadata_embedding_file,
-                batch_size=batch_size,
-                use_encoder_parallel=config.use_encoder_parallel,
-            )
-            
-            for module in targ_model.encoder.memory_modules:
-                if isinstance(module, UPMAEmbeddingMemory): module.set_metadata_embeddings(meta_embeds)
+        for module,injection_layer in zip(targ_model.encoder.memory_modules, config.memory_injection_layers):
+            if config.initialize_memory_embeddings_from_injection_layer_mean and isinstance(module, UPMAEmbeddingMemory):
+                meta_embeds = targ_model.initialize_memory_embeddings_from_injection_layer_mean(
+                    memory_injection_layer=injection_layer,
+                    meta_dset=meta_dset,
+                    save_file=config.metadata_embedding_file,
+                    batch_size=batch_size,
+                    use_encoder_parallel=config.use_encoder_parallel,
+                )
+                module.set_metadata_embeddings(meta_embeds)
                     
         return targ_model
 
