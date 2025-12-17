@@ -894,6 +894,7 @@ class UPMAEncoder(UPMAModel):
 
 # %% ../../nbs/41_models.upma.ipynb 78
 class UPA000(PreTrainedModel):
+    use_generation, use_representation = False, True
     
     def __init__(
         self, 
