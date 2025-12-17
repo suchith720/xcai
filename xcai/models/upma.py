@@ -6,7 +6,7 @@ __all__ = ['UPMAConfig', 'get_memory_module', 'get_loss_function', 'align_tensor
            'UPMAEncoder', 'UPA000']
 
 # %% ../../nbs/41_models.upma.ipynb 3
-import torch, torch.nn as nn, re, os, numpy as np
+import torch, torch.nn as nn, re, os, numpy as np, gc
 from tqdm.auto import tqdm
 from dataclasses import dataclass
 from torch.nn.parallel import DataParallel
@@ -797,7 +797,8 @@ class UPMAEncoder(UPMAModel):
                     batch_size=batch_size,
                     use_encoder_parallel=config.use_encoder_parallel,
                 )
-                module.set_metadata_embeddings(meta_embeds)
+                with torch.no_grad():
+                    module.set_metadata_embeddings(meta_embeds)
                     
         return targ_model
 
@@ -821,15 +822,22 @@ class UPMAEncoder(UPMAModel):
             meta_embeds, device = [], "cuda:0" if use_encoder_parallel else next(self.parameters()).device
             meta_dl = DataLoader(meta_dset, batch_size=batch_size, collate_fn=identity_collate_fn)
     
-            model = XCDataParallel(module=self) if use_encoder_parallel else self
+            model = XCDataParallel(module=self.to(device)) if use_encoder_parallel else self
             with torch.no_grad():
                 for batch in tqdm(meta_dl):
                     for k, v in batch.items(): 
                         if isinstance(v, torch.Tensor): batch[k] = v.to(device)
                     output = model(**batch, data_inject_memory=False, data_output_hidden_states=True)
                     embeds = output.hidden_states[memory_injection_layer]
-                    meta_embeds.append(Pooling.mean_pooling(embeds, batch['data_attention_mask']))
+                    embeds = Pooling.mean_pooling(embeds, batch['data_attention_mask']).to("cpu")
+                    meta_embeds.append(embeds)
                 meta_embeds = torch.cat(meta_embeds, dim=0)
+
+            del output, embeds, batch
+            gc.collect()
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+            self.to("cpu")
             
             if save_file is not None:
                 os.makedirs(os.path.dirname(save_file), exist_ok=True)
