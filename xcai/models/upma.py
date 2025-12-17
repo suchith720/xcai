@@ -818,17 +818,18 @@ class UPMAEncoder(UPMAModel):
                     f"Please pass a valid dataset."
                 )
                 
-            meta_embeds, device = [], next(self.parameters()).device
+            meta_embeds, device = [], "cuda:0" if use_encoder_parallel else next(self.parameters()).device
             meta_dl = DataLoader(meta_dset, batch_size=batch_size, collate_fn=identity_collate_fn)
     
             model = XCDataParallel(module=self) if use_encoder_parallel else self
-            for batch in tqdm(meta_dl):
-                for k, v in batch.items(): 
-                    if isinstance(v, torch.Tensor): batch[k] = v.to(device)
-                output = model(**batch, data_inject_memory=False, data_output_hidden_states=True)
-                embeds = output.hidden_states[memory_injection_layer]
-                meta_embeds.append(Pooling.mean_pooling(embeds, batch['data_attention_mask']))
-            meta_embeds = torch.cat(meta_embeds, dim=0)
+            with torch.no_grad():
+                for batch in tqdm(meta_dl):
+                    for k, v in batch.items(): 
+                        if isinstance(v, torch.Tensor): batch[k] = v.to(device)
+                    output = model(**batch, data_inject_memory=False, data_output_hidden_states=True)
+                    embeds = output.hidden_states[memory_injection_layer]
+                    meta_embeds.append(Pooling.mean_pooling(embeds, batch['data_attention_mask']))
+                meta_embeds = torch.cat(meta_embeds, dim=0)
             
             if save_file is not None:
                 os.makedirs(os.path.dirname(save_file), exist_ok=True)
