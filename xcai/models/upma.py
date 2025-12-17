@@ -831,8 +831,11 @@ class UPMAEncoder(UPMAModel):
                     embeds = output.hidden_states[memory_injection_layer]
                     embeds = Pooling.mean_pooling(embeds, batch['data_attention_mask']).to("cpu")
                     meta_embeds.append(embeds)
+                # adding pad metadata embeddings
+                embeds = torch.zeros(1, embeds.shape[1], dtype=embeds.dtype, device=embeds.device)
+                meta_embeds.append(embeds)
                 meta_embeds = torch.cat(meta_embeds, dim=0)
-
+                
             del output, embeds, batch
             gc.collect()
             torch.cuda.empty_cache()
