@@ -791,7 +791,7 @@ class UPMAEncoder(UPMAModel):
         for module, injection_layer in zip(targ_model.memory_modules, config.memory_injection_layers):
             if config.initialize_memory_embeddings_from_injection_layer_mean and isinstance(module, UPMAEmbeddingMemory):
                 meta_embeds = targ_model.initialize_memory_embeddings_from_injection_layer_mean(
-                    memory_injection_layer=injection_layer,
+                    memory_injection_layer=injection_layer-1,
                     meta_dset=meta_dset,
                     save_file=config.metadata_embedding_file,
                     batch_size=batch_size,
