@@ -503,7 +503,7 @@ class Parameters:
     @staticmethod
     def from_data_aug_meta_prefix_for_encoder(prefix:str, **kwargs):
         inputs = {}
-        args = [arg for arg in kwargs if prefix is not None and re.match(f'^{prefix}.*_(input_ids|attention_mask|data2ptr|idx)$', arg)]
+        args = [arg for arg in kwargs if prefix is not None and re.match(f'^{prefix}.*_(input_ids|attention_mask|data2ptr|idx|scores)$', arg)]
         for arg in args:
             meta,param = arg.split('_', maxsplit=1)
             inputs.setdefault(meta, {})[f"metadata_{param}"] = kwargs[arg]
@@ -511,7 +511,7 @@ class Parameters:
     
     @staticmethod
     def from_aug_meta_prefix_for_feature(feat:str, prefix:str, **kwargs):
-        keys = ['attention_mask', 'input_ids', 'idx']        
+        keys = ['attention_mask', 'input_ids', 'idx', 'scores']        
         inputs = {f'{prefix}_{k}': kwargs[f'{prefix}_{k}'] for k in keys if f'{prefix}_{k}' in kwargs}
         if prefix is not None and f'{prefix}_{feat}2ptr' in kwargs:
             inputs.update({f'{prefix}_data2ptr': kwargs[f'{prefix}_{feat}2ptr']})
