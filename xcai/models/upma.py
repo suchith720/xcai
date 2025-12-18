@@ -877,7 +877,7 @@ class UPMAEncoder(UPMAModel):
             attention_mask = data_attention_mask
         else:
             embeds = output[0]
-            if 'metadata_data2ptr' in meta_kwargs:
+            if 'metadata_data2ptr' in meta_kwargs and data_inject_memory:
                 memory_mask = alignment_mask(meta_kwargs['metadata_data2ptr'])
                 attention_mask = torch.cat([data_attention_mask] + [memory_mask for _ in range(len(self.config.memory_injection_layers))], dim=1)
             else:
