@@ -996,11 +996,12 @@ class UPA000(PreTrainedModel):
                                      data_aug_meta_prefix=self.config.neg2data_aug_meta_prefix, data_inject_memory=self.config.neg2data_inject_memory, 
                                      data_output_hidden_states=True, **neg2data_meta_kwargs)
 
-            loss = self.rep_loss_fn(data_o.repr, pos_targ=lbl2data_o.repr, n_pos=lbl2data_data2ptr, 
-                                    pos_idx=lbl2data_idx, pos_scores=lbl2data_scores,
-                                    n_ppos=plbl2data_data2ptr, ppos_idx=plbl2data_idx,
-                                    neg_targ=neg2data_o.repr, n_neg=neg2data_data2ptr, 
-                                    neg_idx=neg2data_idx, neg_scores=neg2data_scores, **kwargs)
+            if not isinstance(self.rep_loss_fn, MarginMSEWithNegatives) or neg2data_input_ids is not None:
+                loss = self.rep_loss_fn(data_o.repr, pos_targ=lbl2data_o.repr, n_pos=lbl2data_data2ptr, 
+                                        pos_idx=lbl2data_idx, pos_scores=lbl2data_scores,
+                                        n_ppos=plbl2data_data2ptr, ppos_idx=plbl2data_idx,
+                                        neg_targ=neg2data_o.repr, n_neg=neg2data_data2ptr, 
+                                        neg_idx=neg2data_idx, neg_scores=neg2data_scores, **kwargs)
             
         if not return_dict:
             o = (data_o.repr, lbl2data_o.repr, neg2data_o.repr)
