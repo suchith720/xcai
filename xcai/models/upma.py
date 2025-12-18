@@ -6,7 +6,7 @@ __all__ = ['UPMAConfig', 'get_memory_module', 'get_loss_function', 'align_tensor
            'UPMAEncoder', 'UPA000']
 
 # %% ../../nbs/41_models.upma.ipynb 3
-import torch, torch.nn as nn, re, os, numpy as np, gc
+import torch, torch.nn as nn, re, os, numpy as np, gc, torch.nn.functional as F
 from tqdm.auto import tqdm
 from dataclasses import dataclass
 from torch.nn.parallel import DataParallel
@@ -891,10 +891,11 @@ class UPMAEncoder(UPMAModel):
         )
         
         data_repr = Pooling.mean_pooling(embeds, attention_mask)
+        data_repr = F.normalize(data_repr, dim=1) if config.data_normalize else data_repr
         return UPMAEncoderOutput(repr=data_repr, **output)
         
 
-# %% ../../nbs/41_models.upma.ipynb 78
+# %% ../../nbs/41_models.upma.ipynb 79
 class UPA000(PreTrainedModel):
     use_generation, use_representation = False, True
     
