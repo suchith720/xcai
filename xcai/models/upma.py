@@ -923,6 +923,29 @@ class UPA000(PreTrainedModel):
         batch_size: Optional[int] = 100,
     ):
         return cls(config, meta_dset=meta_dset, batch_size=batch_size)
+
+    def get_label_representation(
+        self,
+        data_input_ids:Optional[torch.Tensor]=None,
+        data_attention_mask:Optional[torch.Tensor]=None,
+
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+        **kwargs
+    ):
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        encoder = XCDataParallel(module=self.encoder) if self.config.use_encoder_parallel else self.encoder
+
+        lbl2data_aug_meta_prefix = self.config.lbl2data_aug_meta_prefix.replace("lbl", "data")
+        data_meta_kwargs = Parameters.from_aug_meta_prefix_for_feature('data', lbl2data_aug_meta_prefix, **kwargs)
+        
+        data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask, 
+                         data_aug_meta_prefix=lbl2data_aug_meta_prefix, data_inject_memory=self.config.lbl2data_inject_memory, 
+                         data_output_hidden_states=True, **data_meta_kwargs)
+        
+        if not return_dict: return (data_o.repr,)
+        return UPMAModelOutput(data_repr=data_o.repr)
         
     def forward(
         self,
