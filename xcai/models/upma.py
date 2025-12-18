@@ -891,7 +891,7 @@ class UPMAEncoder(UPMAModel):
         )
         
         data_repr = Pooling.mean_pooling(embeds, attention_mask)
-        data_repr = F.normalize(data_repr, dim=1) if config.data_normalize else data_repr
+        data_repr = F.normalize(data_repr, dim=1) if self.config.data_normalize else data_repr
         return UPMAEncoderOutput(repr=data_repr, **output)
         
 
@@ -937,7 +937,10 @@ class UPA000(PreTrainedModel):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
         encoder = XCDataParallel(module=self.encoder) if self.config.use_encoder_parallel else self.encoder
 
-        lbl2data_aug_meta_prefix = self.config.lbl2data_aug_meta_prefix.replace("lbl", "data")
+        lbl2data_aug_meta_prefix = (
+            None if self.config.lbl2data_aug_meta_prefix is None else 
+            self.config.lbl2data_aug_meta_prefix.replace("lbl", "data")
+        )
         data_meta_kwargs = Parameters.from_aug_meta_prefix_for_feature('data', lbl2data_aug_meta_prefix, **kwargs)
         
         data_o = encoder(data_input_ids=data_input_ids, data_attention_mask=data_attention_mask, 
