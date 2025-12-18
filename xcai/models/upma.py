@@ -50,6 +50,7 @@ class UPMAConfig(DistilBertConfig):
         neg2data_inject_memory: Optional[bool] = True,
         
         data_repr_pooling: Optional[bool] = True,
+        data_normalize: Optional[bool] = False,
 
         margin: Optional[float] = 0.3,
         num_negatives: Optional[int] = 10,
@@ -77,7 +78,8 @@ class UPMAConfig(DistilBertConfig):
         store_attr('num_total_metadata,num_input_metadata,metadata_dropout')
         store_attr('n_memory_layers')
         store_attr('data_aug_meta_prefix,lbl2data_aug_meta_prefix,neg2data_aug_meta_prefix')
-        store_attr('data_inject_memory,lbl2data_inject_memory,neg2data_inject_memory,data_repr_pooling')
+        store_attr('data_inject_memory,lbl2data_inject_memory,neg2data_inject_memory')
+        store_attr('data_repr_pooling,data_normalize')
         store_attr('margin,num_negatives,tau,apply_softmax,reduction')
         store_attr('calib_margin,calib_num_negatives,calib_tau,calib_apply_softmax')
         store_attr('calib_loss_weight,use_calib_loss,use_encoder_parallel')
