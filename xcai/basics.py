@@ -8,4 +8,5 @@ from .learner import *
 from .data import *
 from .sdata import *
 from .main import *
+from .misc import *
 from .generation.trie import *
