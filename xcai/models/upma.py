@@ -754,9 +754,12 @@ class UPMAEncoder(UPMAModel):
     def from_pretrained(
         cls,
         config:PretrainedConfig,
+        mname:Optional[str] = None,
         meta_dset:Optional[Union[MainXCDataset, SMainXCDataset]] = None,
         batch_size:Optional[int] = 100,
     ):
+        if mname is not None: return super().from_pretrained(mname, config=config)
+            
         src_model = DistilBertModel.from_pretrained('distilbert-base-uncased')
         targ_model = cls(config)
 
@@ -895,7 +898,7 @@ class UPMAEncoder(UPMAModel):
         return UPMAEncoderOutput(repr=data_repr, **output)
         
 
-# %% ../../nbs/41_models.upma.ipynb 79
+# %% ../../nbs/41_models.upma.ipynb 81
 class UPA000(PreTrainedModel):
     use_generation, use_representation = False, True
     
