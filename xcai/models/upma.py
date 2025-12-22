@@ -922,10 +922,11 @@ class UPA000(PreTrainedModel):
     def from_pretrained(
         cls,
         config: PretrainedConfig,
+        mname:Optional[str] = None,
         meta_dset: Optional[Union[MainXCDataset, SMainXCDataset]] = None,
         batch_size: Optional[int] = 100,
     ):
-        return cls(config, meta_dset=meta_dset, batch_size=batch_size)
+        return cls(config, mname=mname, meta_dset=meta_dset, batch_size=batch_size)
 
     def get_label_representation(
         self,

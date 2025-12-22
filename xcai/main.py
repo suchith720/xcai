@@ -422,8 +422,8 @@ def raw_mapping(src_file, targ_file):
 
 
 # %% ../nbs/36_main.ipynb 26
-def load_model(output_dir:str, model_fn:Callable, model_args:Dict, init_fn:Optional[Callable]=None, 
-               init_args:Optional[Dict]=dict(), do_inference:Optional[bool]=False, use_pretrained:Optional[bool]=False, 
+def load_model(output_dir:str, model_fn:Callable, model_args:Optional[Dict]=dict(), init_fn:Optional[Callable]=None, 
+               init_args:Optional[Dict]=dict(), do_inference:Optional[bool]=False, use_pretrained:Optional[bool]=False,
                type:Optional[str]="best"):
     if do_inference:
         os.environ["WANDB_MODE"] = "disabled"
