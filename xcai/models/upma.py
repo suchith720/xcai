@@ -754,12 +754,9 @@ class UPMAEncoder(UPMAModel):
     def from_pretrained(
         cls,
         config:PretrainedConfig,
-        mname:Optional[str] = None,
         meta_dset:Optional[Union[MainXCDataset, SMainXCDataset]] = None,
         batch_size:Optional[int] = 100,
     ):
-        if mname is not None: return super().from_pretrained(mname, config=config)
-            
         src_model = DistilBertModel.from_pretrained('distilbert-base-uncased')
         targ_model = cls(config)
 
@@ -905,13 +902,12 @@ class UPA000(PreTrainedModel):
     def __init__(
         self, 
         config: UPMAConfig,
-        mname:Optional[str] = None,
         meta_dset:Optional[Union[MainXCDataset, SMainXCDataset]] = None,
         batch_size:Optional[int] = 100,
     ):
         super().__init__(config)
         self.config = config
-        self.encoder = UPMAEncoder.from_pretrained(config, mname=mname, meta_dset=meta_dset, batch_size=batch_size)
+        self.encoder = UPMAEncoder.from_pretrained(config, meta_dset=meta_dset, batch_size=batch_size)
         
         loss_kwargs = {
             'margin': config.margin, 'n_negatives': config.num_negatives, 'tau': config.tau, 
@@ -927,7 +923,10 @@ class UPA000(PreTrainedModel):
         meta_dset: Optional[Union[MainXCDataset, SMainXCDataset]] = None,
         batch_size: Optional[int] = 100,
     ):
-        return cls(config, mname=mname, meta_dset=meta_dset, batch_size=batch_size)
+        if mname is not None: 
+            return cls.from_pretrained(mname)
+        else:
+            return cls(config, meta_dset=meta_dset, batch_size=batch_size)
 
     def get_label_representation(
         self,
