@@ -4,7 +4,7 @@
 __all__ = ['additional_args', 'load_info']
 
 # %% ../nbs/42_miscellaneous.ipynb 2
-import joblib, argparse
+import joblib, argparse, os
 from typing import Optional, List, Union
 
 # %% ../nbs/42_miscellaneous.ipynb 3
