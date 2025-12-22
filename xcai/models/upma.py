@@ -897,7 +897,14 @@ class UPMAEncoder(UPMAModel):
 
 # %% ../../nbs/41_models.upma.ipynb 81
 class UPA000(PreTrainedModel):
-    use_generation, use_representation = False, True
+    config: UPMAConfig
+    load_tf_weights = None
+    base_model_prefix = "distilbert"
+    supports_gradient_checkpointing = True
+    _supports_flash_attn = True
+    _supports_sdpa = True
+    use_generation = False
+    use_representation = True
     
     def __init__(
         self, 
@@ -924,7 +931,7 @@ class UPA000(PreTrainedModel):
         batch_size: Optional[int] = 100,
     ):
         if mname is not None: 
-            return cls.from_pretrained(mname)
+            return super().from_pretrained(mname)
         else:
             return cls(config, meta_dset=meta_dset, batch_size=batch_size)
 
