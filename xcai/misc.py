@@ -22,6 +22,7 @@ def additional_args():
 # %% ../nbs/42_miscellaneous.ipynb 6
 def load_info(save_file:str, meta_file:str, mname:str, sequence_length:Optional[int]=32):
     if os.path.exists(save_file):
+        os.makedirs(os.path.dirname(save_file), exist_ok=True)
         meta_info = joblib.load(save_file)
     else:
         meta_info = Info.from_txt(meta_file, max_sequence_length=sequence_length, padding=True, return_tensors='pt',
