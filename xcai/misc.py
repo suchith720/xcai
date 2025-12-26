@@ -26,8 +26,8 @@ def load_info(save_file:str, meta_file:str, mname:str, sequence_length:Optional[
 
 # %% ../nbs/42_miscellaneous.ipynb 7
 DATASETS = [
-    "msmarco",
     "arguana",
+    "msmarco",
     "climate-fever",
     "dbpedia-entity",
     "fever",
