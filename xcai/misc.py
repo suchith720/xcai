@@ -14,7 +14,8 @@ from .data import *
 # %% ../nbs/42_miscellaneous.ipynb 5
 def additional_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--expt_no', type=int, required=True)
+    parser.add_argument("--expt_no", type=int, required=True)
+    parser.add_argument("--beir_mode", action="store_true")
     return parser.parse_known_args()[0]
     
 
