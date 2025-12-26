@@ -64,6 +64,9 @@ def parse_args():
     parser.add_argument('--num_meta_cluster', type=int, default=1)
     parser.add_argument('--normalize', action='store_true')
     parser.add_argument('--use_ln', action='store_true')
+
+    parser.add_argument("--expt_no", type=int)
+    parser.add_argument("--beir_mode", action="store_true")
     
     return parser.parse_known_args()[0]
     
