@@ -460,7 +460,7 @@ def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:i
     do_infer = check_inference_mode(args)
     
     if do_infer:
-        trn_repr = tst_repr = lbl_repr = trn_pred = tst_pred = None
+        trn_repr = tst_repr = lbl_repr = trn_pred = tst_pred = trn_metric = tst_metric = None
         prediction_suffix = f'_{args.prediction_suffix}' if len(args.prediction_suffix) else ''
 
         save_dir_name = 'predictions' if save_dir_name is None else save_dir_name
@@ -522,6 +522,7 @@ def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:i
                     
         if args.do_test_inference:
             o = learn.predict(eval_dataset)
+            tst_metric = o.metrics
             print(o.metrics)
 
             tst_pred = get_output(o.pred_idx, o.pred_ptr, o.pred_score, n_lbl=n_lbl)
@@ -534,6 +535,7 @@ def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:i
 
         if args.do_train_inference:
             o = learn.predict(train_dataset)
+            trn_metric = o.metrics
             print(o.metrics)
 
             trn_pred = get_output(o.pred_idx, o.pred_ptr, o.pred_score, n_lbl=n_lbl)
@@ -544,7 +546,7 @@ def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:i
                     pickle.dump(o, file)
                 sp.save_npz(f'{pred_dir}/train_predictions{prediction_suffix}.npz', trn_pred)
                 
-        return trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred
+        return trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred, trn_metric, tst_metric
     else:
         learn.train(resume_from_checkpoint)
         
