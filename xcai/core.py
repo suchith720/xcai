@@ -332,15 +332,19 @@ def load_state_dict(fname:str, device=0):
     
 
 # %% ../nbs/00_core.ipynb 44
-def load_metrics_from_string(text, show_metrics:Optional[bool]=True):
-    content = text.split('\n')
-
-    metric = dict()
-    for i in range(0, len(content), 2):
-        k, v = content[i], content[i+1]
-        k = k.split(" ")[0]
-        metric[k] = ast.literal_eval(v)
-
+def load_metrics_from_string(text:str, show_metrics:Optional[bool]=True):
+    if os.path.exists(text):
+        with open(text) as file:
+            metric = json.load(file)
+    else:
+        content = text.split('\n')
+    
+        metric = dict()
+        for i in range(0, len(content), 2):
+            k, v = content[i], content[i+1]
+            k = k.split(" ")[0]
+            metric[k] = ast.literal_eval(v)
+    
     if show_metrics:
         print('{')
         for k,v in metric.items():
@@ -353,12 +357,12 @@ def load_metrics_from_string(text, show_metrics:Optional[bool]=True):
 # %% ../nbs/00_core.ipynb 45
 def combine_metrics_for_dataset(metrics:Dict, dataset:str):
     metrics = metrics.copy()
-    keys_to_combine = [k for k in metrics.keys() if re.match(f'^{dataset}/.*', k)]
+    keys_to_combine = [k for k in metrics.keys() if re.match(f"^{dataset}/.*|^{dataset}-.*", k)]
     metrics[dataset] = pd.DataFrame([metrics.pop(k) for k in keys_to_combine]).mean(axis=0).to_dict()
     return metrics
     
 
-# %% ../nbs/00_core.ipynb 47
+# %% ../nbs/00_core.ipynb 48
 class ScoreFusion():
     
     def __init__(self, prop:Optional[np.array]=None, max_depth:Optional[int]=7):
@@ -401,7 +405,7 @@ class ScoreFusion():
         return beta*(res+score_a)+score_b
     
 
-# %% ../nbs/00_core.ipynb 49
+# %% ../nbs/00_core.ipynb 50
 def retain_randk(matrix:sparse.csr_matrix, topk:Optional[int]=3):
     data, indices, indptr = [], [], np.zeros_like(matrix.indptr)
     for i,row in tqdm(enumerate(matrix), total=matrix.shape[0]):
@@ -421,7 +425,7 @@ def retain_randk(matrix:sparse.csr_matrix, topk:Optional[int]=3):
     return o
     
 
-# %% ../nbs/00_core.ipynb 51
+# %% ../nbs/00_core.ipynb 52
 def random_topk(data_lbl, topk=5):
     data,indices,indptr = [],[],[0]
     for i,j in tqdm(zip(data_lbl.indptr, data_lbl.indptr[1:]), total=data_lbl.shape[0]):
@@ -439,7 +443,7 @@ def random_topk(data_lbl, topk=5):
     return o
     
 
-# %% ../nbs/00_core.ipynb 52
+# %% ../nbs/00_core.ipynb 53
 def robustness_analysis(block, meta_name:str, analysis_type:str='missing', pct:float=0.5, topk:int=3):
     data_meta = random_topk(block.test.dset.meta[f'{meta_name}_meta'].data_meta, topk=topk)
     
@@ -458,7 +462,7 @@ def robustness_analysis(block, meta_name:str, analysis_type:str='missing', pct:f
     return block
     
 
-# %% ../nbs/00_core.ipynb 54
+# %% ../nbs/00_core.ipynb 55
 class ShowMetric:
 
     METRIC_ORDER = ['P@1', 'P@5', 'N@5', 'N@10', 'MRR@10', 'R@100', 'R@200']
