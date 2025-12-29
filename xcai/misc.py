@@ -279,7 +279,7 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
     args = XCLearningArguments(
         output_dir=output_dir,
         logging_first_step=True,
-        per_device_train_batch_size=64,
+        per_device_train_batch_size=128,
         per_device_eval_batch_size=400,
         representation_num_beams=200,
         representation_accumulation_steps=10,
