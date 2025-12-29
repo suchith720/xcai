@@ -15,6 +15,7 @@ from .data import *
 
 from .basics import *
 from .models.PPP0XX import DBT009, DBTConfig
+from .models.upma import UPA000, UPMAConfig
 
 # %% ../nbs/42_miscellaneous.ipynb 5
 def load_info(save_file:str, meta_file:str, mname:str, sequence_length:Optional[int]=32):
@@ -217,8 +218,8 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
         
 
 # %% ../nbs/42_miscellaneous.ipynb 14
-def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mname:str, 
-                        meta_save_fname:str, meta_file:str, linker_dir:str):
+def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mname:str, meta_save_fname:str, 
+                        meta_file:str, linker_dir:str, n_lnk_samples:Optional[int]=5, lnk_topk:Optional[int]=5):
     metric_dir = f"{output_dir}/metrics"
     os.makedirs(metric_dir, exist_ok=True)
 
@@ -232,19 +233,19 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
         print(dataset)
 
         config_file = f"/data/datasets/beir/{dataset}/XC/configs/data.json"
-        train_dset, test_dset = load_block(dataset, config_file, input_args)
+        train_dset, test_dset = load_upma_block(dataset, config_file, input_args)
 
         dataset = dataset.replace("/", "-")
         meta_file = f"/data/outputs/upma/{linker_dir}/predictions/test_predictions_{dataset}.npz"
-        data_meta = retain_topk(sp.load_npz(meta_file), k=5)
+        data_meta = retain_topk(sp.load_npz(meta_file), k=lnk_topk)
         meta_kwargs = {
-            "lnk_meta": SMetaXCDataset(prefix="lnk", data_meta=data_meta, meta_info=meta_info, n_sdata_meta_samples=5,
+            "lnk_meta": SMetaXCDataset(prefix="lnk", data_meta=data_meta, meta_info=meta_info, n_sdata_meta_samples=n_lnk_samples,
                                        return_scores=True, meta_oversample=True),
         }
         test_dset = SXCDataset(test_dset.data, **meta_kwargs)
 
         input_args.prediction_suffix = dataset
-        trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred, trn_metric, tst_metric = run(output_dir, input_args, mname, test_dset, train_dset)
+        trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred, trn_metric, tst_metric = upma_run(output_dir, input_args, mname, test_dset, train_dset)
 
         with open(f"{metric_dir}/{dataset}.json", "w") as file:
             json.dump({dataset: tst_metric}, file, indent=4)
