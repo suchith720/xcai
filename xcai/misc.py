@@ -275,12 +275,13 @@ def load_upma_block(dataset:str, config_file:str, input_args:argparse.ArgumentPa
 
 # %% ../nbs/42_miscellaneous.ipynb 16
 def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test_dset:Union[XCDataset, SXCDataset],
-             train_dset:Optional[Union[XCDataset, SXCDataset]]=None, collator:Optional[Callable]=identity_collate_fn):
+             train_dset:Optional[Union[XCDataset, SXCDataset]]=None, collator:Optional[Callable]=identity_collate_fn, 
+             train_batch_size:Optional[int]=128):
 
     args = XCLearningArguments(
         output_dir=output_dir,
         logging_first_step=True,
-        per_device_train_batch_size=128,
+        per_device_train_batch_size=train_batch_size,
         per_device_eval_batch_size=400,
         representation_num_beams=200,
         representation_accumulation_steps=10,
