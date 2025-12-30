@@ -17,6 +17,7 @@ from .data import *
 from .basics import *
 from .models.PPP0XX import DBT009, DBTConfig
 from .models.upma import UPA000, UPMAConfig
+from .models.PPP0XX import DBT023, DBTConfig
 
 # %% ../nbs/42_miscellaneous.ipynb 5
 def load_info(save_file:str, meta_file:str, mname:str, sequence_length:Optional[int]=32):
