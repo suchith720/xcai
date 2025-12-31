@@ -497,7 +497,7 @@ def early_fusion_beir_inference(output_dir:str, input_args:argparse.ArgumentPars
         print(dataset)
 
         config_file = f"/data/datasets/beir/{dataset}/XC/configs/data.json"
-        train_dset, test_dset = load_block(dataset, config_file, input_args)
+        train_dset, test_dset = load_early_fusion_block(dataset, config_file, input_args)
 
         dataset = dataset.replace("/", "-")
         data_info = load_info(f"{input_args.pickle_dir}/{linker_dir}/{dataset}.joblib", 
@@ -506,7 +506,7 @@ def early_fusion_beir_inference(output_dir:str, input_args:argparse.ArgumentPars
         test_dset = SXCDataset(SMainXCDataset(data_info=data_info, data_lbl=test_dset.data.data_lbl, lbl_info=test_dset.data.lbl_info))
 
         input_args.prediction_suffix = dataset
-        trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred, trn_metric, tst_metric = run(output_dir, input_args, mname, test_dset, train_dset)
+        trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred, trn_metric, tst_metric = early_fusion_run(output_dir, input_args, mname, test_dset, train_dset)
         with open(f"{metric_dir}/{dataset}.json", "w") as file:
             json.dump({dataset: tst_metric}, file, indent=4)
 
