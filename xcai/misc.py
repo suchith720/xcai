@@ -10,6 +10,8 @@ import os, torch ,json, torch.multiprocessing as mp, joblib, numpy as np, scipy.
 from typing import Optional, Union, Callable, List
 from tqdm.auto import tqdm
 
+from xclib.utils.sparse import retain_topk
+
 # %% ../nbs/42_miscellaneous.ipynb 3
 from .core import *
 from .data import *
