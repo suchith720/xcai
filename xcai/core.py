@@ -507,6 +507,7 @@ class ShowMetric:
         df = df.loc[dset_order]
         for k in df.columns:
             if isinstance(df[k].iloc[0], float) and '@' in k: df[k] = df[k] * 100
+        df = pd.concat([df, df.mean(axis=0).to_frame(name="Avearge").T], axis=0)
         ShowMetric.show_df(df)
         return df
         
