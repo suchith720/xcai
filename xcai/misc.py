@@ -36,11 +36,11 @@ def load_info(save_file:str, meta_file:str, mname:str, sequence_length:Optional[
 
 # %% ../nbs/42_miscellaneous.ipynb 6
 def collate_beir_metrics(metric_dir:str):
-    beir_metrics = []
+    beir_metrics = {}
     for dataset in BEIR_DATASETS:
         dataset = dataset.replace("/", "-")
         with open(f"{metric_dir}/{dataset}.json") as file:
-            beir_metrics.append(json.load(file))
+            beir_metrics.update(json.load(file))
             
     with open(f"{metric_dir}/beir.json", "w") as file:
         json.dump(beir_metrics, file, indent=4)
