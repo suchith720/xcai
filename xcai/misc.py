@@ -197,7 +197,8 @@ def linker_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, te
 
 # %% ../nbs/42_miscellaneous.ipynb 13
 def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mname:str, 
-                          save_file_name:str, meta_file:str, datasets:Optional[List]=None):
+                          save_file_name:str, meta_file:str, datasets:Optional[List]=None, 
+                          pred_dir_name:Optional[str]=None):
     metric_dir = f"{output_dir}/metrics"
     os.makedirs(metric_dir, exist_ok=True)
 
@@ -223,7 +224,8 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
         dataset = dataset.replace("/", "-")
 
         input_args.prediction_suffix = dataset
-        trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred, trn_metric, tst_metric = linker_run(output_dir, input_args, mname, test_dset)
+        trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred, trn_metric, tst_metric = linker_run(output_dir, input_args, mname, test_dset, 
+                                                                                              save_dir_name=pred_dir_name)
 
         with open(f"{metric_dir}/{dataset}.json", "w") as file:
             json.dump({dataset: tst_metric}, file, indent=4)
