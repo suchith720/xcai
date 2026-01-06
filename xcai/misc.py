@@ -411,7 +411,8 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
 
 # %% ../nbs/42_miscellaneous.ipynb 19
 def early_fusion_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test_dset:Union[XCDataset, SXCDataset],
-                     train_dset:Optional[Union[XCDataset, SXCDataset]]=None, collator:Optional[Callable]=identity_collate_fn):
+                     train_dset:Optional[Union[XCDataset, SXCDataset]]=None, collator:Optional[Callable]=identity_collate_fn, 
+                     save_dir_name:Optional[str]=None):
 
     args = XCLearningArguments(
         output_dir=output_dir,
@@ -482,7 +483,7 @@ def early_fusion_run(output_dir:str, input_args:argparse.ArgumentParser, mname:s
         compute_metrics=metric,
     )
 
-    return main(learn, input_args, n_lbl=test_dset.data.n_lbl, eval_k=10, train_k=10)
+    return main(learn, input_args, n_lbl=test_dset.data.n_lbl, eval_k=10, train_k=10, save_dir_name=save_dir_name)
     
 
 # %% ../nbs/42_miscellaneous.ipynb 20
@@ -503,7 +504,7 @@ def load_early_fusion_block(dataset:str, config_file:str, input_args:argparse.Ar
 # %% ../nbs/42_miscellaneous.ipynb 21
 def early_fusion_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mname:str, linker_dir:str, 
                                 datasets:Optional[List]=None, raw_dir_name:Optional[str]="raw_data", 
-                                metric_dir_name:Optional[str]="metrics"):
+                                metric_dir_name:Optional[str]="metrics", pred_dir_name:Optional[str]=None):
     
     metric_dir = f"{output_dir}/{metric_dir_name}"
     os.makedirs(metric_dir, exist_ok=True)
@@ -526,7 +527,8 @@ def early_fusion_beir_inference(output_dir:str, input_args:argparse.ArgumentPars
         test_dset = SXCDataset(SMainXCDataset(data_info=data_info, data_lbl=test_dset.data.data_lbl, lbl_info=test_dset.data.lbl_info))
 
         input_args.prediction_suffix = dataset
-        trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred, trn_metric, tst_metric = early_fusion_run(output_dir, input_args, mname, test_dset, train_dset)
+        trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred, trn_metric, tst_metric = early_fusion_run(output_dir, input_args, mname, test_dset, train_dset, 
+                                                                                                    save_dir_name=pred_dir_name)
         with open(f"{metric_dir}/{dataset}.json", "w") as file:
             json.dump({dataset: tst_metric}, file, indent=4)
 
