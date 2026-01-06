@@ -117,7 +117,8 @@ def load_linker_block(dataset:str, config_file:str, input_args:argparse.Argument
 
 # %% ../nbs/42_miscellaneous.ipynb 12
 def linker_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test_dset:Union[XCDataset, SXCDataset],
-               train_dset:Optional[Union[XCDataset, SXCDataset]]=None, collator:Optional[Callable]=identity_collate_fn):
+               train_dset:Optional[Union[XCDataset, SXCDataset]]=None, collator:Optional[Callable]=identity_collate_fn, 
+               save_dir_name:Optional[str]=None):
 
     args = XCLearningArguments(
         output_dir=output_dir,
@@ -192,7 +193,7 @@ def linker_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, te
         compute_metrics=metric,
     )
 
-    return main(learn, input_args, n_lbl=test_dset.data.n_lbl, eval_k=10, train_k=10)
+    return main(learn, input_args, n_lbl=test_dset.data.n_lbl, eval_k=10, train_k=10, save_dir_name=save_dir_name)
     
 
 # %% ../nbs/42_miscellaneous.ipynb 13
