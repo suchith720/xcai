@@ -39,8 +39,11 @@ def collate_beir_metrics(metric_dir:str):
     beir_metrics = {}
     for dataset in BEIR_DATASETS:
         dataset = dataset.replace("/", "-")
-        with open(f"{metric_dir}/{dataset}.json") as file:
-            beir_metrics.update(json.load(file))
+        
+        fname = f"{metric_dir}/{dataset}.json"
+        if os.path.exists(fname):
+            with open(fname) as file:
+                beir_metrics.update(json.load(file))
             
     with open(f"{metric_dir}/beir.json", "w") as file:
         json.dump(beir_metrics, file, indent=4)
