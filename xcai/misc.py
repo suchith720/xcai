@@ -499,8 +499,10 @@ def load_early_fusion_block(dataset:str, config_file:str, input_args:argparse.Ar
 
 # %% ../nbs/42_miscellaneous.ipynb 21
 def early_fusion_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mname:str, linker_dir:str, 
-                                datasets:Optional[List]=None):
-    metric_dir = f"{output_dir}/metrics"
+                                datasets:Optional[List]=None, raw_dir_name:Optional[str]="raw_data", 
+                                metric_dir_name:Optional[str]="metrics"):
+    
+    metric_dir = f"{output_dir}/{metric_dir_name}"
     os.makedirs(metric_dir, exist_ok=True)
 
     input_args.only_test = input_args.do_test_inference = input_args.save_test_prediction = True
@@ -514,7 +516,7 @@ def early_fusion_beir_inference(output_dir:str, input_args:argparse.ArgumentPars
 
         dataset = dataset.replace("/", "-")
         data_info = load_info(f"{input_args.pickle_dir}/{linker_dir}/{dataset}.joblib", 
-                              f"/data/outputs/upma/{linker_dir}/raw_data/test_{dataset}.raw.csv", 
+                              f"/data/outputs/upma/{linker_dir}/{raw_dir_name}/test_{dataset}.raw.csv", 
                               mname, sequence_length=128)
         test_dset = SXCDataset(SMainXCDataset(data_info=data_info, data_lbl=test_dset.data.data_lbl, lbl_info=test_dset.data.lbl_info))
 
