@@ -232,7 +232,7 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
                 meta_info = load_info(f"{input_args.pickle_dir}/beir/{save_file_name}/{dataset}.joblib",
                                       meta_file, mname, sequence_length=64)
             else:
-                print(f"WARNING:: Missing raw file at {data_file}. Dataset '{dataset}' will be skipped.")
+                print(f"WARNING:: Missing raw file at {meta_file}. Dataset '{dataset}' will be skipped.")
                 continue
             
         # dataset
