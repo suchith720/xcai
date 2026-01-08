@@ -227,12 +227,12 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
 
         dataset = dataset.replace("/", "-")
         if use_task_specific_metadata:
-            meta_file = f"/data/datasets/beir/{dataset}/XC/{meta_file}"
-            if os.path.exists(meta_file):
+            fname = f"/data/datasets/beir/{dataset}/XC/{meta_file}"
+            if os.path.exists(fname):
                 meta_info = load_info(f"{input_args.pickle_dir}/beir/{save_file_name}/{dataset}.joblib",
-                                      meta_file, mname, sequence_length=64)
+                                      fname, mname, sequence_length=64)
             else:
-                print(f"WARNING:: Missing raw file at {meta_file}. Dataset '{dataset}' will be skipped.")
+                print(f"WARNING:: Missing raw file at {fname}. Dataset '{dataset}' will be skipped.")
                 continue
             
         # dataset
