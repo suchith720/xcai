@@ -202,15 +202,17 @@ def linker_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, te
 # %% ../nbs/42_miscellaneous.ipynb 13
 def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mname:str, 
                           save_file_name:str, meta_file:str, datasets:Optional[List]=None, 
-                          pred_dir_name:Optional[str]=None):
+                          pred_dir_name:Optional[str]=None, use_task_specific_metadata:Optional[bool]=False):
     metric_dir = f"{output_dir}/metrics"
     os.makedirs(metric_dir, exist_ok=True)
 
     input_args.only_test = input_args.do_test_inference = input_args.save_test_prediction = True
 
     # meta-data
-    meta_info = load_info(f"{input_args.pickle_dir}/{save_file_name}.joblib", meta_file, mname,
-                          sequence_length=64)
+    if not use_task_specific_metadata:
+        meta_info = load_info(f"{input_args.pickle_dir}/{save_file_name}.joblib",
+                              f"/data/datasets/beir/msmarco/XC/{meta_file}",
+                              mname, sequence_length=64)
 
     os.makedirs(f"{input_args.pickle_dir}/beir/", exist_ok=True)
 
@@ -222,10 +224,14 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
                               f"/data/datasets/beir/{dataset}/XC/raw_data/test.raw.csv",
                               mname, sequence_length=32)
 
+        dataset = dataset.replace("/", "-")
+        if use_task_specific_metadata:
+            meta_info = load_info(f"{input_args.pickle_dir}/beir/{dataset}_{save_file_name}.joblib",
+                                  f"/data/datasets/beir/{input_args.dataset}/XC/{meta_file}",
+                                  mname, sequence_length=64)
+            
         # dataset
         test_dset = SXCDataset(SMainXCDataset(data_info=test_info, lbl_info=meta_info))
-
-        dataset = dataset.replace("/", "-")
 
         input_args.prediction_suffix = dataset
         trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred, trn_metric, tst_metric = linker_run(output_dir, input_args, mname, test_dset, 
@@ -240,7 +246,7 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
 # %% ../nbs/42_miscellaneous.ipynb 15
 def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mname:str, meta_save_fname:str, 
                         meta_file:str, linker_dir:str, n_lnk_samples:Optional[int]=5, lnk_topk:Optional[int]=5, 
-                        eval_batch_size:Optional[int]=400, datasets:Optional[List]=None):
+                        eval_batch_size:Optional[int]=400, datasets:Optional[List]=None, pred_dir_name:Optional[str]=None):
     metric_dir = f"{output_dir}/metrics"
     os.makedirs(metric_dir, exist_ok=True)
 
@@ -257,7 +263,7 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
         train_dset, test_dset = load_upma_block(dataset, config_file, input_args)
 
         dataset = dataset.replace("/", "-")
-        meta_file = f"/data/outputs/upma/{linker_dir}/predictions/test_predictions_{dataset}.npz"
+        meta_file = f"{linker_dir}/predictions/test_predictions_{dataset}.npz"
         data_meta = retain_topk(sp.load_npz(meta_file), k=lnk_topk)
         meta_kwargs = {
             "lnk_meta": SMetaXCDataset(prefix="lnk", data_meta=data_meta, meta_info=meta_info, n_sdata_meta_samples=n_lnk_samples,
@@ -267,7 +273,7 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
 
         input_args.prediction_suffix = dataset
         trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred, trn_metric, tst_metric = upma_run(output_dir, input_args, mname, test_dset, train_dset, 
-                                                                                            eval_batch_size=eval_batch_size)
+                                                                                            eval_batch_size=eval_batch_size, save_dir_name=pred_dir_name)
 
         with open(f"{metric_dir}/{dataset}.json", "w") as file:
             json.dump({dataset: tst_metric}, file, indent=4)
@@ -295,7 +301,7 @@ def load_upma_block(dataset:str, config_file:str, input_args:argparse.ArgumentPa
 # %% ../nbs/42_miscellaneous.ipynb 17
 def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test_dset:Union[XCDataset, SXCDataset],
              train_dset:Optional[Union[XCDataset, SXCDataset]]=None, collator:Optional[Callable]=identity_collate_fn, 
-             train_batch_size:Optional[int]=128, eval_batch_size:Optional[int]=400):
+             train_batch_size:Optional[int]=128, eval_batch_size:Optional[int]=400, save_dir_name:Optional[str]=None):
 
     args = XCLearningArguments(
         output_dir=output_dir,
@@ -406,7 +412,7 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
         compute_metrics=metric,
     )
 
-    return main(learn, input_args, n_lbl=test_dset.n_lbl)
+    return main(learn, input_args, n_lbl=test_dset.n_lbl, save_dir_name=save_dir_name)
     
 
 # %% ../nbs/42_miscellaneous.ipynb 19
@@ -519,11 +525,16 @@ def early_fusion_beir_inference(output_dir:str, input_args:argparse.ArgumentPars
         train_dset, test_dset = load_early_fusion_block(dataset, config_file, input_args)
 
         dataset = dataset.replace("/", "-")
+        linker_dir_name, cross_name = os.path.basename(linker_dir.rstrip("/")), raw_dir_name.rstrip("/")
+        linker_dir_name = f"{linker_dir_name}/{cross_name.split('/')[1]}" if "/" in cross_name else linker_dir_name
 
-        linker_dir_name = os.path.basename(linker_dir.rstrip("/"))
-        data_info = load_info(f"{input_args.pickle_dir}/{linker_dir_name}/{dataset}.joblib", 
-                              f"{linker_dir}/{raw_dir_name}/test_{dataset}.raw.csv", 
-                              mname, sequence_length=128)
+        data_file = f"{linker_dir}/{raw_dir_name}/test_{dataset}.raw.csv"
+        if not os.path.exists(data_file):
+            print(f"WARNING:: Missing raw file at {data_file}. Dataset '{dataset}' will be skipped.")
+            continue
+        
+        data_info = load_info(f"{input_args.pickle_dir}/{linker_dir_name}/{dataset}.joblib",
+                              data_file, mname, sequence_length=128)
         test_dset = SXCDataset(SMainXCDataset(data_info=data_info, data_lbl=test_dset.data.data_lbl, lbl_info=test_dset.data.lbl_info))
 
         input_args.prediction_suffix = dataset
