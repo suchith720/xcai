@@ -138,7 +138,8 @@ def linker_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, te
         num_train_epochs=300,
         predict_with_representation=True,
         representation_search_type='BRUTEFORCE',
-        adam_epsilon=1e-6,                                                                                                                                          warmup_steps=100,
+        adam_epsilon=1e-6,
+        warmup_steps=100,
         weight_decay=0.01,
         learning_rate=2e-4,
 
@@ -226,7 +227,7 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
 
         dataset = dataset.replace("/", "-")
         if use_task_specific_metadata:
-            meta_info = load_info(f"{input_args.pickle_dir}/beir/{dataset}_{save_file_name}.joblib",
+            meta_info = load_info(f"{input_args.pickle_dir}/beir/{save_file_name}/{dataset}.joblib",
                                   f"/data/datasets/beir/{input_args.dataset}/XC/{meta_file}",
                                   mname, sequence_length=64)
             
