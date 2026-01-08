@@ -228,7 +228,7 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
         dataset = dataset.replace("/", "-")
         if use_task_specific_metadata:
             meta_info = load_info(f"{input_args.pickle_dir}/beir/{save_file_name}/{dataset}.joblib",
-                                  f"/data/datasets/beir/{input_args.dataset}/XC/{meta_file}",
+                                  f"/data/datasets/beir/{dataset}/XC/{meta_file}",
                                   mname, sequence_length=64)
             
         # dataset
