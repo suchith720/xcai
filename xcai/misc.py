@@ -220,19 +220,20 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
     datasets = BEIR_DATASETS if datasets is None else datasets
     for dataset in tqdm(datasets):
         print(dataset)
+        dataset_prefix = dataset.replace("/", "-")
+        
         # test-data
-        test_info = load_info(f"{input_args.pickle_dir}/beir/{dataset.replace('/', '-')}.joblib",
+        test_info = load_info(f"{input_args.pickle_dir}/beir/{dataset_prefix}.joblib",
                               f"/data/datasets/beir/{dataset}/XC/raw_data/test.raw.csv",
                               mname, sequence_length=32)
-
-        dataset = dataset.replace("/", "-")
+        
         if use_task_specific_metadata:
             fname = f"/data/datasets/beir/{dataset}/XC/{meta_file}"
             if os.path.exists(fname):
-                meta_info = load_info(f"{input_args.pickle_dir}/beir/{save_file_name}/{dataset}.joblib",
+                meta_info = load_info(f"{input_args.pickle_dir}/beir/{save_file_name}/{dataset_prefix}.joblib",
                                       fname, mname, sequence_length=64)
             else:
-                print(f"WARNING:: Missing raw file at {fname}. Dataset '{dataset}' will be skipped.")
+                print(f"WARNING:: Missing raw file at {fname}. Dataset '{dataset_prefix}' will be skipped.")
                 continue
             
         # dataset
@@ -242,7 +243,7 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
         trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred, trn_metric, tst_metric = linker_run(output_dir, input_args, mname, test_dset, 
                                                                                               save_dir_name=pred_dir_name)
 
-        with open(f"{metric_dir}/{dataset}.json", "w") as file:
+        with open(f"{metric_dir}/{dataset_prefix}.json", "w") as file:
             json.dump({dataset: tst_metric}, file, indent=4)
 
     collate_beir_metrics(metric_dir)
