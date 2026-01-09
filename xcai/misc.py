@@ -67,12 +67,10 @@ def get_random_idx(n_data:int, pct:float):
 
 # %% ../nbs/42_miscellaneous.ipynb 8
 def get_label_dataset(dataset:SXCDataset, mname:str, args:argparse.ArgumentParser):
-    dataset = None
-    if args.lbl_sim:
-        lbl_info = dataset.data.lbl_info
-        dataset = SXCDataset(SMainXCDataset(data_info=lbl_info, lbl_info=lbl_info))
-        mname = mname.split("/")[1] if "/" in mname else mname
-        args.prediction_suffix = f"labels_{mname}" if input_args.use_pretrained else "labels"
+    lbl_info = dataset.data.lbl_info
+    dataset = SXCDataset(SMainXCDataset(data_info=lbl_info, lbl_info=lbl_info))
+    mname = mname.split("/")[1] if "/" in mname else mname
+    args.prediction_suffix = f"labels_{mname}" if args.use_pretrained else "labels"
     return dataset
     
 
