@@ -67,6 +67,7 @@ def parse_args():
 
     parser.add_argument("--expt_no", type=int)
     parser.add_argument("--beir_mode", action="store_true")
+    parser.add_argument('--label_similarity', action="store_true")
     
     return parser.parse_known_args()[0]
     

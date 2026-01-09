@@ -55,11 +55,9 @@ def additional_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--pct", type=float, default=1.0)
     parser.add_argument("--use_all", action="store_true")
-    parser.add_argument('--lbl_sim', action="store_true")
     parser.add_argument("--use_task_specific_metadata", action="store_true")
     parser.add_argument("--use_training_test_set", action="store_true")
     return parser.parse_known_args()[0]
-
 
 def get_random_idx(n_data:int, pct:float):
     n_trn = int(pct * n_data)
@@ -208,7 +206,10 @@ def linker_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, te
         compute_metrics=metric,
     )
 
-    return main(learn, input_args, n_lbl=test_dset.data.n_lbl, eval_k=10, train_k=10, save_dir_name=save_dir_name)
+    eval_dataset = get_label_dataset(test_dset, mname, input_args) if input_args.label_similarity else None
+
+    return main(learn, input_args, n_lbl=test_dset.data.n_lbl, eval_dataset=eval_dataset, 
+                eval_k=10, train_k=10, save_dir_name=save_dir_name)
     
 
 # %% ../nbs/42_miscellaneous.ipynb 14
