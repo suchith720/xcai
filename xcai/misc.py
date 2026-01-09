@@ -55,6 +55,7 @@ def additional_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--pct", type=float, default=1.0)
     parser.add_argument("--use_all", action="store_true")
+    parser.add_argument('--lbl_sim', action="store_true")
     parser.add_argument("--use_task_specific_metadata", action="store_true")
     parser.add_argument("--use_training_test_set", action="store_true")
     return parser.parse_known_args()[0]
