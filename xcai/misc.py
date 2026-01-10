@@ -265,6 +265,7 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
 def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mname:str, meta_save_fname:str, 
                         meta_file:str, linker_dir:str, n_lnk_samples:Optional[int]=5, lnk_topk:Optional[int]=5, 
                         eval_batch_size:Optional[int]=400, datasets:Optional[List]=None, pred_dir_name:Optional[str]=None):
+    
     metric_dir = f"{output_dir}/metrics"
     os.makedirs(metric_dir, exist_ok=True)
 
@@ -319,7 +320,8 @@ def load_upma_block(dataset:str, config_file:str, input_args:argparse.ArgumentPa
 # %% ../nbs/42_miscellaneous.ipynb 18
 def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test_dset:Union[XCDataset, SXCDataset],
              train_dset:Optional[Union[XCDataset, SXCDataset]]=None, collator:Optional[Callable]=identity_collate_fn, 
-             train_batch_size:Optional[int]=128, eval_batch_size:Optional[int]=400, save_dir_name:Optional[str]=None):
+             train_batch_size:Optional[int]=128, eval_batch_size:Optional[int]=400, save_dir_name:Optional[str]=None,
+             data_repr_pooling:Optional[bool]=True):
 
     args = XCLearningArguments(
         output_dir=output_dir,
@@ -387,7 +389,7 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
         lbl2data_inject_memory=False,
         neg2data_inject_memory=False,
 
-        data_repr_pooling=True,
+        data_repr_pooling=data_repr_pooling,
         data_normalize=False,
 
         margin=0.3,
