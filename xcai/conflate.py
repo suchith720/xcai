@@ -277,7 +277,7 @@ class SaveData:
         
 
 # %% ../nbs/43_conflation.ipynb 76
-def load_data(data_dir:str, meta_type:str, linker_dir:str):
+def load_data(data_dir:str, meta_type:str):
     trn_file = f"{data_dir}/{meta_type}_trn_X_Y.npz"
     tst_file = f"{data_dir}/{meta_type}_tst_X_Y.npz"
     lbl_file = f"{data_dir}/{meta_type}_lbl_X_Y.npz"
