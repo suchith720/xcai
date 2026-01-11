@@ -264,7 +264,8 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
 # %% ../nbs/42_miscellaneous.ipynb 16
 def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mname:str, meta_save_fname:str, 
                         meta_file:str, linker_dir:str, n_lnk_samples:Optional[int]=5, lnk_topk:Optional[int]=5, 
-                        eval_batch_size:Optional[int]=400, datasets:Optional[List]=None, pred_dir_name:Optional[str]=None):
+                        eval_batch_size:Optional[int]=400, datasets:Optional[List]=None, pred_dir_name:Optional[str]=None, 
+                        data_repr_pooling:Optional[bool]=True):
     
     metric_dir = f"{output_dir}/metrics"
     os.makedirs(metric_dir, exist_ok=True)
@@ -292,7 +293,8 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
 
         input_args.prediction_suffix = dataset
         trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred, trn_metric, tst_metric = upma_run(output_dir, input_args, mname, test_dset, train_dset, 
-                                                                                            eval_batch_size=eval_batch_size, save_dir_name=pred_dir_name)
+                                                                                            eval_batch_size=eval_batch_size, save_dir_name=pred_dir_name, 
+                                                                                            data_repr_pooling=data_repr_pooling)
 
         with open(f"{metric_dir}/{dataset}.json", "w") as file:
             json.dump({dataset: tst_metric}, file, indent=4)
