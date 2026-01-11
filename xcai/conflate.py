@@ -315,7 +315,7 @@ def perform_phrase_based_conflation_02(meta_phrases:sp.csr_matrix, meta_file:str
 
     meta_mat = sp.load_npz(meta_file)
     groups, factor = Conflation.get_groups(meta_idx, n_lbl=trn_meta.shape[1])
-    assert groups.max() == ctrn_meta.shape[1]
+    assert groups.max() == ctrn_meta.shape[1] - 1
     
     conflated_meta_mat = Conflation.get_conflated_matrix(meta_mat, groups, factor=factor)
     conflated_meta_mat = conflated_meta_mat.T.tocsr()
