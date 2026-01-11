@@ -284,7 +284,6 @@ def load_data(data_dir:str, meta_type:str):
     
     info_file = f"{data_dir}/raw_data/{meta_type}.raw.csv"
     
-    
     trn_meta = None if trn_file is None else sp.load_npz(trn_file)
     tst_meta = None if tst_file is None else sp.load_npz(tst_file)
     lbl_meta = None if lbl_file is None else sp.load_npz(lbl_file)
@@ -293,7 +292,7 @@ def load_data(data_dir:str, meta_type:str):
     
     meta_phrases = sp.load_npz(f"{data_dir}/derived-phrases_{meta_type}_X_Y.npz")
 
-    return (trn_meta, tst_meta, lbl_meta), meta_info, meta_phrases
+    return (trn_meta, tst_meta, lbl_meta), meta_info, meta_phrases, (trn_file, tst_file, lbl_file, info_file)
     
 
 # %% ../nbs/43_conflation.ipynb 77
