@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['display_items', 'compare_items', 'get_conflated_text', 'Operations', 'Filter', 'Cluster', 'Conflation', 'SaveData',
-           'load_data']
+           'load_data', 'perform_similarity_based_conflation_01', 'perform_phrase_based_conflation_02']
 
 # %% ../nbs/43_conflation.ipynb 2
 import numpy as np, pandas as pd, scipy.sparse as sp, torch, json, os, re, math
@@ -297,8 +297,8 @@ def load_data(data_dir:str, meta_type:str):
     
 
 # %% ../nbs/43_conflation.ipynb 77
-def _01_perform_similarity_based_conflation(meta_file:str, trn_meta:sp.csr_matrix, tst_meta:sp.csr_matrix, 
-                                        lbl_meta:sp.csr_matrix, meta_info:Dict):
+def perform_similarity_based_conflation_01(meta_file:str, trn_meta:sp.csr_matrix, tst_meta:sp.csr_matrix, 
+                                           lbl_meta:sp.csr_matrix, meta_info:Dict):
     meta_mat = retain_topk(sp.load_npz(meta_file), k=20)
     clusters = Cluster.from_similarity(meta_mat, diff_thresh=0.2, sim_topk=1)
     
@@ -306,8 +306,8 @@ def _01_perform_similarity_based_conflation(meta_file:str, trn_meta:sp.csr_matri
     
 
 # %% ../nbs/43_conflation.ipynb 78
-def _02_perform_phrase_based_conflation(meta_phrases:sp.csr_matrix, meta_file:str, trn_meta:sp.csr_matrix, 
-                                    tst_meta:sp.csr_matrix, lbl_meta:sp.csr_matrix, meta_info:Dict):
+def perform_phrase_based_conflation_02(meta_phrases:sp.csr_matrix, meta_file:str, trn_meta:sp.csr_matrix, 
+                                       tst_meta:sp.csr_matrix, lbl_meta:sp.csr_matrix, meta_info:Dict):
     clusters = Cluster.from_derived_phrases(meta_phrases)
     clusters = Filter.remove_top_clusters(clusters, topk=1)
 
