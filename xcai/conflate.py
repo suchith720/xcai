@@ -297,7 +297,7 @@ def load_data(data_dir:str, meta_type:str):
     
 
 # %% ../nbs/43_conflation.ipynb 77
-def _01_perform_similarity_based_conflation_01(meta_file:str, trn_meta:sp.csr_matrix, tst_meta:sp.csr_matrix, 
+def _01_perform_similarity_based_conflation(meta_file:str, trn_meta:sp.csr_matrix, tst_meta:sp.csr_matrix, 
                                         lbl_meta:sp.csr_matrix, meta_info:Dict):
     meta_mat = retain_topk(sp.load_npz(meta_file), k=20)
     clusters = Cluster.from_similarity(meta_mat, diff_thresh=0.2, sim_topk=1)
