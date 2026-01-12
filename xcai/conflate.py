@@ -146,7 +146,7 @@ class Filter:
         return [clusters[i] for i in sort_idx]
         
 
-# %% ../nbs/43_conflation.ipynb 41
+# %% ../nbs/43_conflation.ipynb 54
 class Cluster:
 
     @staticmethod
@@ -179,7 +179,7 @@ class Cluster:
         return Operations.get_clusters(groups)
         
 
-# %% ../nbs/43_conflation.ipynb 44
+# %% ../nbs/43_conflation.ipynb 57
 class Conflation:
 
     @staticmethod
@@ -244,7 +244,7 @@ class Conflation:
         return conflated_trn_meta, conflated_meta_info, meta_idx, conflated_tst_meta, conflated_lbl_meta
     
 
-# %% ../nbs/43_conflation.ipynb 70
+# %% ../nbs/43_conflation.ipynb 86
 class SaveData:
 
     @staticmethod
@@ -276,7 +276,7 @@ class SaveData:
         SaveData.save_raw(raw_file, meta_info["identifier"], meta_info["text"])
         
 
-# %% ../nbs/43_conflation.ipynb 76
+# %% ../nbs/43_conflation.ipynb 92
 def load_data(data_dir:str, meta_type:str):
     trn_file = f"{data_dir}/{meta_type}_trn_X_Y.npz"
     tst_file = f"{data_dir}/{meta_type}_tst_X_Y.npz"
@@ -289,22 +289,24 @@ def load_data(data_dir:str, meta_type:str):
     lbl_meta = None if lbl_file is None else sp.load_npz(lbl_file)
     
     meta_info = pd.read_csv(info_file)
-    
-    meta_phrases = sp.load_npz(f"{data_dir}/derived-phrases_{meta_type}_X_Y.npz")
+
+    fname = f"{data_dir}/derived-phrases_{meta_type}_X_Y.npz"
+    meta_phrases = sp.load_npz(fname) if os.path.exists(fname) else None
 
     return (trn_meta, tst_meta, lbl_meta), meta_info, meta_phrases, (trn_file, tst_file, lbl_file, info_file)
     
 
-# %% ../nbs/43_conflation.ipynb 77
+# %% ../nbs/43_conflation.ipynb 93
 def perform_similarity_based_conflation_01(meta_file:str, trn_meta:sp.csr_matrix, tst_meta:sp.csr_matrix, 
-                                           lbl_meta:sp.csr_matrix, meta_info:Dict):
+                                           lbl_meta:sp.csr_matrix, meta_info:Dict, diff_thresh:Optional[float]=0.2, 
+                                           sim_topk:Optional[int]=1):
     meta_mat = retain_topk(sp.load_npz(meta_file), k=20)
-    clusters = Cluster.from_similarity(meta_mat, diff_thresh=0.2, sim_topk=1)
+    clusters = Cluster.from_similarity(meta_mat, diff_thresh=diff_thresh, sim_topk=1)
     
     return Conflation.perform_conflation(clusters, trn_meta, meta_info, tst_meta=tst_meta, lbl_meta=lbl_meta)
     
 
-# %% ../nbs/43_conflation.ipynb 78
+# %% ../nbs/43_conflation.ipynb 94
 def perform_phrase_based_conflation_02(meta_phrases:sp.csr_matrix, meta_file:str, trn_meta:sp.csr_matrix, 
                                        tst_meta:sp.csr_matrix, lbl_meta:sp.csr_matrix, meta_info:Dict):
     clusters = Cluster.from_derived_phrases(meta_phrases)
