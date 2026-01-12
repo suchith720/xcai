@@ -215,7 +215,8 @@ def linker_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, te
 # %% ../nbs/42_miscellaneous.ipynb 14
 def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mname:str, 
                           save_file_name:str, meta_file:str, datasets:Optional[List]=None, 
-                          pred_dir_name:Optional[str]=None, use_task_specific_metadata:Optional[bool]=False):
+                          pred_dir_name:Optional[str]=None, use_task_specific_metadata:Optional[bool]=False, 
+                          meta_sequence_length:Optional[int]=64):
     metric_dir = f"{output_dir}/metrics"
     os.makedirs(metric_dir, exist_ok=True)
 
@@ -225,7 +226,7 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
     if not use_task_specific_metadata:
         meta_info = load_info(f"{input_args.pickle_dir}/{save_file_name}.joblib",
                               f"/data/datasets/beir/msmarco/XC/{meta_file}",
-                              mname, sequence_length=64)
+                              mname, sequence_length=meta_sequence_length)
 
     os.makedirs(f"{input_args.pickle_dir}/beir/", exist_ok=True)
 
@@ -243,7 +244,7 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
             fname = f"/data/datasets/beir/{dataset}/XC/{meta_file}"
             if os.path.exists(fname):
                 meta_info = load_info(f"{input_args.pickle_dir}/beir/{save_file_name}/{dataset_prefix}.joblib",
-                                      fname, mname, sequence_length=64)
+                                      fname, mname, sequence_length=meta_sequence_length)
             else:
                 print(f"WARNING:: Missing raw file at {fname}. Dataset '{dataset_prefix}' will be skipped.")
                 continue
