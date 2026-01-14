@@ -266,7 +266,7 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
 def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mname:str, meta_save_fname:str, 
                         meta_file:str, linker_dir:str, n_lnk_samples:Optional[int]=5, lnk_topk:Optional[int]=5, 
                         eval_batch_size:Optional[int]=400, datasets:Optional[List]=None, pred_dir_name:Optional[str]=None, 
-                        data_repr_pooling:Optional[bool]=True):
+                        data_repr_pooling:Optional[bool]=True, memory_injection_layer:Optional[int]=6):
     
     metric_dir = f"{output_dir}/metrics"
     os.makedirs(metric_dir, exist_ok=True)
@@ -295,7 +295,8 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
         input_args.prediction_suffix = dataset
         trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred, trn_metric, tst_metric = upma_run(output_dir, input_args, mname, test_dset, train_dset, 
                                                                                             eval_batch_size=eval_batch_size, save_dir_name=pred_dir_name, 
-                                                                                            data_repr_pooling=data_repr_pooling)
+                                                                                            data_repr_pooling=data_repr_pooling, 
+                                                                                            memory_injection_layer=memory_injection_layer)
 
         with open(f"{metric_dir}/{dataset}.json", "w") as file:
             json.dump({dataset: tst_metric}, file, indent=4)
@@ -303,7 +304,7 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
     collate_beir_metrics(metric_dir)
         
 
-# %% ../nbs/42_miscellaneous.ipynb 17
+# %% ../nbs/42_miscellaneous.ipynb 18
 def load_upma_block(dataset:str, config_file:str, input_args:argparse.ArgumentParser, 
                     n_lnk_samples:Optional[int]=5, lnk_topk:Optional[int]=5):
     config_key, fname = get_config_key(config_file)
@@ -320,11 +321,11 @@ def load_upma_block(dataset:str, config_file:str, input_args:argparse.ArgumentPa
     return train_dset, test_dset
     
 
-# %% ../nbs/42_miscellaneous.ipynb 18
+# %% ../nbs/42_miscellaneous.ipynb 20
 def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test_dset:Union[XCDataset, SXCDataset],
              train_dset:Optional[Union[XCDataset, SXCDataset]]=None, collator:Optional[Callable]=identity_collate_fn, 
              train_batch_size:Optional[int]=128, eval_batch_size:Optional[int]=400, save_dir_name:Optional[str]=None,
-             data_repr_pooling:Optional[bool]=True):
+             data_repr_pooling:Optional[bool]=True, memory_injection_layer:Optional[int]=6):
 
     args = XCLearningArguments(
         output_dir=output_dir,
@@ -376,7 +377,7 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
 
     config = UPMAConfig(
         memory_module_names = ["embeddings"],
-        memory_injection_layers = [6],
+        memory_injection_layers = [memory_injection_layer],
 
         num_total_metadata = test_dset.meta["lnk_meta"].n_meta,
         num_input_metadata = 5,
@@ -438,7 +439,7 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
     return main(learn, input_args, n_lbl=test_dset.n_lbl, save_dir_name=save_dir_name)
     
 
-# %% ../nbs/42_miscellaneous.ipynb 20
+# %% ../nbs/42_miscellaneous.ipynb 22
 def early_fusion_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test_dset:Union[XCDataset, SXCDataset],
                      train_dset:Optional[Union[XCDataset, SXCDataset]]=None, collator:Optional[Callable]=identity_collate_fn, 
                      save_dir_name:Optional[str]=None):
@@ -515,7 +516,7 @@ def early_fusion_run(output_dir:str, input_args:argparse.ArgumentParser, mname:s
     return main(learn, input_args, n_lbl=test_dset.data.n_lbl, eval_k=10, train_k=10, save_dir_name=save_dir_name)
     
 
-# %% ../nbs/42_miscellaneous.ipynb 21
+# %% ../nbs/42_miscellaneous.ipynb 23
 def load_early_fusion_block(dataset:str, config_file:str, input_args:argparse.ArgumentParser):
     config_key, fname = get_config_key(config_file)
     pkl_file = get_pkl_file(input_args.pickle_dir, f"{dataset}_{fname}_distilbert-base-uncased", input_args.use_sxc_sampler,
@@ -530,7 +531,7 @@ def load_early_fusion_block(dataset:str, config_file:str, input_args:argparse.Ar
     return train_dset, test_dset
     
 
-# %% ../nbs/42_miscellaneous.ipynb 22
+# %% ../nbs/42_miscellaneous.ipynb 24
 def early_fusion_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mname:str, linker_dir:str, 
                                 datasets:Optional[List]=None, raw_dir_name:Optional[str]="raw_data", 
                                 metric_dir_name:Optional[str]="metrics", pred_dir_name:Optional[str]=None):
