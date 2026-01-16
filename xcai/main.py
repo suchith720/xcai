@@ -37,6 +37,7 @@ def parse_args():
     
     parser.add_argument('--do_train_inference', action='store_true')
     parser.add_argument('--do_test_inference', action='store_true')
+    parser.add_argument('--do_label_inference', action='store_true')
     
     parser.add_argument('--save_train_prediction', action='store_true')
     parser.add_argument('--save_test_prediction', action='store_true')
@@ -452,9 +453,10 @@ def get_output(pred_idx:torch.Tensor, pred_ptr:torch.Tensor, pred_score:torch.Te
     
 
 # %% ../nbs/36_main.ipynb 30
-def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:int=None, train_k:int=None, 
-         save_teacher:bool=False, save_classifier:bool=False, resume_from_checkpoint:Optional[bool]=None, 
-         save_dir:Optional[str]=None, save_dir_name:Optional[str]=None, metadata_name:Optional[str]=None):
+def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, label_dataset=None, eval_k:int=None, 
+         train_k:int=None, label_k:int=None, save_teacher:bool=False, save_classifier:bool=False, 
+         resume_from_checkpoint:Optional[bool]=None, save_dir:Optional[str]=None, save_dir_name:Optional[str]=None, 
+         metadata_name:Optional[str]=None):
     eval_dataset = learn.eval_dataset if eval_dataset is None else eval_dataset
     train_dataset = learn.train_dataset if train_dataset is None else train_dataset
     
@@ -546,6 +548,19 @@ def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, eval_k:i
                 with open(f'{pred_dir}/train_predictions{prediction_suffix}.pkl', 'wb') as file:
                     pickle.dump(o, file)
                 sp.save_npz(f'{pred_dir}/train_predictions{prediction_suffix}.npz', trn_pred)
+
+        if args.do_label_inference and label_dataset is not None:
+            o = learn.predict(label_dataset)
+            lbl_metric = o.metrics
+            print(o.metrics)
+
+            lbl_pred = get_output(o.pred_idx, o.pred_ptr, o.pred_score, n_lbl=n_lbl)
+            if label_k is not None: lbl_pred = retain_topk(lbl_pred, k=label_k)
+            
+            if args.save_label_prediction:
+                with open(f'{pred_dir}/label_predictions{prediction_suffix}.pkl', 'wb') as file:
+                    pickle.dump(o, file)
+                sp.save_npz(f'{pred_dir}/label_predictions{prediction_suffix}.npz', lbl_pred)
                 
         return trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred, trn_metric, tst_metric
     else:

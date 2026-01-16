@@ -292,7 +292,7 @@ class SXCDataBlock(XCDataBlock):
         if isinstance(cfg, str): cfg = cls.load_cfg(cfg)
 
         blocks = dict()
-        for split in ['train', 'valid', 'test']:
+        for split in ['train', 'valid', 'test', 'label']:
             
             if split in cfg['path']:
                 
