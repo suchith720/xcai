@@ -104,15 +104,15 @@ BEIR_DATASETS = [
 ]
 
 # %% ../nbs/42_miscellaneous.ipynb 12
-def load_linker_block(dataset:str, config_file:str, input_args:argparse.ArgumentParser, 
-                      extra_args:Optional[argparse.ArgumentParser]=None):
+def load_linker_block(dataset:str, config_file:str, input_args:argparse.ArgumentParser, extra_args:Optional[argparse.ArgumentParser]=None, 
+                      main_max_data_sequence_length:Optional[int]=32):
     config_key, fname = get_config_key(config_file)
     pkl_file = get_pkl_file(input_args.pickle_dir, f"{dataset}_{fname}_distilbert-base-uncased", input_args.use_sxc_sampler,
                             input_args.exact, input_args.only_test)
 
     os.makedirs(os.path.dirname(pkl_file), exist_ok=True)
     block = build_block(pkl_file, config_file, input_args.use_sxc_sampler, config_key, do_build=input_args.build_block, only_test=input_args.only_test,
-                        n_slbl_samples=1, main_oversample=False)
+                        n_slbl_samples=1, main_oversample=False, main_max_data_sequence_length=main_max_data_sequence_length)
 
     do_inference = check_inference_mode(input_args)
     if do_inference:
