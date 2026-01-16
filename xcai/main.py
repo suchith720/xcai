@@ -75,7 +75,7 @@ def parse_args():
 
 # %% ../nbs/36_main.ipynb 6
 def check_inference_mode(args):
-    return args.do_train_inference or args.do_test_inference or args.save_train_prediction or args.save_test_prediction or args.save_representation or args.score_data_lbl or args.score_data_meta or args.score_lbl_meta
+    return args.do_train_inference or args.do_test_inference or args.do_label_inference or args.save_train_prediction or args.save_test_prediction or args.save_label_prediction or args.save_representation or args.score_data_lbl or args.score_data_meta or args.score_lbl_meta
     
 
 # %% ../nbs/36_main.ipynb 8
