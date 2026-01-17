@@ -186,44 +186,55 @@ class Filter:
         
 
 # %% ../nbs/36_main.ipynb 14
-def filter_metadata_dset(dset, data_topk:Union[int,Dict]=5, label_topk:Union[int,Dict]=5, meta_topk:Union[int,Dict]=5, 
+def filter_metadata_dset(dset, data_topk:Union[int,Dict]=5, label_topk:Union[int,Dict]=5, neg_topk:Union[int,Dict]=5, 
                          abs_thresh:Union[float,Dict]=0.2, diff_thresh:Union[float,Dict]=0.3):
     for meta_name in dset.meta.keys():
-        data_meta, lbl_meta = dset.meta[meta_name].data_meta, dset.meta[meta_name].lbl_meta
+        data_meta, lbl_meta, neg_meta = dset.meta[meta_name].data_meta, dset.meta[meta_name].lbl_meta, dset.meta[meta_name].neg_meta
         update_meta = False
         
-        k = topk.get(meta_name, None) if isinstance(topk, dict) else topk
-        if k is not None: 
+        k = data_topk.get(meta_name, None) if isinstance(data_topk, dict) else data_topk
+        if k is not None:
             data_meta = retain_topk(data_meta, k=k)
-            if lbl_meta is not None: lbl_meta = retain_topk(lbl_meta, k=k)
+            update_meta = True
+
+        k = label_topk.get(meta_name, None) if isinstance(label_topk, dict) else label_topk
+        if k is not None and lbl_meta is not None: 
+            lbl_meta = retain_topk(lbl_meta, k=k)
+            update_meta = True
+
+        k = neg_topk.get(meta_name, None) if isinstance(neg_topk, dict) else neg_topk
+        if k is not None and neg_meta is not None: 
+            neg_meta = retain_topk(neg_meta, k=k)
             update_meta = True
 
         t = abs_thresh.get(meta_name, None) if isinstance(abs_thresh, dict) else abs_thresh
         if t is not None:
             data_meta = Filter.threshold(data_meta, t=t)
             if lbl_meta is not None: lbl_meta = Filter.threshold(lbl_meta, t=t)
+            if neg_meta is not None: neg_meta = Filter.threshold(neg_meta, t=t)
             update_meta = True
 
         t = diff_thresh.get(meta_name, None) if isinstance(diff_thresh, dict) else diff_thresh
         if t is not None:
             data_meta = Filter.difference(data_meta, t=t)
             if lbl_meta is not None: lbl_meta = Filter.difference(lbl_meta, t=t)
+            if neg_meta is not None: neg_meta = Filter.difference(neg_meta, t=t)
             update_meta = True
             
-        if update_meta:
-            dset.meta[meta_name].update_meta_matrix(data_meta, lbl_meta)
-            if dset.meta[meta_name].use_meta_distribution or dset.meta[meta_name].return_scores:
-                dset.meta[meta_name]._store_scores() 
+        if update_meta: dset.meta[meta_name].update_meta_matrix(data_meta, lbl_meta, neg_meta) 
     
 
 # %% ../nbs/36_main.ipynb 15
-def filter_metadata_block(block, train_topk:Union[int,Dict]=5, train_abs_thresh:Union[float,Dict]=0.2, 
-                          train_diff_thresh:Union[float,Dict]=0.3, test_topk:Union[int,Dict]=5, 
+def filter_metadata_block(block, train_data_topk:Union[int,Dict]=5, train_label_topk:Union[int,Dict]=5, train_neg_topk:Union[int,Dict]=5, 
+                          train_abs_thresh:Union[float,Dict]=0.2, train_diff_thresh:Union[float,Dict]=0.3, 
+                          test_data_topk:Union[int,Dict]=5, test_label_topk:Union[int,Dict]=5, test_neg_topk:Union[int,Dict]=5,
                           test_abs_thresh:Union[float,Dict]=0.2, test_diff_thresh:Union[float,Dict]=0.3):
     if block.train is not None: 
-        filter_metadata_dset(block.train.dset, train_topk, train_abs_thresh, train_diff_thresh)
+        filter_metadata_dset(block.train.dset, train_data_topk, train_label_topk, train_neg_topk, 
+                             train_abs_thresh, train_diff_thresh)
     if block.test is not None:
-        filter_metadata_dset(block.test.dset, test_topk, test_abs_thresh, test_diff_thresh)
+        filter_metadata_dset(block.test.dset, test_data_topk, test_label_topk, test_neg_topk, 
+                             test_abs_thresh, test_diff_thresh)
                     
 
 # %% ../nbs/36_main.ipynb 16
@@ -334,9 +345,11 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
                 do_build:Optional[bool]=False, only_test:Optional[bool]=False, use_oracle:Optional[bool]=False, 
                 remove_empty_datapoints:Optional[bool]=False, train_label_topk:Optional[int]=None, test_label_topk:Optional[int]=None, 
                 
-                train_meta_topk:Optional[int]=None, test_meta_topk:Optional[int]=None, train_meta_abs_thresh:Optional[float]=None, 
-                test_meta_abs_thresh:Optional[float]=None, train_meta_diff_thresh:Optional[float]=None, test_meta_diff_thresh:Optional[float]=None,
+                train_data_meta_topk:Optional[int]=None, test_data_meta_topk:Optional[int]=None, train_label_meta_topk:Optional[int]=None, 
+                test_label_meta_topk:Optional[int]=None, train_neg_meta_topk:Optional[int]=None, test_neg_meta_topk:Optional[int]=None,
                 
+                train_meta_abs_thresh:Optional[float]=None, test_meta_abs_thresh:Optional[float]=None, 
+                train_meta_diff_thresh:Optional[float]=None, test_meta_diff_thresh:Optional[float]=None,
                 
                 aug_meta_name:Optional[str]=None, aug_data_seq_length:Optional[int]=128, aug_lbl_seq_length:Optional[int]=128, 
                 aug_exclude_sep:Optional[bool]=False, perform_data_meta_aug:Optional[bool]=False, perform_lbl_meta_aug:Optional[bool]=False, 
@@ -403,13 +416,20 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
         retain_topk_labels(block, train_k=train_label_topk, test_k=test_label_topk)
 
     if (
-        train_meta_topk is not None or test_meta_topk is not None or
+        train_data_meta_topk is not None or test_data_meta_topk is not None or
+        train_label_meta_topk is not None or test_label_meta_topk is not None or
+        train_neg_meta_topk is not None or test_neg_meta_topk is not None or
         train_meta_abs_thresh is not None or test_meta_abs_thresh is not None or
         train_meta_diff_thresh is not None or test_meta_diff_thresh is not None
     ):
-        filter_metadata_block(block, train_topk=train_meta_topk, train_abs_thresh=train_meta_abs_thresh, 
-                              train_diff_thresh=train_meta_diff_thresh, test_topk=test_meta_topk, 
-                              test_abs_thresh=test_meta_abs_thresh, test_diff_thresh=test_meta_diff_thresh)
+        filter_metadata_block(block, train_data_topk=train_data_meta_topk, train_label_topk=train_label_meta_topk,
+                              train_neg_topk=train_neg_meta_topk, train_abs_thresh=train_meta_abs_thresh,
+                              train_diff_thresh=train_meta_diff_thresh, 
+                              
+                              test_data_topk=test_data_meta_topk, test_label_topk=test_label_meta_topk,
+                              test_neg_topk=test_neg_meta_topk, test_abs_thresh=test_meta_abs_thresh, 
+                              test_diff_thresh=test_meta_diff_thresh)
+        
         # retain_topk_metadata(block, train_k=train_meta_topk, test_k=test_meta_topk)
 
     return block

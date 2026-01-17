@@ -11,7 +11,7 @@ from transformers import BatchEncoding
 from itertools import chain
 
 from .core import Filterer, Info
-from .data import MainXCData, MetaXCData
+from .data import MainXCData, NegXCData, MetaXCData
 from .data import BaseXCDataset, MainXCDataset, MetaXCDataset, XCDataset
 from .data import MetaXCDatasets, BaseXCDataBlock, XCDataBlock
 from .data import _read_sparse_file
@@ -21,10 +21,10 @@ from fastcore.utils import *
 from fastcore.meta import *
 from plum import dispatch
 
-# %% ../nbs/35_sdata.ipynb 14
+# %% ../nbs/35_sdata.ipynb 15
 def identity_collate_fn(batch): return BatchEncoding(batch)
 
-# %% ../nbs/35_sdata.ipynb 16
+# %% ../nbs/35_sdata.ipynb 17
 class Sampler:
     
     @staticmethod
@@ -143,7 +143,7 @@ class Sampler:
         return output
         
 
-# %% ../nbs/35_sdata.ipynb 19
+# %% ../nbs/35_sdata.ipynb 20
 class SMainXCDataset(MainXCDataset):
 
     def __init__(
@@ -174,7 +174,7 @@ class SMainXCDataset(MainXCDataset):
         return x
     
 
-# %% ../nbs/35_sdata.ipynb 33
+# %% ../nbs/35_sdata.ipynb 35
 class SMetaXCDataset(MetaXCDataset):
 
     def __init__(
@@ -221,7 +221,7 @@ class SMetaXCDataset(MetaXCDataset):
         return x
         
 
-# %% ../nbs/35_sdata.ipynb 42
+# %% ../nbs/35_sdata.ipynb 44
 class SXCDataset(XCDataset):
 
     def __init__(self, data:SMainXCDataset, **kwargs):
@@ -280,7 +280,7 @@ class SXCDataset(XCDataset):
                                                meta_info=self.data.lbl_info, **kwargs)
         
 
-# %% ../nbs/35_sdata.ipynb 51
+# %% ../nbs/35_sdata.ipynb 53
 class SBaseXCDataBlock(BaseXCDataBlock):
     
     @classmethod
@@ -289,7 +289,7 @@ class SBaseXCDataBlock(BaseXCDataBlock):
         return cls(SXCDataset.from_file(**kwargs), collate_fn, **kwargs)
         
 
-# %% ../nbs/35_sdata.ipynb 55
+# %% ../nbs/35_sdata.ipynb 57
 class SXCDataBlock(XCDataBlock):
 
     @staticmethod
