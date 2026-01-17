@@ -56,16 +56,20 @@ PARAM = {
     #-------------------------
     'enable_delayed_indexing': False,
     'n_lbl_samples': None,
+    'n_neg_samples': None,
     'data_info_keys': None,
     'lbl_info_keys': None,
     'n_slbl_samples': 1,
+    'n_sneg_samples': 1,
     'main_oversample': False,
     
     'n_data_meta_samples': None,
     'n_lbl_meta_samples': None,
+    'n_neg_meta_samples': None,
     'meta_info_keys': None,
     'n_sdata_meta_samples': 1,
     'n_slbl_meta_samples': 1,
+    'n_sneg_meta_samples': 1,
     'meta_oversample': False,
 
     'use_meta_distribution': False,
