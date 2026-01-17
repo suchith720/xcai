@@ -315,7 +315,7 @@ def load_upma_block(dataset:str, config_file:str, input_args:argparse.ArgumentPa
     block = build_block(pkl_file, config_file, input_args.use_sxc_sampler, config_key, do_build=input_args.build_block,
                         only_test=input_args.only_test, main_oversample=True, meta_oversample=True, return_scores=True,
                         n_slbl_samples=1, n_sdata_meta_samples={"lnk_meta": n_lnk_samples, "neg_meta": 1},
-                        train_meta_topk={"lnk_meta": lnk_topk}, test_meta_topk={"lnk_meta": lnk_topk})
+                        train_data_meta_topk={"lnk_meta": lnk_topk}, test_data_meta_topk={"lnk_meta": lnk_topk})
     train_dset, test_dset = None if block.train is None else block.train.dset, block.test.dset
 
     return train_dset, test_dset
