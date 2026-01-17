@@ -305,17 +305,24 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
         
 
 # %% ../nbs/42_miscellaneous.ipynb 18
-def load_upma_block(dataset:str, config_file:str, input_args:argparse.ArgumentParser, 
-                    n_lnk_samples:Optional[int]=5, lnk_topk:Optional[int]=5):
+def load_upma_block(dataset:str, config_file:str, input_args:argparse.ArgumentParser, n_data_lnk_samples:Optional[int]=5, 
+                    n_lbl_lnk_samples:Optional[int]=5, n_neg_lnk_samples:Optional[int]=5, data_lnk_topk:Optional[int]=5, 
+                    lbl_lnk_topk:Optional[int]=5, neg_lnk_topk:Optional[int]=5):
     config_key, fname = get_config_key(config_file)
     pkl_file = get_pkl_file(input_args.pickle_dir, f"{dataset}_{fname}_distilbert-base-uncased", input_args.use_sxc_sampler,
                             input_args.exact, input_args.only_test)
 
     os.makedirs(os.path.dirname(pkl_file), exist_ok=True)
-    block = build_block(pkl_file, config_file, input_args.use_sxc_sampler, config_key, do_build=input_args.build_block,
-                        only_test=input_args.only_test, main_oversample=True, meta_oversample=True, return_scores=True,
-                        n_slbl_samples=1, n_sdata_meta_samples={"lnk_meta": n_lnk_samples, "neg_meta": 1},
-                        train_data_meta_topk={"lnk_meta": lnk_topk}, test_data_meta_topk={"lnk_meta": lnk_topk})
+    block = build_block(pkl_file, config_file, input_args.use_sxc_sampler, config_key, do_build=input_args.build_block, 
+                        only_test=input_args.only_test, main_oversample=True, meta_oversample=True, return_scores=True, 
+                        n_slbl_samples=1, n_sdata_meta_samples={"lnk_meta": n_data_lnk_samples, "neg_meta": 1},
+                        n_slbl_meta_samples={"lnk_meta": n_lbl_lnk_samples, "neg_meta": 1},
+                        n_sneg_meta_samples={"lnk_meta": n_neg_lnk_samples, "neg_meta": 1},
+                        
+                        train_data_meta_topk={"lnk_meta": data_lnk_topk}, test_data_meta_topk={"lnk_meta": data_lnk_topk}, 
+                        train_label_meta_topk={"lnk_meta": lbl_lnk_topk}, test_label_meta_topk={"lnk_meta": lbl_lnk_topk},
+                        train_neg_meta_topk={"lnk_meta": neg_lnk_topk}, test_neg_meta_topk={"lnk_meta": neg_lnk_topk},)
+    
     train_dset, test_dset = None if block.train is None else block.train.dset, block.test.dset
 
     return train_dset, test_dset
