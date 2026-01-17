@@ -56,7 +56,7 @@ class NegXCData:
     
     @classmethod
     @delegates(Info.from_txt)
-    def from_file(cls, data_neg:str, neg_info:Optional[str]=None, main_max_lbl_sequence_length:Optional[int]=None,
+    def from_file(cls, data_neg:Optional[str]=None, neg_info:Optional[str]=None, main_max_lbl_sequence_length:Optional[int]=None,
                   lbl_prompt_func:Optional[Callable]=None, **kwargs):
         return {
             'data_neg': _read_sparse_file(data_neg),
