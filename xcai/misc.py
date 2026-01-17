@@ -325,8 +325,12 @@ def load_upma_block(dataset:str, config_file:str, input_args:argparse.ArgumentPa
 def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test_dset:Union[XCDataset, SXCDataset],
              train_dset:Optional[Union[XCDataset, SXCDataset]]=None, collator:Optional[Callable]=identity_collate_fn, 
              train_batch_size:Optional[int]=128, eval_batch_size:Optional[int]=400, save_dir_name:Optional[str]=None,
-             data_repr_pooling:Optional[bool]=True, memory_injection_layer:Optional[int]=6):
+             data_repr_pooling:Optional[bool]=True, memory_injection_layer:Optional[int]=6, use_label_memory:Optional[bool]=True):
 
+    label_names = ["plbl2data_idx", "plbl2data_data2ptr", "lnk2data_idx", "lnk2data_data2ptr", "lnk2data_scores"]
+    label_names = label_names if use_label_memory else label_names + ["lnk2lbl_idx", "lnk2lbl_data2ptr", "lnk2lbl_lbl2ptr", "lnk2lbl_scores"]
+    use_label_metadata = lbl2data_inject_memory = neg2data_inject_memory = use_label_memory
+    
     args = XCLearningArguments(
         output_dir=output_dir,
         logging_first_step=True,
@@ -348,7 +352,7 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
         warmup_steps=1000,
         weight_decay=0.01,
         learning_rate=6e-5,
-        label_names=["plbl2data_idx", "plbl2data_data2ptr", "lnk2data_idx", "lnk2data_data2ptr", "lnk2data_scores"],
+        label_names=label_names,
 
         group_by_cluster=True,
         use_data_metadata_for_clustering=True,
@@ -360,7 +364,7 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
         maximum_cluster_size=1600,
 
         data_aug_meta_name="lnk",
-        use_label_metadata=False,
+        use_label_metadata=use_label_metadata,
 
         metric_for_best_model='N@10',
         load_best_model_at_end=True,
@@ -390,8 +394,8 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
         neg2data_aug_meta_prefix="lnk2neg",
 
         data_inject_memory=True,
-        lbl2data_inject_memory=False,
-        neg2data_inject_memory=False,
+        lbl2data_inject_memory=lbl2data_inject_memory,
+        neg2data_inject_memory=neg2data_inject_memory,
 
         data_repr_pooling=data_repr_pooling,
         data_normalize=False,

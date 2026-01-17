@@ -186,8 +186,8 @@ class Filter:
         
 
 # %% ../nbs/36_main.ipynb 14
-def filter_metadata_dset(dset, topk:Union[int,Dict]=5, abs_thresh:Union[float,Dict]=0.2, 
-                         diff_thresh:Union[float,Dict]=0.3):
+def filter_metadata_dset(dset, data_topk:Union[int,Dict]=5, label_topk:Union[int,Dict]=5, meta_topk:Union[int,Dict]=5, 
+                         abs_thresh:Union[float,Dict]=0.2, diff_thresh:Union[float,Dict]=0.3):
     for meta_name in dset.meta.keys():
         data_meta, lbl_meta = dset.meta[meta_name].data_meta, dset.meta[meta_name].lbl_meta
         update_meta = False
@@ -251,12 +251,14 @@ def retain_topk_metadata(block, train_k:Union[int,Dict]=5, test_k:Union[int,Dict
 def retain_topk_labels(block, train_k:int=5, test_k:int=3):
     if train_k is not None and block.train is not None:
         block.train.dset.data.data_lbl = retain_topk(block.train.dset.data.data_lbl, k=train_k)
+        
         block.train.dset.data._store_indices()
         if block.train.dset.data.use_main_distribution or block.train.dset.data.return_scores: 
             block.train.dset.data._store_scores()
             
     if test_k is not None and block.test is not None:
         block.test.dset.data.data_lbl = retain_topk(block.test.dset.data.data_lbl, k=test_k)
+        
         block.test.dset.data._store_indices()
         if block.test.dset.data.use_main_distribution or block.test.dset.data.return_scores:
             block.test.dset.data._store_scores()

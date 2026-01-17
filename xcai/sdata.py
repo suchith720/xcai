@@ -21,10 +21,10 @@ from fastcore.utils import *
 from fastcore.meta import *
 from plum import dispatch
 
-# %% ../nbs/35_sdata.ipynb 11
+# %% ../nbs/35_sdata.ipynb 14
 def identity_collate_fn(batch): return BatchEncoding(batch)
 
-# %% ../nbs/35_sdata.ipynb 13
+# %% ../nbs/35_sdata.ipynb 16
 class Sampler:
     
     @staticmethod
@@ -143,17 +143,18 @@ class Sampler:
         return output
         
 
-# %% ../nbs/35_sdata.ipynb 16
+# %% ../nbs/35_sdata.ipynb 19
 class SMainXCDataset(MainXCDataset):
 
     def __init__(
         self,
         n_slbl_samples:Optional[int]=1,
+        n_sneg_samples:Optional[int]=1,
         main_oversample:Optional[bool]=False,
         **kwargs
     ):
         super().__init__(**kwargs)
-        store_attr('n_slbl_samples,main_oversample')
+        store_attr('n_slbl_samples,main_oversample,n_sneg_samples')
         
     def __getitems__(self, idxs:List):
         x = {'data_idx': torch.tensor(idxs, dtype=torch.int64)}
@@ -164,23 +165,30 @@ class SMainXCDataset(MainXCDataset):
                                       self.main_oversample, self.lbl_info, self.lbl_info_keys, self.use_main_distribution, 
                                       self.data_lbl_scores, return_scores=self.return_scores)
             x.update(o)
+        if self.data_neg is not None:
+            prefix = 'neg2data'
+            o = Sampler.extract_items(prefix, self.curr_data_neg, idxs, self.n_neg_samples, self.n_sneg_samples, 
+                                      self.main_oversample, self.neg_info, self.lbl_info_keys, self.use_main_distribution, 
+                                      self.data_neg_scores, return_scores=self.return_scores)
+            x.update(o)
         return x
     
 
-# %% ../nbs/35_sdata.ipynb 29
+# %% ../nbs/35_sdata.ipynb 33
 class SMetaXCDataset(MetaXCDataset):
 
     def __init__(
         self,
         n_sdata_meta_samples:Optional[int]=1,
         n_slbl_meta_samples:Optional[int]=1,
+        n_sneg_meta_samples:Optional[int]=1,
         meta_oversample:Optional[bool]=False,
         meta_dropout_remove:Optional[float]=None,
         meta_dropout_replace:Optional[float]=None,
         **kwargs
     ):
         super().__init__(**kwargs)
-        store_attr('n_sdata_meta_samples,n_slbl_meta_samples,meta_oversample')
+        store_attr('n_sdata_meta_samples,n_slbl_meta_samples,n_sneg_meta_samples,meta_oversample')
         store_attr('meta_dropout_remove,meta_dropout_replace')
         
     def get_data_meta(self, idxs:List):
@@ -201,9 +209,19 @@ class SMetaXCDataset(MetaXCDataset):
                                   dropout_replace=self.meta_dropout_replace, return_scores=self.return_scores)
         x.update(o)
         return x
+
+    def get_neg_meta(self, idxs:List):
+        if self.curr_neg_meta is None: return {}
+        x, prefix = dict(), f'{self.prefix}2neg'
+        o = Sampler.extract_items(prefix, self.curr_neg_meta, idxs, self.n_neg_meta_samples, self.n_sneg_meta_samples, 
+                                  self.meta_oversample, self.meta_info, self.meta_info_keys, self.use_meta_distribution, 
+                                  self.neg_meta_scores, dropout_remove=self.meta_dropout_remove, 
+                                  dropout_replace=self.meta_dropout_replace, return_scores=self.return_scores)
+        x.update(o)
+        return x
         
 
-# %% ../nbs/35_sdata.ipynb 36
+# %% ../nbs/35_sdata.ipynb 42
 class SXCDataset(XCDataset):
 
     def __init__(self, data:SMainXCDataset, **kwargs):
@@ -236,6 +254,12 @@ class SXCDataset(XCDataset):
                         z[f'{meta.prefix}2lbl_data2ptr'] = torch.tensor([o.sum() for o in z[f'{meta.prefix}2lbl_lbl2ptr'].split_with_sizes(x[f'lbl2data_data2ptr'].tolist())])
                         z[f'p{meta.prefix}2lbl_data2ptr'] = torch.tensor([o.sum() for o in z[f'p{meta.prefix}2lbl_lbl2ptr'].split_with_sizes(x[f'lbl2data_data2ptr'].tolist())])
                     x.update(z)
+                if self.n_neg:
+                    z = meta.get_neg_meta(x['neg2data_idx'])
+                    if len(z):
+                        z[f'{meta.prefix}2neg_data2ptr'] = torch.tensor([o.sum() for o in z[f'{meta.prefix}2neg_neg2ptr'].split_with_sizes(x[f'neg2data_data2ptr'].tolist())])
+                        z[f'p{meta.prefix}2neg_data2ptr'] = torch.tensor([o.sum() for o in z[f'p{meta.prefix}2neg_neg2ptr'].split_with_sizes(x[f'neg2data_data2ptr'].tolist())])
+                    x.update(z)
         return x
 
     def get_one_hop_metadata(self, batch_size:Optional[int]=1024, thresh:Optional[int]=10, 
@@ -256,7 +280,7 @@ class SXCDataset(XCDataset):
                                                meta_info=self.data.lbl_info, **kwargs)
         
 
-# %% ../nbs/35_sdata.ipynb 44
+# %% ../nbs/35_sdata.ipynb 51
 class SBaseXCDataBlock(BaseXCDataBlock):
     
     @classmethod
@@ -265,7 +289,7 @@ class SBaseXCDataBlock(BaseXCDataBlock):
         return cls(SXCDataset.from_file(**kwargs), collate_fn, **kwargs)
         
 
-# %% ../nbs/35_sdata.ipynb 48
+# %% ../nbs/35_sdata.ipynb 55
 class SXCDataBlock(XCDataBlock):
 
     @staticmethod
