@@ -255,9 +255,9 @@ class UPMAEmbeddingMemory(nn.Module):
             assert input_embeds is not None, "Invalid input: both `input_idx` and `input_embeds` cannot be None." 
             embeds, mask = align_tensor(input_embeds, indptr)
             
-        if embeds.size(1) != self.config.num_input_metadata:
+        if embeds.size(1) > self.config.num_input_metadata:
             raise ValueError(
-                f"Invalid input: expected {self.config.num_input_metadata} metadata items, "
+                f"Invalid input: expected less than {self.config.num_input_metadata} metadata items, "
                 f"but got {embeds.size(1)}."
             )
 
@@ -266,7 +266,7 @@ class UPMAEmbeddingMemory(nn.Module):
             
         if position_ids is None:
             position_ids = (
-                self.position_ids[:, :self.config.num_input_metadata]
+                self.position_ids[:, :embeds.size(1)]
                 if scores is None else 
                 torch.argsort(scores, dim=1, descending=True)
             )
