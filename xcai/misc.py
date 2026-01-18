@@ -335,7 +335,11 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
              data_repr_pooling:Optional[bool]=True, memory_injection_layer:Optional[int]=6, use_label_memory:Optional[bool]=True):
 
     label_names = ["plbl2data_idx", "plbl2data_data2ptr", "lnk2data_idx", "lnk2data_data2ptr", "lnk2data_scores"]
-    label_names = label_names if use_label_memory else label_names + ["lnk2lbl_idx", "lnk2lbl_data2ptr", "lnk2lbl_lbl2ptr", "lnk2lbl_scores"]
+    
+    label_memory_names = ["lnk2lbl_idx", "lnk2lbl_data2ptr", "lnk2lbl_lbl2ptr", "lnk2neg_scores", 
+                          "lnk2neg_idx", "lnk2neg_data2ptr", "lnk2neg_neg2ptr", "lnk2neg_scores"]
+    
+    label_names = label_names + label_memory_names if use_label_memory else label_names
     use_label_metadata = lbl2data_inject_memory = neg2data_inject_memory = use_label_memory
     
     args = XCLearningArguments(
