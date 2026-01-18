@@ -336,7 +336,7 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
 
     label_names = ["plbl2data_idx", "plbl2data_data2ptr", "lnk2data_idx", "lnk2data_data2ptr", "lnk2data_scores"]
     
-    label_memory_names = ["lnk2lbl_idx", "lnk2lbl_data2ptr", "lnk2lbl_lbl2ptr", "lnk2neg_scores", 
+    label_memory_names = ["lnk2lbl_idx", "lnk2lbl_data2ptr", "lnk2lbl_lbl2ptr", "lnk2lbl_scores", 
                           "lnk2neg_idx", "lnk2neg_data2ptr", "lnk2neg_neg2ptr", "lnk2neg_scores"]
     
     label_names = label_names + label_memory_names if use_label_memory else label_names

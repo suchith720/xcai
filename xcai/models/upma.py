@@ -996,13 +996,13 @@ class UPA000(PreTrainedModel):
         
         loss = None; lbl2data_o = neg2data_o = UPMAEncoderOutput()
         if lbl2data_input_ids is not None:
-            lbl2data_meta_kwargs = Parameters.from_aug_meta_prefix_for_feature('lbl2data', self.config.lbl2data_aug_meta_prefix, **kwargs)
+            lbl2data_meta_kwargs = Parameters.from_aug_meta_prefix_for_feature('lbl', self.config.lbl2data_aug_meta_prefix, **kwargs)
             lbl2data_o = encoder(data_input_ids=lbl2data_input_ids, data_attention_mask=lbl2data_attention_mask, 
                                  data_aug_meta_prefix=self.config.lbl2data_aug_meta_prefix, data_inject_memory=self.config.lbl2data_inject_memory, 
                                  data_output_hidden_states=True, **lbl2data_meta_kwargs)
 
             if neg2data_input_ids is not None:
-                neg2data_meta_kwargs = Parameters.from_aug_meta_prefix_for_feature('neg2data', self.config.neg2data_aug_meta_prefix, **kwargs)
+                neg2data_meta_kwargs = Parameters.from_aug_meta_prefix_for_feature('neg', self.config.neg2data_aug_meta_prefix, **kwargs)
                 neg2data_o = encoder(data_input_ids=neg2data_input_ids, data_attention_mask=neg2data_attention_mask, 
                                      data_aug_meta_prefix=self.config.neg2data_aug_meta_prefix, data_inject_memory=self.config.neg2data_inject_memory, 
                                      data_output_hidden_states=True, **neg2data_meta_kwargs)
