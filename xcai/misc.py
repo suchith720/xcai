@@ -297,10 +297,12 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
         train_dset, test_dset = load_upma_block(dataset, config_file, input_args)
 
         dataset = dataset.replace("/", "-")
-        meta_file = f"{linker_dir}/predictions/test_predictions_{dataset}.npz"
-        data_meta = retain_topk(sp.load_npz(meta_file), k=data_lnk_topk)
-        meta_file = f"{linker_dir}/predictions/label_predictions_{dataset}.npz"
-        lbl_meta = retain_topk(sp.load_npz(meta_file), k=lbl_lnk_topk)
+        data_meta = retain_topk(sp.load_npz(f"{linker_dir}/predictions/test_predictions_{dataset}.npz"), k=data_lnk_topk)
+        lbl_meta = (
+            retain_topk(sp.load_npz(f"{linker_dir}/predictions/label_predictions_{dataset}.npz"), k=lbl_lnk_topk) 
+            if use_label_memory else None
+        )
+        
         meta_kwargs = {
             "lnk_meta": SMetaXCDataset(prefix="lnk", data_meta=data_meta, lbl_meta=lbl_meta, meta_info=meta_info, n_sdata_meta_samples=n_data_lnk_samples,
                                        n_slbl_meta_samples=n_lbl_lnk_samples, return_scores=True, meta_oversample=True),
