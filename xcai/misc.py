@@ -276,9 +276,10 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
 
 # %% ../nbs/42_miscellaneous.ipynb 17
 def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mname:str, meta_save_fname:str, 
-                        meta_file:str, linker_dir:str, n_lnk_samples:Optional[int]=5, lnk_topk:Optional[int]=5, 
-                        eval_batch_size:Optional[int]=400, datasets:Optional[List]=None, pred_dir_name:Optional[str]=None, 
-                        data_repr_pooling:Optional[bool]=True, memory_injection_layer:Optional[int]=6):
+                        meta_file:str, linker_dir:str, n_data_lnk_samples:Optional[int]=5, n_lbl_lnk_samples:Optional[int]=5, 
+                        data_lnk_topk:Optional[int]=5, lbl_lnk_topk:Optional[int]=5, eval_batch_size:Optional[int]=400, 
+                        datasets:Optional[List]=None, pred_dir_name:Optional[str]=None, data_repr_pooling:Optional[bool]=True, 
+                        memory_injection_layer:Optional[int]=6, use_label_memory:Optional[bool]=False):
     
     metric_dir = f"{output_dir}/metrics"
     os.makedirs(metric_dir, exist_ok=True)
@@ -297,10 +298,12 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
 
         dataset = dataset.replace("/", "-")
         meta_file = f"{linker_dir}/predictions/test_predictions_{dataset}.npz"
-        data_meta = retain_topk(sp.load_npz(meta_file), k=lnk_topk)
+        data_meta = retain_topk(sp.load_npz(meta_file), k=data_lnk_topk)
+        meta_file = f"{linker_dir}/predictions/label_predictions_{dataset}.npz"
+        lbl_meta = retain_topk(sp.load_npz(meta_file), k=lbl_lnk_topk)
         meta_kwargs = {
-            "lnk_meta": SMetaXCDataset(prefix="lnk", data_meta=data_meta, meta_info=meta_info, n_sdata_meta_samples=n_lnk_samples,
-                                       return_scores=True, meta_oversample=True),
+            "lnk_meta": SMetaXCDataset(prefix="lnk", data_meta=data_meta, lbl_meta=lbl_meta, meta_info=meta_info, n_sdata_meta_samples=n_data_lnk_samples,
+                                       n_slbl_meta_samples=n_lbl_lnk_samples, return_scores=True, meta_oversample=True),
         }
         test_dset = SXCDataset(test_dset.data, **meta_kwargs)
 
@@ -308,7 +311,8 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
         trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred, trn_metric, tst_metric = upma_run(output_dir, input_args, mname, test_dset, train_dset, 
                                                                                             eval_batch_size=eval_batch_size, save_dir_name=pred_dir_name, 
                                                                                             data_repr_pooling=data_repr_pooling, 
-                                                                                            memory_injection_layer=memory_injection_layer)
+                                                                                            memory_injection_layer=memory_injection_layer, 
+                                                                                            use_label_memory=use_label_memory)
 
         with open(f"{metric_dir}/{dataset}.json", "w") as file:
             json.dump({dataset: tst_metric}, file, indent=4)
@@ -344,7 +348,7 @@ def load_upma_block(dataset:str, config_file:str, input_args:argparse.ArgumentPa
 def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test_dset:Union[XCDataset, SXCDataset],
              train_dset:Optional[Union[XCDataset, SXCDataset]]=None, collator:Optional[Callable]=identity_collate_fn, 
              train_batch_size:Optional[int]=128, eval_batch_size:Optional[int]=400, save_dir_name:Optional[str]=None,
-             data_repr_pooling:Optional[bool]=True, memory_injection_layer:Optional[int]=6, use_label_memory:Optional[bool]=True, 
+             data_repr_pooling:Optional[bool]=True, memory_injection_layer:Optional[int]=6, use_label_memory:Optional[bool]=False, 
              num_input_metadata:Optional[int]=5):
 
     label_names = ["plbl2data_idx", "plbl2data_data2ptr", "lnk2data_idx", "lnk2data_data2ptr", "lnk2data_scores"]
