@@ -225,6 +225,7 @@ class SMetaXCDataset(MetaXCDataset):
 class SXCDataset(XCDataset):
 
     def __init__(self, data:SMainXCDataset, **kwargs):
+        super().__init__(**kwargs)
         self.data, self.meta = data, MetaXCDatasets({k:kwargs[k] for k in self.get_meta_args(**kwargs) if isinstance(kwargs[k], SMetaXCDataset)})
         self._verify_inputs()
         

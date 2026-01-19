@@ -358,6 +358,7 @@ class MetaXCDataset(BaseXCDataset):
         enable_delayed_indexing:Optional[bool]=False,
         **kwargs
     ):
+        super().__init__()
         store_attr('prefix,data_meta,lbl_meta,meta_info,n_data_meta_samples,n_lbl_meta_samples')
         store_attr('meta_info_keys,use_meta_distribution,return_scores,enable_delayed_indexing')
         store_attr('neg_meta,n_neg_meta_samples')
