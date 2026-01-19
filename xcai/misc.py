@@ -350,8 +350,8 @@ def load_upma_block(dataset:str, config_file:str, input_args:argparse.ArgumentPa
 def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test_dset:Union[XCDataset, SXCDataset],
              train_dset:Optional[Union[XCDataset, SXCDataset]]=None, collator:Optional[Callable]=identity_collate_fn, 
              train_batch_size:Optional[int]=128, eval_batch_size:Optional[int]=400, save_dir_name:Optional[str]=None,
-             data_repr_pooling:Optional[bool]=True, memory_injection_layer:Optional[int]=6, use_label_memory:Optional[bool]=False, 
-             num_input_metadata:Optional[int]=5):
+             data_repr_pooling:Optional[bool]=True, memory_injection_layer:Optional[int]=6, memory_type:Optional[str]="embeddings",
+             n_memory_layers:Optional[int]=3, use_label_memory:Optional[bool]=False, num_input_metadata:Optional[int]=5):
 
     label_names = ["plbl2data_idx", "plbl2data_data2ptr", "lnk2data_idx", "lnk2data_data2ptr", "lnk2data_scores"]
     
@@ -410,7 +410,7 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
     )
 
     config = UPMAConfig(
-        memory_module_names = ["embeddings"],
+        memory_module_names = [memory_type],
         memory_injection_layers = [memory_injection_layer],
 
         num_total_metadata = test_dset.meta["lnk_meta"].n_meta,
