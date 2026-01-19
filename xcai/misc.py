@@ -279,7 +279,8 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
                         meta_file:str, linker_dir:str, n_data_lnk_samples:Optional[int]=5, n_lbl_lnk_samples:Optional[int]=5, 
                         data_lnk_topk:Optional[int]=5, lbl_lnk_topk:Optional[int]=5, eval_batch_size:Optional[int]=400, 
                         datasets:Optional[List]=None, pred_dir_name:Optional[str]=None, data_repr_pooling:Optional[bool]=True, 
-                        memory_injection_layer:Optional[int]=6, use_label_memory:Optional[bool]=False):
+                        memory_injection_layer:Optional[int]=6, memory_type:Optional[str]="embeddings", n_memory_layers:Optional[int]=3, 
+                        use_label_memory:Optional[bool]=False, num_input_metadata:Optional[int]=5):
     
     metric_dir = f"{output_dir}/metrics"
     os.makedirs(metric_dir, exist_ok=True)
@@ -314,8 +315,10 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
                                                                                             eval_batch_size=eval_batch_size, save_dir_name=pred_dir_name, 
                                                                                             data_repr_pooling=data_repr_pooling, 
                                                                                             memory_injection_layer=memory_injection_layer, 
-                                                                                            use_label_memory=use_label_memory)
-
+                                                                                            use_label_memory=use_label_memory, memory_type=memory_type, 
+                                                                                            n_memory_layers=n_memory_layers, 
+                                                                                            num_input_metadata=num_input_metadata)
+        
         with open(f"{metric_dir}/{dataset}.json", "w") as file:
             json.dump({dataset: tst_metric}, file, indent=4)
 
