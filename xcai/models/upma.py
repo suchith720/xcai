@@ -922,6 +922,9 @@ class UPA000(PreTrainedModel):
         }
         self.rep_loss_fn = get_loss_function(config.loss_function)(**loss_kwargs)
         
+        self.cab_loss_fn = Calibration(margin=config.calib_margin, tau=config.calib_tau, n_negatives=config.calib_num_negatives, 
+                                       apply_softmax=config.calib_apply_softmax, reduce='mean')
+        
     @classmethod
     def from_pretrained(
         cls,
@@ -960,6 +963,19 @@ class UPA000(PreTrainedModel):
         
         if not return_dict: return (data_o.repr,)
         return UPMAModelOutput(data_repr=data_o.repr)
+
+    def compute_calibration_loss(
+        self, 
+        data_o: UPMAEncoderOutput,
+        lbl2data_o: UPMAEncoderOutput,
+        neg2data_o: UPMAEncoderOutput,
+        lbl2data_data2ptr: torch.Tensor,
+        lbl2data_idx: torch.Tensor,
+        plbl2data_data2ptr: torch.Tensor,
+        plbl2data_idx: torch.Tensor,
+    ):
+        # loss = self.cab_loss_fn()
+        pass
         
     def forward(
         self,
@@ -1013,6 +1029,12 @@ class UPA000(PreTrainedModel):
                                         n_ppos=plbl2data_data2ptr, ppos_idx=plbl2data_idx,
                                         neg_targ=neg2data_o.repr, n_neg=neg2data_data2ptr, 
                                         neg_idx=neg2data_idx, neg_scores=neg2data_scores, **kwargs)
+                
+                if self.config.use_calib_loss:
+                    calib_loss = self.compute_calibration_loss(data_o, lbl2data_o, neg2data_o, lbl2data_data2ptr, 
+                                                               lbl2data_idx, plbl2data_data2ptr, plbl2data_idx)
+                    
+                    loss = loss + self.config.calib_loss_weight * calib_loss
             
         if not return_dict:
             o = (data_o.repr, lbl2data_o.repr, neg2data_o.repr)
