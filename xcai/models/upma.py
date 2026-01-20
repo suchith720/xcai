@@ -707,7 +707,7 @@ class UPMAModel(PreTrainedModel):
             if output_hidden_states:
                 all_hidden_states = all_hidden_states + (hidden_state,)
 
-            if (
+            while(
                 inject_memory and memory_injection_ctr < n_memory_injection_layer and 
                 i+1 == self.config.memory_injection_layers[memory_injection_ctr]
             ):
