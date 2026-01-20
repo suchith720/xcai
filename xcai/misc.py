@@ -130,7 +130,8 @@ def load_linker_block(dataset:str, config_file:str, input_args:argparse.Argument
 # %% ../nbs/42_miscellaneous.ipynb 13
 def linker_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test_dset:Union[XCDataset, SXCDataset],
                train_dset:Optional[Union[XCDataset, SXCDataset]]=None, label_dset:Optional[Union[XCDataset, SXCDataset]]=None,
-               collator:Optional[Callable]=identity_collate_fn, save_dir_name:Optional[str]=None):
+               collator:Optional[Callable]=identity_collate_fn, save_dir_name:Optional[str]=None, normalize:Optional[bool]=True, 
+               use_layer_norm:Optional[bool]=True):
 
     args = XCLearningArguments(
         output_dir=output_dir,
@@ -180,8 +181,8 @@ def linker_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, te
         apply_softmax = True,
         reduction = "mean",
 
-        normalize = True,
-        use_layer_norm = True,
+        normalize = normalize,
+        use_layer_norm = use_layer_norm,
 
         use_encoder_parallel = True,
         loss_function = "triplet"
@@ -216,7 +217,8 @@ def linker_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, te
 def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mname:str, 
                           save_file_name:str, meta_file:str, datasets:Optional[List]=None, 
                           pred_dir_name:Optional[str]=None, use_task_specific_metadata:Optional[bool]=False, 
-                          meta_sequence_length:Optional[int]=64, get_label_predictions:Optional[bool]=False):
+                          meta_sequence_length:Optional[int]=64, get_label_predictions:Optional[bool]=False, 
+                          normalize:Optional[bool]=True, use_layer_norm:Optional[bool]=True):
     
     metric_dir = f"{output_dir}/metrics"
     os.makedirs(metric_dir, exist_ok=True)
@@ -266,7 +268,8 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
             
         input_args.prediction_suffix = dataset_prefix
         trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred, trn_metric, tst_metric = linker_run(output_dir, input_args, mname, test_dset, 
-                                                                                              save_dir_name=pred_dir_name, label_dset=label_dset)
+                                                                                              save_dir_name=pred_dir_name, label_dset=label_dset, 
+                                                                                              normalize=normalize, use_layer_norm=use_layer_norm)
 
         with open(f"{metric_dir}/{dataset_prefix}.json", "w") as file:
             json.dump({dataset: tst_metric}, file, indent=4)
