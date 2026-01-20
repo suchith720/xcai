@@ -922,8 +922,8 @@ class UPA000(PreTrainedModel):
         }
         self.rep_loss_fn = get_loss_function(config.loss_function)(**loss_kwargs)
         
-        self.cab_loss_fn = Calibration(margin=config.calib_margin, tau=config.calib_tau, n_negatives=config.calib_num_negatives, 
-                                       apply_softmax=config.calib_apply_softmax, reduce='mean')
+        self.cab_loss_fn = CalibrationWithNegatives(margin=config.calib_margin, n_negatives=config.calib_num_negatives,
+                                                    reduce='mean')
         
     @classmethod
     def from_pretrained(
@@ -968,14 +968,41 @@ class UPA000(PreTrainedModel):
         self, 
         data_o: UPMAEncoderOutput,
         lbl2data_o: UPMAEncoderOutput,
-        neg2data_o: UPMAEncoderOutput,
+        
+        data_meta_kwargs: Dict,
+        data_attention_mask: torch.Tensor,
+        lbl2data_attention_mask: torch.Tensor,
+        
         lbl2data_data2ptr: torch.Tensor,
         lbl2data_idx: torch.Tensor,
         plbl2data_data2ptr: torch.Tensor,
         plbl2data_idx: torch.Tensor,
+
+        neg2data_o: Optional[UPMAEncoderOutput]=None,
+        neg2data_attention_mask: Optional[torch.Tensor]=None,
+        neg2data_data2ptr: Optional[torch.Tensor]=None,
+        neg2data_idx: Optional[torch.Tensor]=None,
     ):
-        # loss = self.cab_loss_fn()
-        pass
+        loss, meta_key = 0.0, f"{self.config.data_aug_meta_prefix}_data2ptr"
+        if meta_key not in data_meta_kwargs: return loss
+
+        lbl2data_repr = Pooling.mean_pooling(lbl2data_o.last_hidden_state, lbl2data_attention_mask)
+        neg2data_repr = None if neg2data_attention_mask is None else Pooling.mean_pooling(neg2data_o.last_hidden_state, neg2data_attention_mask)
+
+        attention_mask = data_attention_mask
+        memory_mask = alignment_mask(data_meta_kwargs[meta_key])
+        for i in self.config.memory_injection_layers:
+            output, eoutput = data_o.hidden_states[i-1], data_o.hidden_states[i]
+            assert eoutput.shape[1] > output.shape[1]
+        
+            data_repr = Pooling.mean_pooling(output, attention_mask)
+            attention_mask = torch.cat([attention_mask, memory_mask], dim=1) 
+            data_erepr = Pooling.mean_pooling(eoutput, attention_mask)
+            
+            loss += self.cab_loss_fn(data_erepr, data_repr, lbl2data_repr, lbl2data_data2ptr, lbl2data_idx, 
+                                     plbl2data_data2ptr, plbl2data_idx, neg_targ=neg2data_repr, n_neg=neg2data_data2ptr, 
+                                     neg_idx=neg2data_idx)
+        return loss
         
     def forward(
         self,
@@ -1031,8 +1058,10 @@ class UPA000(PreTrainedModel):
                                         neg_idx=neg2data_idx, neg_scores=neg2data_scores, **kwargs)
                 
                 if self.config.use_calib_loss:
-                    calib_loss = self.compute_calibration_loss(data_o, lbl2data_o, neg2data_o, lbl2data_data2ptr, 
-                                                               lbl2data_idx, plbl2data_data2ptr, plbl2data_idx)
+                    calib_loss = self.compute_calibration_loss(data_o, lbl2data_o, data_meta_kwargs, data_attention_mask, lbl2data_attention_mask,
+                                                               lbl2data_data2ptr, lbl2data_idx, plbl2data_data2ptr, plbl2data_idx, 
+                                                               neg2data_o=neg2data_o, neg2data_attention_mask=neg2data_attention_mask, 
+                                                               neg2data_data2ptr=neg2data_data2ptr, neg2data_idx=neg2data_idx)
                     
                     loss = loss + self.config.calib_loss_weight * calib_loss
             

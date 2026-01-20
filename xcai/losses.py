@@ -347,7 +347,8 @@ class CalibrationWithNegatives(BaseLoss, LossOperations):
         
         **kwargs
     ):
-        einp, inp, pos_targ, neg_targ = einp.float(), inp.float(), pos_targ.float(), neg_targ.float()
+        einp, inp, pos_targ = einp.float(), inp.float(), pos_targ.float()
+        neg_targ = neg_targ if neg_targ is None else neg_targ.float()
         
         if n_neg is not None:
             assert torch.all(n_neg == n_neg.max()), "All datapoints should same number of negatives"
