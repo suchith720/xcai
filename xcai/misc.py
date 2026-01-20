@@ -427,7 +427,7 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
         num_input_metadata = num_input_metadata,
         metadata_dropout = 0.1,
 
-        n_memory_layers = 3,
+        n_memory_layers = n_memory_layers,
 
         data_aug_meta_prefix="lnk2data",
         lbl2data_aug_meta_prefix="lnk2lbl",
