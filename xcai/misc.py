@@ -134,13 +134,13 @@ def load_linker_block(dataset:str, config_file:str, input_args:argparse.Argument
 def linker_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test_dset:Union[XCDataset, SXCDataset],
                train_dset:Optional[Union[XCDataset, SXCDataset]]=None, label_dset:Optional[Union[XCDataset, SXCDataset]]=None,
                collator:Optional[Callable]=identity_collate_fn, save_dir_name:Optional[str]=None, normalize:Optional[bool]=True, 
-               use_layer_norm:Optional[bool]=True):
+               use_layer_norm:Optional[bool]=True, eval_batch_size:Optional[int]=800):
 
     args = XCLearningArguments(
         output_dir=output_dir,
         logging_first_step=True,
         per_device_train_batch_size=800,
-        per_device_eval_batch_size=800,
+        per_device_eval_batch_size=eval_batch_size,
         representation_num_beams=200,
         representation_accumulation_steps=10,
         save_strategy="steps",
@@ -221,7 +221,8 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
                           save_file_name:str, meta_file:str, datasets:Optional[List]=None, 
                           pred_dir_name:Optional[str]=None, use_task_specific_metadata:Optional[bool]=False, 
                           meta_sequence_length:Optional[int]=64, get_label_predictions:Optional[bool]=False, 
-                          normalize:Optional[bool]=True, use_layer_norm:Optional[bool]=True):
+                          normalize:Optional[bool]=True, use_layer_norm:Optional[bool]=True, 
+                          eval_batch_size:Optional[int]=800):
     
     metric_dir = f"{output_dir}/metrics"
     os.makedirs(metric_dir, exist_ok=True)
@@ -272,7 +273,8 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
         input_args.prediction_suffix = dataset_prefix
         trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred, trn_metric, tst_metric = linker_run(output_dir, input_args, mname, test_dset, 
                                                                                               save_dir_name=pred_dir_name, label_dset=label_dset, 
-                                                                                              normalize=normalize, use_layer_norm=use_layer_norm)
+                                                                                              normalize=normalize, use_layer_norm=use_layer_norm, 
+                                                                                              eval_batch_size=eval_batch_size)
 
         with open(f"{metric_dir}/{dataset_prefix}.json", "w") as file:
             json.dump({dataset: tst_metric}, file, indent=4)
