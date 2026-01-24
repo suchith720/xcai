@@ -69,7 +69,10 @@ def get_label_dataset(dataset:SXCDataset, mname:str, args:argparse.ArgumentParse
     lbl_info = dataset.data.lbl_info
     dataset = SXCDataset(SMainXCDataset(data_info=lbl_info, lbl_info=lbl_info))
     mname = mname.split("/")[1] if "/" in mname else mname
-    args.prediction_suffix = f"labels_{mname}" if args.use_pretrained else "labels"
+    lbl_suffix = f"labels_{mname}" if args.use_pretrained else "labels"
+    args.prediction_suffix = (
+        f"{lbl_suffix}_{args.prediction_suffix}" if len(args.prediction_suffix) else lbl_suffix
+    )
     return dataset
     
 
@@ -266,7 +269,7 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
                                  mname, sequence_length=128)
             label_dset = SXCDataset(SMainXCDataset(data_info=lbl_info, lbl_info=meta_info))
             
-        input_args.prediction_suffix = f"{input_args.prediction_suffix}_{dataset_prefix}" if len(input_args.prediction_suffix) else dataset_prefix
+        input_args.prediction_suffix = dataset_prefix
         trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred, trn_metric, tst_metric = linker_run(output_dir, input_args, mname, test_dset, 
                                                                                               save_dir_name=pred_dir_name, label_dset=label_dset, 
                                                                                               normalize=normalize, use_layer_norm=use_layer_norm)
