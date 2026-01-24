@@ -134,7 +134,7 @@ def load_linker_block(dataset:str, config_file:str, input_args:argparse.Argument
 def linker_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test_dset:Union[XCDataset, SXCDataset],
                train_dset:Optional[Union[XCDataset, SXCDataset]]=None, label_dset:Optional[Union[XCDataset, SXCDataset]]=None,
                collator:Optional[Callable]=identity_collate_fn, save_dir_name:Optional[str]=None, normalize:Optional[bool]=True, 
-               use_layer_norm:Optional[bool]=True, eval_batch_size:Optional[int]=800):
+               use_layer_norm:Optional[bool]=True, eval_batch_size:Optional[int]=800, model_type:Optional[str]="best"):
 
     args = XCLearningArguments(
         output_dir=output_dir,
@@ -196,7 +196,7 @@ def linker_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, te
 
     do_inference = check_inference_mode(input_args)
     model = load_model(args.output_dir, model_fn, {"mname": mname, "config": config}, do_inference=do_inference,
-                       use_pretrained=input_args.use_pretrained)
+                       use_pretrained=input_args.use_pretrained, type=model_type)
 
     metric = PrecReclMrr(test_dset.data.n_lbl, test_dset.data.data_lbl_filterer, prop=None if train_dset is None else train_dset.data.data_lbl,
                          pk=10, rk=200, rep_pk=[1, 3, 5, 10], rep_rk=[10, 100, 200], mk=[5, 10, 20])
@@ -222,7 +222,7 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
                           pred_dir_name:Optional[str]=None, use_task_specific_metadata:Optional[bool]=False, 
                           meta_sequence_length:Optional[int]=64, get_label_predictions:Optional[bool]=False, 
                           normalize:Optional[bool]=True, use_layer_norm:Optional[bool]=True, 
-                          eval_batch_size:Optional[int]=800):
+                          eval_batch_size:Optional[int]=800, model_type:Optional[str]="best"):
     
     metric_dir = f"{output_dir}/metrics"
     os.makedirs(metric_dir, exist_ok=True)
@@ -274,7 +274,7 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
         trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred, trn_metric, tst_metric = linker_run(output_dir, input_args, mname, test_dset, 
                                                                                               save_dir_name=pred_dir_name, label_dset=label_dset, 
                                                                                               normalize=normalize, use_layer_norm=use_layer_norm, 
-                                                                                              eval_batch_size=eval_batch_size)
+                                                                                              eval_batch_size=eval_batch_size, model_type=model_type)
 
         with open(f"{metric_dir}/{dataset_prefix}.json", "w") as file:
             json.dump({dataset: tst_metric}, file, indent=4)
