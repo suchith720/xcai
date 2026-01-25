@@ -575,6 +575,8 @@ def early_fusion_run(output_dir:str, input_args:argparse.ArgumentParser, mname:s
 # %% ../nbs/42_miscellaneous.ipynb 26
 def load_early_fusion_block(dataset:str, config_file:str, input_args:argparse.ArgumentParser):
     config_key, fname = get_config_key(config_file)
+
+    dataset = dataset.replace("/", "-")
     pkl_file = get_pkl_file(input_args.pickle_dir, f"{dataset}_{fname}_distilbert-base-uncased", input_args.use_sxc_sampler,
                             input_args.exact, input_args.only_test)
 
