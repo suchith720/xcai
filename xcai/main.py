@@ -38,10 +38,14 @@ def parse_args():
     parser.add_argument('--do_train_inference', action='store_true')
     parser.add_argument('--do_test_inference', action='store_true')
     parser.add_argument('--do_label_inference', action='store_true')
+    parser.add_argument('--do_meta_inference', action='store_true')
     
     parser.add_argument('--save_train_prediction', action='store_true')
     parser.add_argument('--save_test_prediction', action='store_true')
     parser.add_argument('--save_label_prediction', action='store_true')
+    parser.add_argument('--save_meta_prediction', action='store_true')
+
+    parser.add_argument('--save_meta_name', type=str, default='metadata')
     
     parser.add_argument('--save_representation', action='store_true')
     
@@ -76,7 +80,11 @@ def parse_args():
 
 # %% ../nbs/36_main.ipynb 6
 def check_inference_mode(args):
-    return args.do_train_inference or args.do_test_inference or args.do_label_inference or args.save_train_prediction or args.save_test_prediction or args.save_label_prediction or args.save_representation or args.score_data_lbl or args.score_data_meta or args.score_lbl_meta
+    return (
+        args.do_train_inference or args.do_test_inference or args.do_label_inference or args.do_meta_inference or
+        args.save_train_prediction or args.save_test_prediction or args.save_label_prediction or args.save_meta_prediction or
+        args.save_representation or args.score_data_lbl or args.score_data_meta or args.score_lbl_meta
+    )
     
 
 # %% ../nbs/36_main.ipynb 8
@@ -480,10 +488,11 @@ def get_output(pred_idx:torch.Tensor, pred_ptr:torch.Tensor, pred_score:torch.Te
     
 
 # %% ../nbs/36_main.ipynb 30
-def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, label_dataset=None, eval_k:int=None, 
-         train_k:int=None, label_k:int=None, save_teacher:bool=False, save_classifier:bool=False, 
-         resume_from_checkpoint:Optional[bool]=None, save_dir:Optional[str]=None, save_dir_name:Optional[str]=None, 
-         metadata_name:Optional[str]=None):
+def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, label_dataset=None, meta_dataset=None, 
+         eval_k:Optional[int]=None, train_k:Optional[int]=None, label_k:Optional[int]=None, meta_k:Optional[int]=None, 
+         save_teacher:bool=False, save_classifier:bool=False, resume_from_checkpoint:Optional[bool]=None, 
+         save_dir:Optional[str]=None, save_dir_name:Optional[str]=None, metadata_name:Optional[str]=None):
+    
     eval_dataset = learn.eval_dataset if eval_dataset is None else eval_dataset
     train_dataset = learn.train_dataset if train_dataset is None else train_dataset
     
@@ -588,6 +597,19 @@ def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, label_da
                 with open(f'{pred_dir}/label_predictions{prediction_suffix}.pkl', 'wb') as file:
                     pickle.dump(o, file)
                 sp.save_npz(f'{pred_dir}/label_predictions{prediction_suffix}.npz', lbl_pred)
+
+        if args.do_meta_inference and meta_dataset is not None:
+            o = learn.predict(meta_dataset)
+            meta_metric = o.metrics
+            print(o.metrics)
+
+            meta_pred = get_output(o.pred_idx, o.pred_ptr, o.pred_score, n_lbl=n_lbl)
+            if meta_k is not None: meta_pred = retain_topk(meta_pred, k=meta_k)
+            
+            if args.save_meta_prediction:
+                with open(f'{pred_dir}/{args.save_meta_name}_predictions{prediction_suffix}.pkl', 'wb') as file:
+                    pickle.dump(o, file)
+                sp.save_npz(f'{pred_dir}/{args.save_meta_name}_predictions{prediction_suffix}.npz', meta_pred)
                 
         return trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred, trn_metric, tst_metric
     else:
