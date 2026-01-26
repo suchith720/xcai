@@ -286,12 +286,12 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
 def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mname:str, meta_save_fname:str, 
                         meta_file:str, linker_dir:str, n_data_lnk_samples:Optional[int]=5, n_lbl_lnk_samples:Optional[int]=5, 
                         data_lnk_topk:Optional[int]=5, lbl_lnk_topk:Optional[int]=5, eval_batch_size:Optional[int]=400, 
-                        datasets:Optional[List]=None, pred_dir_name:Optional[str]=None, data_repr_pooling:Optional[bool]=True, 
-                        memory_injection_layer:Optional[Union[int, List]]=6, memory_type:Optional[Union[str, List]]="embeddings", 
-                        n_memory_layers:Optional[int]=3, use_label_memory:Optional[bool]=False, num_input_metadata:Optional[int]=5, 
-                        use_calib_loss:Optional[bool]=False, calib_loss_weight:Optional[float]=0.1):
+                        datasets:Optional[List]=None, data_repr_pooling:Optional[bool]=True, memory_injection_layer:Optional[Union[int, List]]=6, 
+                        memory_type:Optional[Union[str, List]]="embeddings", n_memory_layers:Optional[int]=3, use_label_memory:Optional[bool]=False, 
+                        num_input_metadata:Optional[int]=5, use_calib_loss:Optional[bool]=False, calib_loss_weight:Optional[float]=0.1, 
+                        use_memory:Optional[bool]=True, metric_dir_name:Optional[str]="metrics", pred_dir_name:Optional[str]=None):
     
-    metric_dir = f"{output_dir}/metrics"
+    metric_dir = f"{output_dir}/{metric_dir_name}"
     os.makedirs(metric_dir, exist_ok=True)
 
     input_args.only_test = input_args.do_test_inference = input_args.save_test_prediction = True
@@ -307,16 +307,19 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
         train_dset, test_dset = load_upma_block(dataset, config_file, input_args)
 
         dataset = dataset.replace("/", "-")
-        data_meta = retain_topk(sp.load_npz(f"{linker_dir}/predictions/test_predictions_{dataset}.npz"), k=data_lnk_topk)
-        lbl_meta = (
-            retain_topk(sp.load_npz(f"{linker_dir}/predictions/label_predictions_{dataset}.npz"), k=lbl_lnk_topk) 
-            if use_label_memory else None
-        )
+
+        meta_kwargs = {}
+        if use_memory:
+            data_meta = retain_topk(sp.load_npz(f"{linker_dir}/predictions/test_predictions_{dataset}.npz"), k=data_lnk_topk)
+            lbl_meta = (
+                retain_topk(sp.load_npz(f"{linker_dir}/predictions/label_predictions_{dataset}.npz"), k=lbl_lnk_topk) 
+                if use_label_memory else None
+            )
+            meta_kwargs = {
+                "lnk_meta": SMetaXCDataset(prefix="lnk", data_meta=data_meta, lbl_meta=lbl_meta, meta_info=meta_info, n_sdata_meta_samples=n_data_lnk_samples,
+                                           n_slbl_meta_samples=n_lbl_lnk_samples, return_scores=True, meta_oversample=True),
+            }
         
-        meta_kwargs = {
-            "lnk_meta": SMetaXCDataset(prefix="lnk", data_meta=data_meta, lbl_meta=lbl_meta, meta_info=meta_info, n_sdata_meta_samples=n_data_lnk_samples,
-                                       n_slbl_meta_samples=n_lbl_lnk_samples, return_scores=True, meta_oversample=True),
-        }
         test_dset = SXCDataset(test_dset.data, **meta_kwargs)
 
         input_args.prediction_suffix = dataset
