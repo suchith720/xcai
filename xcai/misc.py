@@ -226,11 +226,11 @@ def linker_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, te
 
 # %% ../nbs/42_miscellaneous.ipynb 16
 def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mname:str, save_file_name:str, 
-                          meta_file:str, pred_meta_file:str, datasets:Optional[List]=None, pred_dir_name:Optional[str]=None, 
-                          use_task_specific_metadata:Optional[bool]=False, meta_sequence_length:Optional[int]=64, 
-                          get_data_predictions:Optional[bool]=True, get_label_predictions:Optional[bool]=False, 
-                          get_meta_predictions:Optional[bool]=False, normalize:Optional[bool]=True, 
-                          use_layer_norm:Optional[bool]=True, eval_batch_size:Optional[int]=800, 
+                          meta_file:str, pred_meta_file:Optional[str]=None, datasets:Optional[List]=None, 
+                          pred_dir_name:Optional[str]=None, use_task_specific_metadata:Optional[bool]=False, 
+                          meta_sequence_length:Optional[int]=64, get_data_predictions:Optional[bool]=True, 
+                          get_label_predictions:Optional[bool]=False, get_meta_predictions:Optional[bool]=False, 
+                          normalize:Optional[bool]=True, use_layer_norm:Optional[bool]=True, eval_batch_size:Optional[int]=800, 
                           model_type:Optional[str]="best"):
     
     metric_dir = f"{output_dir}/metrics"
