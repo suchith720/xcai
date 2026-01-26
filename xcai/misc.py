@@ -214,21 +214,23 @@ def linker_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, te
     eval_dataset = get_label_dataset(test_dset, mname, input_args) if input_args.label_similarity else None
 
     return main(learn, input_args, n_lbl=test_dset.data.n_lbl, eval_dataset=eval_dataset, 
-                eval_k=10, train_k=10, label_dataset=label_dset, label_k=10, save_dir_name=save_dir_name)
+                eval_k=10, train_k=10, label_dataset=label_dset, label_k=10, meta_dset=meta_dset, meta_k=10,
+                save_dir_name=save_dir_name)
     
 
 # %% ../nbs/42_miscellaneous.ipynb 16
-def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mname:str, 
-                          save_file_name:str, meta_file:str, datasets:Optional[List]=None, 
-                          pred_dir_name:Optional[str]=None, use_task_specific_metadata:Optional[bool]=False, 
-                          meta_sequence_length:Optional[int]=64, get_label_predictions:Optional[bool]=False, 
-                          normalize:Optional[bool]=True, use_layer_norm:Optional[bool]=True, 
-                          eval_batch_size:Optional[int]=800, model_type:Optional[str]="best"):
+def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mname:str, save_file_name:str, 
+                          meta_file:str, datasets:Optional[List]=None, pred_dir_name:Optional[str]=None, 
+                          use_task_specific_metadata:Optional[bool]=False, meta_sequence_length:Optional[int]=64, 
+                          get_data_predictions:Optional[bool]=True, get_label_predictions:Optional[bool]=False, 
+                          get_meta_predictions:Optional[bool]=False, normalize:Optional[bool]=True, 
+                          use_layer_norm:Optional[bool]=True, eval_batch_size:Optional[int]=800, 
+                          model_type:Optional[str]="best"):
     
     metric_dir = f"{output_dir}/metrics"
     os.makedirs(metric_dir, exist_ok=True)
 
-    input_args.only_test = input_args.do_test_inference = input_args.save_test_prediction = True
+    input_args.only_test = True
     
     # meta-data
     if not use_task_specific_metadata:
@@ -242,13 +244,8 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
     for dataset in tqdm(datasets):
         print(dataset)
         dataset_prefix = dataset.replace("/", "-")
-        
-        # test-data
-        test_info = load_info(f"{input_args.pickle_dir}/beir/{dataset_prefix}.joblib",
-                              f"/data/datasets/beir/{dataset}/XC/raw_data/test.raw.csv",
-                              mname, sequence_length=32)
-        
-        # meta-data
+
+        # load metadata
         if use_task_specific_metadata:
             fname = f"/data/datasets/beir/{dataset}/XC/{meta_file}"
             if os.path.exists(fname):
@@ -257,26 +254,50 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
             else:
                 print(f"WARNING:: Missing raw file at {fname}. Dataset '{dataset_prefix}' will be skipped.")
                 continue
-                
-        # dataset
-        test_dset = SXCDataset(SMainXCDataset(data_info=test_info, lbl_info=meta_info))
+        
+        # load data
+        test_dset = None
+        if get_data_predictions:
+            input_args.do_test_inference = input_args.save_test_prediction = True
+            test_info = load_info(f"{input_args.pickle_dir}/beir/{dataset_prefix}.joblib",
+                                  f"/data/datasets/beir/{dataset}/XC/raw_data/test.raw.csv",
+                                  mname, sequence_length=32)
+            test_dset = SXCDataset(SMainXCDataset(data_info=test_info, lbl_info=meta_info))
 
-        # label-data
+        # load label
         label_dset = None
         if get_label_predictions:
-            input_args.do_test_inference = input_args.save_test_prediction = False
             input_args.do_label_inference = input_args.save_label_prediction = True
-            
             lbl_info = load_info(f"{input_args.pickle_dir}/beir/{dataset_prefix}-label.joblib", 
                                  f"/data/datasets/beir/{dataset}/XC/raw_data/label.raw.csv",
                                  mname, sequence_length=128)
             label_dset = SXCDataset(SMainXCDataset(data_info=lbl_info, lbl_info=meta_info))
+
+        # load prediction metadata
+        meta_dset = None
+        if get_meta_predictions:
+            input_args.do_meta_inference = input_args.save_meta_prediction = True
+            input_args.save_meta_name = save_file_name
+            
+            fname = f"/data/datasets/beir/{dataset}/XC/{meta_file}"
+            if os.path.exists(fname):
+                pred_meta_info = load_info(f"{input_args.pickle_dir}/beir/{save_file_name}/{dataset_prefix}.joblib",
+                                           fname, mname, sequence_length=64)
+            else:
+                print(f"WARNING:: Missing raw file at {fname}. Dataset '{dataset_prefix}' will be skipped.")
+                continue
+            meta_dset = SXCDataset(SMainXCDataset(data_info=pred_meta_info, lbl_info=meta_info))
             
         input_args.prediction_suffix = dataset_prefix
-        trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred, trn_metric, tst_metric = linker_run(output_dir, input_args, mname, test_dset, 
-                                                                                              save_dir_name=pred_dir_name, label_dset=label_dset, 
-                                                                                              normalize=normalize, use_layer_norm=use_layer_norm, 
-                                                                                              eval_batch_size=eval_batch_size, model_type=model_type)
+        trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred, trn_metric, tst_metric = linker_run(output_dir, input_args, 
+                                                                                              mname, test_dset, 
+                                                                                              save_dir_name=pred_dir_name, 
+                                                                                              label_dset=label_dset, 
+                                                                                              meta_dset=meta_dset, 
+                                                                                              normalize=normalize, 
+                                                                                              use_layer_norm=use_layer_norm, 
+                                                                                              eval_batch_size=eval_batch_size, 
+                                                                                              model_type=model_type)
 
         with open(f"{metric_dir}/{dataset_prefix}.json", "w") as file:
             json.dump({dataset: tst_metric}, file, indent=4)
