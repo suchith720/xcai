@@ -895,7 +895,7 @@ class UPMAEncoder(UPMAModel):
         return UPMAEncoderOutput(repr=data_repr, **output)
         
 
-# %% ../../nbs/41_models.upma.ipynb 81
+# %% ../../nbs/41_models.upma.ipynb 82
 class UPA000(PreTrainedModel):
     config: UPMAConfig
     load_tf_weights = None

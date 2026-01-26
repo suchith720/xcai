@@ -289,7 +289,8 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
                         datasets:Optional[List]=None, data_repr_pooling:Optional[bool]=True, memory_injection_layer:Optional[Union[int, List]]=6, 
                         memory_type:Optional[Union[str, List]]="embeddings", n_memory_layers:Optional[int]=3, use_data_memory:Optional[bool]=True,
                         use_label_memory:Optional[bool]=False, num_input_metadata:Optional[int]=5, use_calib_loss:Optional[bool]=False, 
-                        calib_loss_weight:Optional[float]=0.1, metric_dir_name:Optional[str]="metrics", pred_dir_name:Optional[str]=None):
+                        calib_loss_weight:Optional[float]=0.1, metric_dir_name:Optional[str]="metrics", pred_dir_name:Optional[str]=None, 
+                        update_config_during_inference:Optional[bool]=False):
     
     metric_dir = f"{output_dir}/{metric_dir_name}"
     os.makedirs(metric_dir, exist_ok=True)
@@ -331,7 +332,8 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
                                                                                             n_memory_layers=n_memory_layers, 
                                                                                             num_input_metadata=num_input_metadata, 
                                                                                             use_calib_loss=use_calib_loss, 
-                                                                                            calib_loss_weight=calib_loss_weight)
+                                                                                            calib_loss_weight=calib_loss_weight, 
+                                                                                            update_config_during_inference=update_config_during_inference)
         
         with open(f"{metric_dir}/{dataset}.json", "w") as file:
             json.dump({dataset: tst_metric}, file, indent=4)
@@ -370,7 +372,7 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
              data_repr_pooling:Optional[bool]=True, memory_injection_layer:Optional[Union[int, List]]=6, 
              memory_type:Optional[Union[str, List]]="embeddings", n_memory_layers:Optional[int]=3, use_data_memory:Optional[bool]=True,
              use_label_memory:Optional[bool]=False, num_input_metadata:Optional[int]=5, use_calib_loss:Optional[bool]=False, 
-             calib_loss_weight:Optional[float]=0.1):
+             calib_loss_weight:Optional[float]=0.1, update_config_during_inference:Optional[bool]=False):
 
     label_names = ["plbl2data_idx", "plbl2data_data2ptr", "lnk2data_idx", "lnk2data_data2ptr", "lnk2data_scores"]
     if "encoder" in memory_type: label_names = label_names + ["lnk2data_input_ids", "lnk2data_attention_mask"]
@@ -486,8 +488,9 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
     metric = PrecReclMrr(test_dset.n_lbl, test_dset.data.data_lbl_filterer, pk=10, rk=200, rep_pk=[1, 3, 5, 10],
                          rep_rk=[10, 100, 200], mk=[5, 10, 20])
 
-    model = load_model(args.output_dir, model_fn, do_inference=check_inference_mode(input_args), use_pretrained=input_args.use_pretrained)
-
+    model = load_model(args.output_dir, model_fn, do_inference=check_inference_mode(input_args), use_pretrained=input_args.use_pretrained, 
+                       update_config_during_inference=update_config_during_inference, config=config)
+        
     learn = XCLearner(
         model=model,
         args=args,

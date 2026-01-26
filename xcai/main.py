@@ -451,7 +451,7 @@ def raw_mapping(src_file, targ_file):
 # %% ../nbs/36_main.ipynb 26
 def load_model(output_dir:str, model_fn:Callable, model_args:Optional[Dict]=dict(), init_fn:Optional[Callable]=None, 
                init_args:Optional[Dict]=dict(), do_inference:Optional[bool]=False, use_pretrained:Optional[bool]=False,
-               type:Optional[str]="best"):
+               type:Optional[str]="best", update_config_during_inference:Optional[bool]=False, config=None):
     if do_inference:
         os.environ["WANDB_MODE"] = "disabled"
         if not use_pretrained:
@@ -463,6 +463,10 @@ def load_model(output_dir:str, model_fn:Callable, model_args:Optional[Dict]=dict
     if (not do_inference or use_pretrained) and (init_fn is not None): 
         init_fn(model, **init_args)
 
+    if update_config_during_inference and do_inference and (config is not None):
+        for k,v in config.to_dict().items():
+            setattr(model.config, k, v)
+            
     return model
     
 
