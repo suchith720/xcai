@@ -199,6 +199,7 @@ def linker_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, te
     model = load_model(args.output_dir, model_fn, {"mname": mname, "config": config}, do_inference=do_inference,
                        use_pretrained=input_args.use_pretrained, type=model_type)
 
+    metric = None
     if test_dset is not None:
         metric = PrecReclMrr(test_dset.data.n_lbl, test_dset.data.data_lbl_filterer, prop=None if train_dset is None else train_dset.data.data_lbl,
                              pk=10, rk=200, rep_pk=[1, 3, 5, 10], rep_rk=[10, 100, 200], mk=[5, 10, 20])
