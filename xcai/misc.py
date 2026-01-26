@@ -296,8 +296,9 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
 
     input_args.only_test = input_args.do_test_inference = input_args.save_test_prediction = True
 
-    meta_info = load_info(f"{input_args.pickle_dir}/{meta_save_fname}.joblib", meta_file, mname, 
-                          sequence_length=64)
+    if use_memory:
+        meta_info = load_info(f"{input_args.pickle_dir}/{meta_save_fname}.joblib", meta_file, mname, 
+                              sequence_length=64)
 
     datasets = BEIR_DATASETS if datasets is None else datasets
     for dataset in tqdm(datasets):
@@ -310,9 +311,9 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
 
         meta_kwargs = {}
         if use_memory:
-            data_meta = retain_topk(sp.load_npz(f"{linker_dir}/predictions/test_predictions_{dataset}.npz"), k=data_lnk_topk)
+            data_meta = retain_topk(sp.load_npz(f"{linker_dir}/test_predictions_{dataset}.npz"), k=data_lnk_topk)
             lbl_meta = (
-                retain_topk(sp.load_npz(f"{linker_dir}/predictions/label_predictions_{dataset}.npz"), k=lbl_lnk_topk) 
+                retain_topk(sp.load_npz(f"{linker_dir}/label_predictions_{dataset}.npz"), k=lbl_lnk_topk) 
                 if use_label_memory else None
             )
             meta_kwargs = {
