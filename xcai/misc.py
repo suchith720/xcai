@@ -220,7 +220,7 @@ def linker_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, te
 
 # %% ../nbs/42_miscellaneous.ipynb 16
 def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mname:str, save_file_name:str, 
-                          meta_file:str, datasets:Optional[List]=None, pred_dir_name:Optional[str]=None, 
+                          meta_file:str, pred_meta_file:str, datasets:Optional[List]=None, pred_dir_name:Optional[str]=None, 
                           use_task_specific_metadata:Optional[bool]=False, meta_sequence_length:Optional[int]=64, 
                           get_data_predictions:Optional[bool]=True, get_label_predictions:Optional[bool]=False, 
                           get_meta_predictions:Optional[bool]=False, normalize:Optional[bool]=True, 
@@ -277,11 +277,14 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
         meta_dset = None
         if get_meta_predictions:
             input_args.do_meta_inference = input_args.save_meta_prediction = True
-            input_args.save_meta_name = save_file_name
             
-            fname = f"/data/datasets/beir/{dataset}/XC/{meta_file}"
+            meta_name = pred_meta_file.strip("/").split("/")
+            meta_name = "-".join(meta_name[:-2] + [meta_name[-1].split(".")[0]]).replace("_", "-")
+            input_args.save_meta_name = meta_name
+
+            fname = f"/data/datasets/beir/{dataset}/XC/{pred_meta_file}"
             if os.path.exists(fname):
-                pred_meta_info = load_info(f"{input_args.pickle_dir}/beir/{save_file_name}/{dataset_prefix}.joblib",
+                pred_meta_info = load_info(f"{input_args.pickle_dir}/beir/{meta_name}/{dataset_prefix}.joblib",
                                            fname, mname, sequence_length=64)
             else:
                 print(f"WARNING:: Missing raw file at {fname}. Dataset '{dataset_prefix}' will be skipped.")
