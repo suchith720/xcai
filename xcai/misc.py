@@ -280,8 +280,8 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
             
             meta_name = pred_meta_file.strip("/").split("/")
             meta_name = "-".join(meta_name[:-2] + [meta_name[-1].split(".")[0]]).replace("_", "-")
-            input_args.save_meta_name = meta_name
-
+            input_args.save_meta_name, pred_dir_name = meta_name, f"predictions_{meta_name}"
+            
             fname = f"/data/datasets/beir/{dataset}/XC/{pred_meta_file}"
             if os.path.exists(fname):
                 pred_meta_info = load_info(f"{input_args.pickle_dir}/beir/{meta_name}/{dataset_prefix}.joblib",
