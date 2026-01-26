@@ -203,8 +203,8 @@ def linker_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, te
         metric = PrecReclMrr(test_dset.data.n_lbl, test_dset.data.data_lbl_filterer, prop=None if train_dset is None else train_dset.data.data_lbl,
                              pk=10, rk=200, rep_pk=[1, 3, 5, 10], rep_rk=[10, 100, 200], mk=[5, 10, 20])
 
-    (eval_dataset, n_lbl) = (label_dset, label_dset.data.n_lbl) if test_dset is None else (test_dset, test_dset.data.n_lbl)
-    (eval_dataset, n_lbl) = (meta_dset, meta_dset.data.n_lbl) if eval_dataset is None else (eval_dataset, n_lbl)
+    eval_dataset = label_dset if test_dset is None else test_dset
+    eval_dataset = meta_dset if eval_dataset is None else eval_dataset
     
     learn = XCLearner(
         model=model,
@@ -217,7 +217,7 @@ def linker_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, te
 
     eval_dataset = get_label_dataset(test_dset, mname, input_args) if input_args.label_similarity else None
 
-    return main(learn, input_args, n_lbl=n_lbl, eval_dataset=eval_dataset, eval_k=10, 
+    return main(learn, input_args, n_lbl=eval_dataset.data.n_lbl, eval_dataset=eval_dataset, eval_k=10, 
                 train_k=10, label_dataset=label_dset, label_k=10, meta_dset=meta_dset, meta_k=10,
                 save_dir_name=save_dir_name)
     
