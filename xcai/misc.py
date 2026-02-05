@@ -322,7 +322,7 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
                         memory_type:Optional[Union[str, List]]="embeddings", n_memory_layers:Optional[int]=3, use_data_memory:Optional[bool]=True,
                         use_label_memory:Optional[bool]=False, num_input_metadata:Optional[int]=5, use_calib_loss:Optional[bool]=False, 
                         calib_loss_weight:Optional[float]=0.1, metric_dir_name:Optional[str]="metrics", pred_dir_name:Optional[str]=None, 
-                        update_config_during_inference:Optional[bool]=False):
+                        update_config_during_inference:Optional[bool]=False, tie_memory_encoder_weights:Optional[bool]=False):
     
     metric_dir = f"{output_dir}/{metric_dir_name}"
     os.makedirs(metric_dir, exist_ok=True)
@@ -365,7 +365,8 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
                                                                                             num_input_metadata=num_input_metadata, 
                                                                                             use_calib_loss=use_calib_loss, 
                                                                                             calib_loss_weight=calib_loss_weight, 
-                                                                                            update_config_during_inference=update_config_during_inference)
+                                                                                            update_config_during_inference=update_config_during_inference, 
+                                                                                            tie_memory_encoder_weights=tie_memory_encoder_weights)
         
         with open(f"{metric_dir}/{dataset}.json", "w") as file:
             json.dump({dataset: tst_metric}, file, indent=4)
@@ -404,7 +405,8 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
              data_repr_pooling:Optional[bool]=True, memory_injection_layer:Optional[Union[int, List]]=6, 
              memory_type:Optional[Union[str, List]]="embeddings", n_memory_layers:Optional[int]=3, use_data_memory:Optional[bool]=True,
              use_label_memory:Optional[bool]=False, num_input_metadata:Optional[int]=5, use_calib_loss:Optional[bool]=False, 
-             calib_loss_weight:Optional[float]=0.1, update_config_during_inference:Optional[bool]=False):
+             calib_loss_weight:Optional[float]=0.1, update_config_during_inference:Optional[bool]=False, 
+             tie_memory_encoder_weights:Optional[bool]=False):
 
     label_names = ["plbl2data_idx", "plbl2data_data2ptr", "lnk2data_idx", "lnk2data_data2ptr", "lnk2data_scores"]
     if "encoder" in memory_type: label_names = label_names + ["lnk2data_input_ids", "lnk2data_attention_mask"]
@@ -479,6 +481,7 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
         metadata_dropout = 0.1,
 
         n_memory_layers = n_memory_layers,
+        tie_memory_encoder_weights = tie_memory_encoder_weights,
 
         data_aug_meta_prefix="lnk2data",
         lbl2data_aug_meta_prefix="lnk2lbl",
