@@ -40,6 +40,7 @@ class UPMAConfig(DistilBertConfig):
         metadata_dropout: Optional[float] = 0.1,
         
         n_memory_layers: Optional[int] = 3,
+        tie_memory_encoder_weights: Optional[bool] = False,
         
         data_aug_meta_prefix: Optional[str] = None, 
         lbl2data_aug_meta_prefix: Optional[str] = None,
@@ -76,7 +77,7 @@ class UPMAConfig(DistilBertConfig):
     ):
         store_attr('memory_module_names,memory_injection_layers')
         store_attr('num_total_metadata,num_input_metadata,metadata_dropout')
-        store_attr('n_memory_layers')
+        store_attr('n_memory_layers,tie_memory_encoder_weights')
         store_attr('data_aug_meta_prefix,lbl2data_aug_meta_prefix,neg2data_aug_meta_prefix')
         store_attr('data_inject_memory,lbl2data_inject_memory,neg2data_inject_memory')
         store_attr('data_repr_pooling,data_normalize')
@@ -750,6 +751,11 @@ class UPMAModel(PreTrainedModel):
 # %% ../../nbs/41_models.upma.ipynb 68
 class UPMAEncoder(UPMAModel):
 
+    @staticmethod
+    def _verify_tied_weights(targ:nn.Module, src:nn.Module, name:str):
+        sd_src, sd_targ = get_attr(src, name).state_dict(), get_attr(targ, name).state_dict()
+        return np.all([sd_src[k].data_ptr() == sd_targ[k].data_ptr() for k in sd_targ.keys()])
+    
     @classmethod
     def from_pretrained(
         cls,
@@ -801,6 +807,16 @@ class UPMAEncoder(UPMAModel):
                 )
                 with torch.no_grad():
                     module.set_metadata_embeddings(meta_embeds)
+                    
+            elif config.tie_memory_encoder_weights and isinstance(module, UPMAEncoderMemory):
+                for module_name in ['embeddings', 'layer']:
+                    for k in get_attr(module, module_name).state_dict().keys():
+                        names = f"{module_name}.{k}".split(".")
+                        targ_module = get_attr(module, ".".join(names[:-1]))
+                        src_module = get_attr(targ_model, ".".join(names[:-1]))
+                        assert hasattr(targ_module, names[-1]), f"Missing attribute: {k}"
+                        setattr(targ_module, names[-1], getattr(src_module, names[-1]))
+                    assert UPMAEncoder._verify_tied_weights(module, targ_model, module_name)
                     
         return targ_model
 
