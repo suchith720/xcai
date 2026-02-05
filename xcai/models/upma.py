@@ -815,13 +815,14 @@ class UPMAEncoder(UPMAModel):
                     module.set_metadata_embeddings(meta_embeds)
                     
             elif config.tie_memory_encoder_weights and isinstance(module, UPMAEncoderMemory):
+                if module._tied_weights_keys is None: module._tied_weights_keys = []
                 for module_name in ['embeddings', 'layer']:
                     keys = get_attr(module, module_name).state_dict().keys()
                     keys = (
                         keys if config.exclude_module_from_tying is None else 
                         [k for k in keys if not re.match(config.exclude_module_from_tying, k)]
                     )
-                    module._tied_weights_keys = [f"{module_name}.{k}" for k in keys]
+                    module._tied_weights_keys.extend([f"{module_name}.{k}" for k in keys])
                     for k in keys:
                         names = f"{module_name}.{k}".split(".")
                         targ_module = get_attr(module, ".".join(names[:-1]))
