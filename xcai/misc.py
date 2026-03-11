@@ -408,7 +408,8 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
              memory_type:Optional[Union[str, List]]="embeddings", n_memory_layers:Optional[int]=3, use_data_memory:Optional[bool]=True,
              use_label_memory:Optional[bool]=False, num_input_metadata:Optional[int]=5, use_calib_loss:Optional[bool]=False, 
              calib_loss_weight:Optional[float]=0.1, update_config_during_inference:Optional[bool]=False, 
-             tie_memory_encoder_weights:Optional[bool]=False, exclude_module_from_tying:Optional[str]=None):
+             tie_memory_encoder_weights:Optional[bool]=False, exclude_module_from_tying:Optional[str]=None, 
+             resume_from_checkpoint:Optional[bool]=None):
 
     label_names = ["plbl2data_idx", "plbl2data_data2ptr", "lnk2data_idx", "lnk2data_data2ptr", "lnk2data_scores"]
     if "encoder" in memory_type: label_names = label_names + ["lnk2data_input_ids", "lnk2data_attention_mask"]
@@ -538,7 +539,8 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
         compute_metrics=metric,
     )
 
-    return main(learn, input_args, n_lbl=test_dset.n_lbl, save_dir_name=save_dir_name)
+    return main(learn, input_args, n_lbl=test_dset.n_lbl, save_dir_name=save_dir_name, 
+                resume_from_checkpoint=resume_from_checkpoint)
     
 
 # %% ../nbs/42_miscellaneous.ipynb 26

@@ -27,6 +27,7 @@ from ..sdata import SMainXCDataset, identity_collate_fn
 from ..learner import XCDataParallel
 from .modeling_utils import Pooling
 
+
 # %% ../../nbs/41_models.upma.ipynb 13
 class UPMAConfig(DistilBertConfig):
 
