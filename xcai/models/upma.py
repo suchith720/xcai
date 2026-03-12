@@ -803,7 +803,7 @@ class UPMAEncoder(UPMAModel):
             targ_sd[targ_k].copy_(src_sd[k])
             diff_keys.remove(targ_k)
 
-        for i, (module, injection_layer) in enumerate(zip(targ_model.memory_modules, config.memory_injection_layers)):
+        for module, injection_layer in zip(targ_model.memory_modules, config.memory_injection_layers):
             if config.initialize_memory_embeddings_from_injection_layer_mean and isinstance(module, UPMAEmbeddingMemory):
                 meta_embeds = targ_model.initialize_memory_embeddings_from_injection_layer_mean(
                     memory_injection_layer=injection_layer-1,
@@ -816,19 +816,14 @@ class UPMAEncoder(UPMAModel):
                     module.set_metadata_embeddings(meta_embeds)
                     
             elif config.tie_memory_encoder_weights and isinstance(module, UPMAEncoderMemory):
-                if targ_model._tied_weights_keys is None: targ_model._tied_weights_keys = []
                 if module._tied_weights_keys is None: module._tied_weights_keys = []
-                    
                 for module_name in ['embeddings', 'layer']:
                     keys = get_attr(module, module_name).state_dict().keys()
                     keys = (
                         keys if config.exclude_module_from_tying is None else 
                         [k for k in keys if not re.match(config.exclude_module_from_tying, k)]
                     )
-                    
                     module._tied_weights_keys.extend([f"{module_name}.{k}" for k in keys])
-                    targ_model._tied_weights_keys.extend([f"memory_modules.{i}.{module_name}.{k}" for k in keys])
-                    
                     for k in keys:
                         names = f"{module_name}.{k}".split(".")
                         targ_module = get_attr(module, ".".join(names[:-1]))
