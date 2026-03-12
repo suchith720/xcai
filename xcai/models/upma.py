@@ -9,6 +9,7 @@ __all__ = ['UPMAConfig', 'get_memory_module', 'get_loss_function', 'align_tensor
 import torch, torch.nn as nn, re, os, numpy as np, gc, torch.nn.functional as F
 from tqdm.auto import tqdm
 from dataclasses import dataclass
+from safetensors import safe_open
 from torch.nn.parallel import DataParallel
 from torch.utils.data import DataLoader
 from typing import Optional, Union, Tuple, Any, Dict, Sequence, List
@@ -925,7 +926,7 @@ class UPMAEncoder(UPMAModel):
         return UPMAEncoderOutput(repr=data_repr, **output)
         
 
-# %% ../../nbs/41_models.upma.ipynb 83
+# %% ../../nbs/41_models.upma.ipynb 82
 class UPA000(PreTrainedModel):
     config: UPMAConfig
     load_tf_weights = None
@@ -960,6 +961,43 @@ class UPA000(PreTrainedModel):
                                                     reduce='mean')
         
     @classmethod
+    def _from_pretrained(
+        cls,
+        mname:str,
+    ):
+        config_file, sd_file = f"{mname}/config.json", f"{mname}/model.safetensors"
+
+        def _load_safetensor(fname:str):
+            tensors = {}
+            with safe_open(fname, framework="pt") as f:
+                 for k in f.keys(): tensors[k] = f.get_tensor(k)
+            return tensors
+
+        config = UPMAConfig.from_pretrained(config_file)
+        model = cls(config)
+        
+        src_sd, targ_sd = _load_safetensor(sd_file), model.state_dict()
+        src_keys, targ_keys = set(src_sd.keys()), set(targ_sd.keys())
+        
+        for k in src_keys.intersection(targ_keys):
+            assert targ_sd[k].shape == src_sd[k].shape, (
+                f"Shape mismatch at key '{k}'. "
+                f"Expected {targ_sd[k].shape}, but got {src_sd[k].shape} in source state_dict."
+            )
+            targ_sd[k].copy_(src_sd[k])
+
+        missing_keys = targ_keys.difference(src_keys)
+        
+        all_keys = set(list(dict(model.named_parameters(remove_duplicate=False))))
+        uni_keys = set(list(dict(model.named_parameters(remove_duplicate=True))))
+        tied_keys = all_keys - uni_keys
+
+        missing_keys = missing_keys.difference(tied_keys)
+
+        assert len(missing_keys) == 0, f"{len(missing_keys)} missing keys: {', '.join(sorted(missing_keys))}"
+        return model
+        
+    @classmethod
     def from_pretrained(
         cls,
         config: PretrainedConfig,
@@ -967,8 +1005,8 @@ class UPA000(PreTrainedModel):
         meta_dset: Optional[Union[MainXCDataset, SMainXCDataset]] = None,
         batch_size: Optional[int] = 100,
     ):
-        if mname is not None: 
-            return super().from_pretrained(mname)
+        if mname is not None:
+            return cls._from_pretrained(mname) if os.path.exists(mname) else super().from_pretrained(mname)
         else:
             return cls(config, meta_dset=meta_dset, batch_size=batch_size)
 
