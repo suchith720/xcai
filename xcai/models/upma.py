@@ -10,6 +10,7 @@ import torch, torch.nn as nn, re, os, numpy as np, gc, torch.nn.functional as F
 from tqdm.auto import tqdm
 from dataclasses import dataclass
 from safetensors import safe_open
+from collections import defaultdict
 from torch.nn.parallel import DataParallel
 from torch.utils.data import DataLoader
 from typing import Optional, Union, Tuple, Any, Dict, Sequence, List
@@ -987,11 +988,19 @@ class UPA000(PreTrainedModel):
             targ_sd[k].copy_(src_sd[k])
 
         missing_keys = targ_keys.difference(src_keys)
-        
-        all_keys = set(list(dict(model.named_parameters(remove_duplicate=False))))
-        uni_keys = set(list(dict(model.named_parameters(remove_duplicate=True))))
-        tied_keys = all_keys - uni_keys
 
+        def _get_tied_weight_sets(model):
+            storage_map = defaultdict(list)
+
+            for name, param in model.named_parameters(remove_duplicate=False):
+                if param is None: continue
+                storage_map[param.data_ptr()].append(name)
+
+            tied_sets = list(chain(*[names for names in storage_map.values() if len(names) > 1]))
+            return tied_sets
+
+        tied_keys = _get_tied_weight_sets(model)
+        
         missing_keys = missing_keys.difference(tied_keys)
 
         assert len(missing_keys) == 0, f"{len(missing_keys)} missing keys: {', '.join(sorted(missing_keys))}"
