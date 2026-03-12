@@ -316,7 +316,7 @@ def linker_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mn
 
 # %% ../nbs/42_miscellaneous.ipynb 19
 def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mname:str, meta_save_fname:str, 
-                        meta_file:str, linker_dir:str, n_data_lnk_samples:Optional[int]=5, n_lbl_lnk_samples:Optional[int]=5, 
+                        meta_file:str, linker_dir:str, data_dir:Optional[str]=None, n_data_lnk_samples:Optional[int]=5, n_lbl_lnk_samples:Optional[int]=5, 
                         data_lnk_topk:Optional[int]=5, lbl_lnk_topk:Optional[int]=5, eval_batch_size:Optional[int]=400, 
                         datasets:Optional[List]=None, data_repr_pooling:Optional[bool]=True, memory_injection_layer:Optional[Union[int, List]]=6, 
                         memory_type:Optional[Union[str, List]]="embeddings", n_memory_layers:Optional[int]=3, use_data_memory:Optional[bool]=True,
@@ -333,11 +333,13 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
     meta_info = load_info(f"{input_args.pickle_dir}/{meta_save_fname}.joblib", meta_file, mname, 
                           sequence_length=64)
 
+    if data_dir is None: data_dir = "/data"
+    
     datasets = BEIR_DATASETS if datasets is None else datasets
     for dataset in tqdm(datasets):
         print(dataset)
 
-        config_file = f"/data/datasets/beir/{dataset}/XC/configs/data.json"
+        config_file = f"{data_dir}/datasets/beir/{dataset}/XC/configs/data.json"
         train_dset, test_dset = load_upma_block(dataset, config_file, input_args)
 
         dataset = dataset.replace("/", "-")
