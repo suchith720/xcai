@@ -8,6 +8,7 @@ __all__ = ['UPMAConfig', 'get_memory_module', 'get_loss_function', 'align_tensor
 # %% ../../nbs/41_models.upma.ipynb 3
 import torch, torch.nn as nn, re, os, numpy as np, gc, torch.nn.functional as F
 from tqdm.auto import tqdm
+from itertools import chain
 from dataclasses import dataclass
 from safetensors import safe_open
 from collections import defaultdict
