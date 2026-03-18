@@ -411,14 +411,15 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
              use_label_memory:Optional[bool]=False, num_input_metadata:Optional[int]=5, use_calib_loss:Optional[bool]=False, 
              calib_loss_weight:Optional[float]=0.1, update_config_during_inference:Optional[bool]=False, 
              tie_memory_encoder_weights:Optional[bool]=False, exclude_module_from_tying:Optional[str]=None, 
-             resume_from_checkpoint:Optional[bool]=None):
+             resume_from_checkpoint:Optional[bool]=None, use_text_memory:Optional[bool]=True):
 
     label_names = ["plbl2data_idx", "plbl2data_data2ptr", "lnk2data_idx", "lnk2data_data2ptr", "lnk2data_scores"]
-    if "encoder" in memory_type: label_names = label_names + ["lnk2data_input_ids", "lnk2data_attention_mask"]
+    if "encoder" in memory_type and use_text_memory: 
+        label_names = label_names + ["lnk2data_input_ids", "lnk2data_attention_mask"]
     
     label_memory_names = ["lnk2lbl_idx", "lnk2lbl_data2ptr", "lnk2lbl_lbl2ptr", "lnk2lbl_scores", 
                           "lnk2neg_idx", "lnk2neg_data2ptr", "lnk2neg_neg2ptr", "lnk2neg_scores"]
-    if "encoder" in memory_type:
+    if "encoder" in memory_type and use_text_memory:
         label_memory_names = label_memory_names + ["lnk2lbl_input_ids", "lnk2lbl_attention_mask", "lnk2neg_input_ids", "lnk2neg_attention_mask"]
     
     label_names = label_names + label_memory_names if use_label_memory else label_names
