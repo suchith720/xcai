@@ -142,8 +142,11 @@ def precision(inp:sp.csr_matrix,
     name = ['P', 'N'] if prop is None else ['P', 'N', 'PSP', 'PSN']
     repk = [k] if repk is None else set(repk+[k])
     prop = None if prop is None else xm.compute_inv_propesity(prop, A=pa, B=pb)
+
+    targ_ext = targ.copy()
+    targ_ext.data[:] = 1.0
     
-    metric = xm.Metrics(true_labels=targ, inv_psp=prop)
+    metric = xm.Metrics(true_labels=targ_ext, inv_psp=prop)
     prec = metric.eval(inp, k)
     
     results = {f'{n}@{r}': prec[i][r-1] for i,n in enumerate(name) for r in repk if r <= k}
@@ -167,7 +170,11 @@ def recall(
     repk:Optional[List]=None
 ):    
     repk = [k] if repk is None else set(repk+[k])
-    recl = xm.recall(inp, targ, k=k)
+
+    targ_ext = targ.copy()
+    targ_ext.data[:] = 1.0
+    
+    recl = xm.recall(inp, targ_ext, k=k)
     return {f'R@{o}':recl[o-1] for o in repk if o <= k}
     
 
@@ -223,16 +230,18 @@ def Mrr(n_lbl, filterer=None, **kwargs):
     
 
 # %% ../nbs/10_metrics.ipynb 21
-def prec_recl_mrr(inp:sp.csr_matrix,
-        targ:sp.csr_matrix,
-        prop:sp.csr_matrix=None,
-        pa:Optional[float]=0.55,
-        pb:Optional[float]=1.5,
-        pk:Optional[int]=5,
-        rep_pk:Optional[List]=None,
-        rk:Optional[int]=5,
-        rep_rk:Optional[List]=None,
-        mk:Optional[List]=[10]):
+def prec_recl_mrr(
+    inp:sp.csr_matrix,
+    targ:sp.csr_matrix,
+    prop:sp.csr_matrix=None,
+    pa:Optional[float]=0.55,
+    pb:Optional[float]=1.5,
+    pk:Optional[int]=5,
+    rep_pk:Optional[List]=None,
+    rk:Optional[int]=5,
+    rep_rk:Optional[List]=None,
+    mk:Optional[List]=[10]
+):
     metric = prec_recl(inp, targ, prop=prop, pa=pa, pb=pb, pk=pk, rep_pk=rep_pk,
             rk=rk, rep_rk=rep_rk)
     metric.update(mrr(inp, targ, k=mk))
@@ -251,7 +260,11 @@ def hits(
     repk:Optional[List]=None
 ):
     repk = [k] if repk is None else set(repk+[k])
-    h = xm.hits(inp, targ, k=k)
+
+    targ_ext = targ.copy()
+    targ_ext.data[:] = 1.0
+    
+    h = xm.hits(inp, targ_ext, k=k)
     return {f'Hits@{o}':h[o-1] for o in repk if o <= k}
 
 @delegates(hits)
@@ -277,7 +290,7 @@ def prec_recl_hits(
     metric.update(hits(inp, targ, k=hk, repk=rep_hk))
     return metric
 
-@delegates(prec_recl_mrr)
+@delegates(prec_recl_hits)
 def PrecReclHits(n_lbl, filterer=None, **kwargs):
     return XCMetric(prec_recl_hits, n_lbl, filterer, **kwargs)
 
