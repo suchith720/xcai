@@ -284,7 +284,7 @@ def PrecReclHits(n_lbl, filterer=None, **kwargs):
 
 # %% ../nbs/10_metrics.ipynb 26
 def sort_xc_metrics(metric):
-    order = {'P':1, 'N':2, 'PSP':3, 'PSN':4, 'R':5, 'PSR':6}
+    order = {'P':1, 'N':2, 'PSP':3, 'PSN':4, 'R':5, 'PSR':6, 'MRR':7, 'Hits':8}
     def get_key(a,b): return (order.get(a,7), int(b)) 
     def sort_fn(k): return get_key(*k.split('@'))
     
