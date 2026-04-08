@@ -49,7 +49,7 @@ class MultihopBeamSearchScorer:
                 beam_paths, 1, beam_indices.unsqueeze(-1).expand(-1, -1, beam_paths.shape[-1])                                                                                                                                                                                                      )
             new_paths = torch.cat([gathered_paths, selected_docs.unsqueeze(-1)], dim=-1)
             
-            return topk_scores, selected_docs, new_paths, beam_indices
+        return topk_scores, selected_docs, new_paths, beam_indices
             
     def finalize(self, beam_paths, topk_scores):
         return beam_paths.cpu(), topk_scores.cpu()
