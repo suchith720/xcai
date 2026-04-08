@@ -187,21 +187,22 @@ class XCEvalLoopOutput(NamedTuple):
     pred_idx: Union[np.ndarray, Tuple[np.ndarray]]
     pred_ptr: Union[np.ndarray, Tuple[np.ndarray]]
     pred_score: Union[np.ndarray, Tuple[np.ndarray]]
-    targ_idx: Optional[Union[np.ndarray, Tuple[np.ndarray]]]
-    targ_ptr: Optional[Union[np.ndarray, Tuple[np.ndarray]]]
-    gen_output: Optional[Dict]
-    repr_output: Optional[Dict]
-    metrics: Optional[Dict[str, float]]
-    num_samples: Optional[int]
+    targ_idx: Optional[Union[np.ndarray, Tuple[np.ndarray]]] = None
+    targ_ptr: Optional[Union[np.ndarray, Tuple[np.ndarray]]] = None
+    targ_score: Optional[Union[np.ndarray, Tuple[np.ndarray]]] = None
+    gen_output: Optional[Dict] = None
+    repr_output: Optional[Dict] = None
+    metrics: Optional[Dict[str, float]] = None
+    num_samples: Optional[int] = None
 
 class XCPredictionOutput(NamedTuple):
     pred_idx: Union[np.ndarray, Tuple[np.ndarray]]
     pred_ptr: Union[np.ndarray, Tuple[np.ndarray]]
-    pred_score: Optional[Union[np.ndarray, Tuple[np.ndarray]]]
-    gen_output: Optional[Dict]
-    repr_output: Optional[Dict]
-    metrics: Optional[Dict[str, float]]
-    num_samples: Optional[int]
+    pred_score: Optional[Union[np.ndarray, Tuple[np.ndarray]]] = None
+    gen_output: Optional[Dict] = None
+    repr_output: Optional[Dict] = None
+    metrics: Optional[Dict[str, float]] = None
+    num_samples: Optional[int] = None
     
 
 # %% ../nbs/06_learner.ipynb 39
@@ -212,6 +213,7 @@ class ParallelMode(Enum):
     SAGEMAKER_MODEL_PARALLEL = "sagemaker_model_parallel"
     SAGEMAKER_DATA_PARALLEL = "sagemaker_data_parallel"
     TPU = "tpu"
+    
 
 # %% ../nbs/06_learner.ipynb 40
 class XCLearningArguments(Seq2SeqTrainingArguments):
@@ -241,6 +243,8 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
         index_num_threads:Optional[int]=84,
         search_normalize:Optional[bool]=True,
         use_cpu_for_searching:Optional[bool]=False,
+        use_saved_representation_for_indexing:Optional[bool]=False,
+        
         predict_with_generation:Optional[bool]=False,
         predict_with_representation:Optional[bool]=False,
         output_concatenation_weight:Optional[float]=1.0,
@@ -315,7 +319,7 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
         
         store_attr('generation_num_beams,generation_length_penalty,generation_max_info,generation_eos_token')
         store_attr('representation_accumulation_steps,representation_num_beams,representation_search_type')
-        store_attr('index_space,index_efc,index_m,index_efs,index_num_threads,use_cpu_for_searching,search_normalize')
+        store_attr('index_space,index_efc,index_m,index_efs,index_num_threads,use_cpu_for_searching,search_normalize,use_saved_representation_for_indexing')
         store_attr('predict_with_generation,predict_with_representation,output_concatenation_weight')
         store_attr('group_by_cluster,num_cluster_update_epochs,num_cluster_size_update_epochs,num_clustering_warmup_epochs')
         store_attr('clustering_devices,clustering_type,maximum_cluster_size,use_cpu_for_clustering')
@@ -418,9 +422,15 @@ class XCLearner(Seq2SeqTrainer):
         )
         self.control = self.callback_handler.on_predict(self.args, self.state, self.control, output.metrics)
         self._memory_tracker.stop_and_update_metrics(output.metrics)
-        return XCPredictionOutput(pred_idx=output.pred_idx, pred_ptr=output.pred_ptr, pred_score=output.pred_score, 
-                              gen_output=output.gen_output, repr_output=output.repr_output, metrics=output.metrics, 
-                              num_samples=output.num_samples)
+        return XCPredictionOutput(
+            pred_idx=output.pred_idx, 
+            pred_ptr=output.pred_ptr, 
+            pred_score=output.pred_score, 
+            gen_output=output.gen_output, 
+            repr_output=output.repr_output, 
+            metrics=output.metrics, 
+            num_samples=output.num_samples
+        )
     
     def _gather_host_output(self, output, host_output):
         if output is not None:
@@ -512,7 +522,17 @@ def _build_lbl_index(self:XCLearner, dataset:Optional[Dataset]=None):
     
     if dataset is not None: 
         to_cpu = True if isinstance(self.idxs, IndexSearch) else self.args.use_cpu_for_searching
-        lbl_rep = self._get_lbl_representation(dataset, to_cpu=to_cpu)
+
+        index_dir = f"{self.args.output_dir}/representation/"
+        os.makedirs(index_dir, exist_ok=True)
+        index_file = f"{index_dir}/lbl_repr.pth"
+
+        if os.path.exists(index_file) and self.args.use_saved_representation_for_indexing:
+            lbl_rep = torch.load(index_file)
+        else:
+            lbl_rep = self._get_lbl_representation(dataset, to_cpu=to_cpu)
+            torch.save(lbl_rep, index_file)
+                    
         self.idxs.build(lbl_rep)
     else: raise ValueError('Failed to build `self.idxs`')
         
@@ -869,26 +889,26 @@ def evaluation_loop(
     if num_samples == 0 and observed_num_examples > 0: num_samples = observed_num_examples
         
     gen_output, repr_output = None, None
-    metric_input_keys = ['targ_idx', 'targ_ptr', 'pred_idx', 'pred_ptr', 'pred_score']
+    metric_input_keys = ['targ_idx', 'targ_ptr', 'targ_score', 'pred_idx', 'pred_ptr', 'pred_score']
     if 'pred_idx_gen' in all_output and all_output['pred_idx_gen'] is not None:
-        gen_output = {o:all_output[f'{o}_gen' if o.startswith('pred_') else o] for o in metric_input_keys}
+        gen_output = {o:all_output[f'{o}_gen' if o.startswith('pred_') else o] for o in metric_input_keys if o != 'targ_score' or o in all_output}
     if 'pred_idx_repr' in all_output and all_output['pred_idx_repr'] is not None:
-        repr_output = {o:all_output[f'{o}_repr' if o.startswith('pred_') else o] for o in metric_input_keys}
-    
+        repr_output = {o:all_output[f'{o}_repr' if o.startswith('pred_') else o] for o in metric_input_keys if o != 'targ_score' or o in all_output}
 
-    if (self.compute_metrics is not None and 
+    metrics = {}
+    if (
+        self.compute_metrics is not None and 
         'targ_idx' in all_output and all_output['targ_idx'] is not None and 
-        'pred_idx' in all_output and all_output['pred_idx'] is not None):
-        
-        metrics = self.compute_metrics(**{o:all_output[o] for o in metric_input_keys})
+        'pred_idx' in all_output and all_output['pred_idx'] is not None
+    ):
+        metrics = self.compute_metrics(**{o:all_output[o] for o in metric_input_keys if o != 'targ_score' or o in all_output})
         if gen_output is not None:
             m = self.compute_metrics(**gen_output)
             metrics.update({f'{k}_GEN':v for k,v in m.items()})
         if repr_output is not None:
             m = self.compute_metrics(**repr_output)
             metrics.update({f'{k}_REPR':v for k,v in m.items()})      
-    else: metrics = {}
-        
+            
     metrics = denumpify_detensorize(metrics)
 
     if all_losses is not None: metrics[f"{metric_key_prefix}_loss"] = all_losses.mean().item()
@@ -903,10 +923,18 @@ def evaluation_loop(
     if hasattr(self.model, 'disable_noise') and callable(getattr(self.model, 'disable_noise')):
         self.model.set_noise(use_noise)
     
-    return XCEvalLoopOutput(pred_idx=all_output.get('pred_idx'), pred_ptr=all_output.get('pred_ptr'), 
-                            pred_score=all_output.get('pred_score'),targ_idx=all_output.get('targ_idx'), 
-                            targ_ptr=all_output.get('targ_ptr'), gen_output=gen_output, repr_output=repr_output,
-                            metrics=metrics, num_samples=num_samples)
+    return XCEvalLoopOutput(
+        pred_idx=all_output.get('pred_idx'), 
+        pred_ptr=all_output.get('pred_ptr'), 
+        pred_score=all_output.get('pred_score'),
+        targ_idx=all_output.get('targ_idx'), 
+        targ_ptr=all_output.get('targ_ptr'),
+        targ_score=all_output.get('targ_score'),
+        gen_output=gen_output,
+        repr_output=repr_output,
+        metrics=metrics, 
+        num_samples=num_samples
+    )
     
 
 # %% ../nbs/06_learner.ipynb 52
