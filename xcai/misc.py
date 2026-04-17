@@ -323,7 +323,7 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
                         use_label_memory:Optional[bool]=False, num_input_metadata:Optional[int]=5, use_calib_loss:Optional[bool]=False, 
                         calib_loss_weight:Optional[float]=0.1, metric_dir_name:Optional[str]="metrics", pred_dir_name:Optional[str]=None, 
                         update_config_during_inference:Optional[bool]=False, tie_memory_encoder_weights:Optional[bool]=False, 
-                        exclude_module_from_tying:Optional[str]=None):
+                        exclude_module_from_tying:Optional[str]=None, normalize:Optional[bool]=False):
     
     metric_dir = f"{output_dir}/{metric_dir_name}"
     os.makedirs(metric_dir, exist_ok=True)
@@ -371,7 +371,8 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
                                                                                             update_config_during_inference=update_config_during_inference, 
                                                                                             tie_memory_encoder_weights=tie_memory_encoder_weights, 
                                                                                             exclude_module_from_tying=exclude_module_from_tying, 
-                                                                                            prefix_for_saved_representation_for_indexing=dataset)
+                                                                                            prefix_for_saved_representation_for_indexing=dataset, 
+                                                                                            normalize=normalize)
         
         with open(f"{metric_dir}/{dataset}.json", "w") as file:
             json.dump({dataset: tst_metric}, file, indent=4)
@@ -412,7 +413,8 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
              use_label_memory:Optional[bool]=False, num_input_metadata:Optional[int]=5, use_calib_loss:Optional[bool]=False, 
              calib_loss_weight:Optional[float]=0.1, update_config_during_inference:Optional[bool]=False, 
              tie_memory_encoder_weights:Optional[bool]=False, exclude_module_from_tying:Optional[str]=None, 
-             resume_from_checkpoint:Optional[bool]=None, prefix_for_saved_representation_for_indexing:Optional[str]=None):
+             resume_from_checkpoint:Optional[bool]=None, prefix_for_saved_representation_for_indexing:Optional[str]=None, 
+             normalize:Optional[bool]=False):
 
     label_names = ["plbl2data_idx", "plbl2data_data2ptr", "lnk2data_idx", "lnk2data_data2ptr", "lnk2data_scores"]
     if "encoder" in memory_type: label_names = label_names + ["lnk2data_input_ids", "lnk2data_attention_mask"]
@@ -445,7 +447,7 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
         num_train_epochs=50,
         predict_with_representation=True,
         representation_search_type='BRUTEFORCE',
-        search_normalize=False,
+        search_normalize=normalize,
 
         adam_epsilon=1e-6,
         warmup_steps=1000,
@@ -501,7 +503,7 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
         neg2data_inject_memory=neg2data_inject_memory,
 
         data_repr_pooling=data_repr_pooling,
-        data_normalize=False,
+        data_normalize=normalize,
 
         margin=0.3,
         num_negatives=10,
