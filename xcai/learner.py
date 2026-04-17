@@ -244,6 +244,7 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
         search_normalize:Optional[bool]=True,
         use_cpu_for_searching:Optional[bool]=False,
         use_saved_representation_for_indexing:Optional[bool]=False,
+        prefix_for_saved_representation_for_indexing:Optional[str]=None,
         
         predict_with_generation:Optional[bool]=False,
         predict_with_representation:Optional[bool]=False,
@@ -319,7 +320,8 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
         
         store_attr('generation_num_beams,generation_length_penalty,generation_max_info,generation_eos_token')
         store_attr('representation_accumulation_steps,representation_num_beams,representation_search_type')
-        store_attr('index_space,index_efc,index_m,index_efs,index_num_threads,use_cpu_for_searching,search_normalize,use_saved_representation_for_indexing')
+        store_attr('index_space,index_efc,index_m,index_efs,index_num_threads,use_cpu_for_searching,search_normalize')
+        store_attr('prefix_for_saved_representation_for_indexing,use_saved_representation_for_indexing')
         store_attr('predict_with_generation,predict_with_representation,output_concatenation_weight')
         store_attr('group_by_cluster,num_cluster_update_epochs,num_cluster_size_update_epochs,num_clustering_warmup_epochs')
         store_attr('clustering_devices,clustering_type,maximum_cluster_size,use_cpu_for_clustering')
@@ -355,9 +357,11 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
 class XCLearner(Seq2SeqTrainer):
 
     @delegates(Seq2SeqTrainer.__init__)
-    def __init__(self, 
-                 trie:Optional[Trie]=None, 
-                 **kwargs):
+    def __init__(
+        self, 
+        trie:Optional[Trie]=None, 
+        **kwargs
+    ):
         super().__init__(**kwargs)
         self.tbs = TrieBeamSearch(trie, self.args.generation_eos_token, n_bm=self.args.generation_num_beams, 
                                   len_penalty=self.args.generation_length_penalty, max_info=self.args.generation_max_info, **kwargs)
@@ -525,7 +529,11 @@ def _build_lbl_index(self:XCLearner, dataset:Optional[Dataset]=None):
 
         index_dir = f"{self.args.output_dir}/representation/"
         os.makedirs(index_dir, exist_ok=True)
-        index_file = f"{index_dir}/lbl_repr.pth"
+        index_file = (
+            f"{index_dir}/lbl_repr.pth" 
+            if self.args.prefix_for_saved_representation_for_indexing is None else 
+            f"{index_dir}/{self.args.prefix_for_saved_representation_for_indexing}_lbl_repr.pth"
+        )
 
         if os.path.exists(index_file) and self.args.use_saved_representation_for_indexing:
             lbl_rep = torch.load(index_file)
