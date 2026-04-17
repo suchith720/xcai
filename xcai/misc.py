@@ -103,7 +103,9 @@ BEIR_DATASETS = [
     "cqadupstack/tex",
     "cqadupstack/unix",
     "cqadupstack/webmasters",
-    "cqadupstack/wordpress"
+    "cqadupstack/wordpress",
+    "trecdl19",
+    "trecdl20",
 ]
 
 # %% ../nbs/42_miscellaneous.ipynb 12
@@ -356,6 +358,8 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
         test_dset = SXCDataset(test_dset.data, **meta_kwargs)
 
         input_args.prediction_suffix = dataset
+        prefix_for_saved_representation_for_indexing = "msmarco" if dataset in ["msmarco", "trecdl19", "trecdl20"] else dataset
+        
         trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred, trn_metric, tst_metric = upma_run(output_dir, input_args, mname, test_dset, train_dset, 
                                                                                             eval_batch_size=eval_batch_size, 
                                                                                             save_dir_name=pred_dir_name, 
@@ -371,7 +375,7 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
                                                                                             update_config_during_inference=update_config_during_inference, 
                                                                                             tie_memory_encoder_weights=tie_memory_encoder_weights, 
                                                                                             exclude_module_from_tying=exclude_module_from_tying, 
-                                                                                            prefix_for_saved_representation_for_indexing=dataset, 
+                                                                                            prefix_for_saved_representation_for_indexing=prefix_for_saved_representation_for_indexing, 
                                                                                             normalize=normalize)
         
         with open(f"{metric_dir}/{dataset}.json", "w") as file:
@@ -480,6 +484,7 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
         use_cpu_for_clustering=True,
 
         prefix_for_saved_representation_for_indexing=prefix_for_saved_representation_for_indexing,
+        use_saved_representation_for_indexing=True,
     )
 
     config = UPMAConfig(
