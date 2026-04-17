@@ -126,6 +126,9 @@ class Sampler:
             
         scores = Sampler.prune_indices_and_scores(output, prefix, data_lbl_indices, data_lbl_scores, indices, 
                                                   num_samples, use_distribution, return_scores, dtype=dtype)
+
+        if return_scores:
+            output[f'p{prefix}_scores'] = torch.tensor(list(chain(*scores)), dtype=torch.float32)
         
         output[f'{prefix}_idx'], scores = Sampler.sample_indices_and_scores(output[f'p{prefix}_idx'], scores, 
                                                                             num_sampler_samples, oversample, 
