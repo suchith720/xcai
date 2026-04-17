@@ -264,7 +264,7 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
         clustering_representation_attribute:Optional[str]='data_repr',
          
         target_indices_key:Optional[str]='plbl2data_idx',
-        target_score_key:Optional[str]='plbl2data_scores',
+        target_scores_key:Optional[str]='plbl2data_scores',
         target_pointer_key:Optional[str]='plbl2data_data2ptr',
          
         data_aug_meta_name:Optional[str]=None,
@@ -325,7 +325,7 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
         store_attr('predict_with_generation,predict_with_representation,output_concatenation_weight')
         store_attr('group_by_cluster,num_cluster_update_epochs,num_cluster_size_update_epochs,num_clustering_warmup_epochs')
         store_attr('clustering_devices,clustering_type,maximum_cluster_size,use_cpu_for_clustering')
-        store_attr('target_indices_key,target_pointer_key,target_score_key')
+        store_attr('target_indices_key,target_pointer_key,target_scores_key')
         store_attr('use_encoder_parallel')
         store_attr('data_aug_meta_name,data_aug_prefix,augmentation_num_beams,predict_with_augmentation')
         store_attr('use_augmentation_index_representation,metadata_representation_attribute,data_augmentation_attribute')
