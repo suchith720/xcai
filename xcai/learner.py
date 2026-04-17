@@ -215,7 +215,7 @@ class ParallelMode(Enum):
     TPU = "tpu"
     
 
-# %% ../nbs/06_learner.ipynb 40
+# %% ../nbs/06_learner.ipynb 41
 class XCLearningArguments(Seq2SeqTrainingArguments):
 
     @delegates(Seq2SeqTrainingArguments.__init__)
@@ -264,7 +264,7 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
         clustering_representation_attribute:Optional[str]='data_repr',
          
         target_indices_key:Optional[str]='plbl2data_idx',
-        target_score_key:Optional[str]='plbl2data_score',
+        target_score_key:Optional[str]='plbl2data_scores',
         target_pointer_key:Optional[str]='plbl2data_data2ptr',
          
         data_aug_meta_name:Optional[str]=None,
@@ -353,7 +353,7 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
         self.maximum_mix_metadata_epochs = min(maximum_mix_metadata_epochs, self.num_train_epochs)
         
 
-# %% ../nbs/06_learner.ipynb 42
+# %% ../nbs/06_learner.ipynb 44
 class XCLearner(Seq2SeqTrainer):
 
     @delegates(Seq2SeqTrainer.__init__)
@@ -479,7 +479,7 @@ class XCLearner(Seq2SeqTrainer):
             super().create_optimizer_and_scheduler(num_training_steps)
             
 
-# %% ../nbs/06_learner.ipynb 43
+# %% ../nbs/06_learner.ipynb 45
 @patch
 def _get_dataset(self:XCLearner, dataset:Dataset, dset_type:str='lbl', use_metadata:Optional[bool]=False):
     dset = get_attr(dataset, f'{dset_type}_dset')
@@ -497,7 +497,7 @@ def _get_dataset(self:XCLearner, dataset:Dataset, dset_type:str='lbl', use_metad
     return dset
 
 
-# %% ../nbs/06_learner.ipynb 44
+# %% ../nbs/06_learner.ipynb 46
 @patch
 def _build_aug_index(self:XCLearner, dataset:Optional[Dataset]=None):
     dataset = dataset if self.eval_dataset is None else self.eval_dataset
@@ -545,7 +545,7 @@ def _build_lbl_index(self:XCLearner, dataset:Optional[Dataset]=None):
     else: raise ValueError('Failed to build `self.idxs`')
         
 
-# %% ../nbs/06_learner.ipynb 45
+# %% ../nbs/06_learner.ipynb 47
 @patch
 def _get_lbl_representation(self:XCLearner, dataset:Optional[Dataset]=None, to_cpu:Optional[bool]=False):
     if dataset is not None:
@@ -589,7 +589,7 @@ def _get_lbl_representation(self:XCLearner, dataset:Optional[Dataset]=None, to_c
         raise ValueError('`dataset` is None, could not create label representation.')
         
 
-# %% ../nbs/06_learner.ipynb 46
+# %% ../nbs/06_learner.ipynb 48
 @patch
 def get_label_representation(self:XCLearner, dataloader: DataLoader, to_cpu:Optional[bool]=True):
     data_host, all_data = None, None
@@ -610,7 +610,7 @@ def get_label_representation(self:XCLearner, dataloader: DataLoader, to_cpu:Opti
     return self._gather_all_output(data_host, all_data, to_cpu=to_cpu)
     
 
-# %% ../nbs/06_learner.ipynb 47
+# %% ../nbs/06_learner.ipynb 49
 @patch
 def generation_output(
     self:XCLearner,
@@ -707,7 +707,7 @@ def augmentation_output(
         }
     
 
-# %% ../nbs/06_learner.ipynb 48
+# %% ../nbs/06_learner.ipynb 50
 @patch
 def _perform_generation(self:XCLearner, model:nn.Module, predict_with_generation:Optional[bool]=None):
     model = unwrap_model(model)
@@ -727,7 +727,7 @@ def _perform_augmentation(self:XCLearner, model:nn.Module, predict_with_augmenta
     return getattr(model,'use_augmentation') if hasattr(model,'use_augmentation') else predict_with_augmentation
 
 
-# %% ../nbs/06_learner.ipynb 49
+# %% ../nbs/06_learner.ipynb 51
 @patch
 def resize_pred(cls:XCLearner, t, n_t):
     max_n_t = n_t.max()
@@ -765,7 +765,7 @@ def concatenate_output(cls:XCLearner, gen_o:Dict, repr_o:Dict):
     }
     
 
-# %% ../nbs/06_learner.ipynb 50
+# %% ../nbs/06_learner.ipynb 52
 @patch
 def prediction_step(
     self:XCLearner,
@@ -815,7 +815,7 @@ def prediction_step(
     return loss, output
     
 
-# %% ../nbs/06_learner.ipynb 51
+# %% ../nbs/06_learner.ipynb 53
 @patch
 def evaluation_loop(
     self:XCLearner,
@@ -945,7 +945,7 @@ def evaluation_loop(
     )
     
 
-# %% ../nbs/06_learner.ipynb 52
+# %% ../nbs/06_learner.ipynb 54
 @patch
 def get_meta_representation(self:XCLearner, dataloader: DataLoader, to_cpu:Optional[bool]=True):
     data_host, all_data = None, None
@@ -989,7 +989,7 @@ def get_representation(self:XCLearner, dataloader: DataLoader, representation_at
     return self._gather_all_output(data_host, all_data, to_cpu=to_cpu)
     
 
-# %% ../nbs/06_learner.ipynb 55
+# %% ../nbs/06_learner.ipynb 57
 @patch
 def _get_train_sampler(self:XCLearner):
     if self.train_dataset is None or not has_length(self.train_dataset):
@@ -1018,7 +1018,7 @@ def _get_train_sampler(self:XCLearner):
         return RandomSampler(self.train_dataset)
         
 
-# %% ../nbs/06_learner.ipynb 56
+# %% ../nbs/06_learner.ipynb 58
 @patch
 def get_train_dataloader(self:XCLearner):
     if self.train_dataset is None:
@@ -1048,7 +1048,7 @@ def get_train_dataloader(self:XCLearner):
     return DataLoader(train_dataset, **dataloader_params)
     
 
-# %% ../nbs/06_learner.ipynb 57
+# %% ../nbs/06_learner.ipynb 59
 @patch
 def _get_min_cluster_sz(self:XCLearner, epochs_trained:int, num_train_epochs:int):
     
@@ -1075,7 +1075,7 @@ def _get_min_cluster_sz(self:XCLearner, epochs_trained:int, num_train_epochs:int
     else: raise ValueError(f'Invalid `clustering_type`({self.args.clustering_type}).')
     
 
-# %% ../nbs/06_learner.ipynb 59
+# %% ../nbs/06_learner.ipynb 61
 @patch
 def _get_train_data_cluster(self:XCLearner, epochs_trained:int, num_train_epochs:int):
     with torch.no_grad():
@@ -1097,7 +1097,7 @@ def update_dataloader_sampler(self:XCLearner, dataloader:DataLoader, epochs_trai
         dataloader.sampler.set_cluster(cluster)
     
 
-# %% ../nbs/06_learner.ipynb 60
+# %% ../nbs/06_learner.ipynb 62
 @patch
 def prune_metadata(self:XCLearner):
     if self.train_dataset.meta is None: return
@@ -1126,7 +1126,7 @@ def prune_metadata(self:XCLearner):
                                      thresh=self.args.prune_metadata_threshold, topk=self.args.prune_metadata_topk)
             
 
-# %% ../nbs/06_learner.ipynb 61
+# %% ../nbs/06_learner.ipynb 63
 @patch
 def get_aug_data_meta(self:XCLearner, data_repr:torch.Tensor, batch_size:Optional[int]=64):
     data_repr = F.normalize(data_repr, dim=1)
@@ -1144,7 +1144,7 @@ def get_aug_data_meta(self:XCLearner, data_repr:torch.Tensor, batch_size:Optiona
     return data_meta
     
 
-# %% ../nbs/06_learner.ipynb 62
+# %% ../nbs/06_learner.ipynb 64
 @patch
 def get_augmentation_metadata(self:XCLearner):
     self.model.train()
@@ -1194,7 +1194,7 @@ def get_augmentation_metadata(self:XCLearner):
     self.train_dataset.meta[f'{data_aug_prefix}_meta'] = metadata
     
 
-# %% ../nbs/06_learner.ipynb 63
+# %% ../nbs/06_learner.ipynb 65
 @patch
 def _get_data_representation(self:XCLearner, dataset:Optional[Dataset]=None, to_cpu:Optional[bool]=True):
     if dataset is not None:
@@ -1206,7 +1206,7 @@ def _get_data_representation(self:XCLearner, dataset:Optional[Dataset]=None, to_
         raise ValueError('`dataset` is None, could not create data representation.')
         
 
-# %% ../nbs/06_learner.ipynb 65
+# %% ../nbs/06_learner.ipynb 67
 @patch
 def _get_metadata_representation(self:XCLearner, dataset:Optional[Dataset]=None, meta_name:Optional[str]=None, 
                                  to_cpu:Optional[bool]=True):
@@ -1222,7 +1222,7 @@ def _get_metadata_representation(self:XCLearner, dataset:Optional[Dataset]=None,
         raise ValueError('`dataset` is None, could not create data representation.')
         
 
-# %% ../nbs/06_learner.ipynb 67
+# %% ../nbs/06_learner.ipynb 69
 @patch
 def get_data_and_lbl_representation(self:XCLearner, dataset:Optional[Dataset], to_cpu:Optional[bool]=True):
     with torch.no_grad():
@@ -1230,7 +1230,7 @@ def get_data_and_lbl_representation(self:XCLearner, dataset:Optional[Dataset], t
     return data_rep,lbl_rep
     
 
-# %% ../nbs/06_learner.ipynb 68
+# %% ../nbs/06_learner.ipynb 70
 @patch
 def mix_metadata(self:XCLearner, epochs_trained:int):
     if epochs_trained == self.args.maximum_mix_metadata_epochs: pct = 1
@@ -1241,7 +1241,7 @@ def mix_metadata(self:XCLearner, epochs_trained:int):
                                         pct=pct, k=self.args.mix_metadata_k)
     
 
-# %% ../nbs/06_learner.ipynb 69
+# %% ../nbs/06_learner.ipynb 71
 @patch
 def _validate_group_by_cluster(self:XCLearner):
     if self.args.group_by_cluster and (not hasattr(self.model,'use_representation') or  not getattr(unwrap_model(self.model),'use_representation')):
