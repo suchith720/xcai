@@ -420,11 +420,12 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
              resume_from_checkpoint:Optional[bool]=None, prefix_for_saved_representation_for_indexing:Optional[str]=None, 
              normalize:Optional[bool]=False):
 
-    label_names = ["plbl2data_idx", "plbl2data_data2ptr", "lnk2data_idx", "lnk2data_data2ptr", "lnk2data_scores"]
+    label_names = ["plbl2data_idx", "plbl2data_data2ptr", "plbl2data_scores", "lnk2data_idx", "lnk2data_data2ptr", "lnk2data_scores"]
     if "encoder" in memory_type: label_names = label_names + ["lnk2data_input_ids", "lnk2data_attention_mask"]
     
     label_memory_names = ["lnk2lbl_idx", "lnk2lbl_data2ptr", "lnk2lbl_lbl2ptr", "lnk2lbl_scores", 
                           "lnk2neg_idx", "lnk2neg_data2ptr", "lnk2neg_neg2ptr", "lnk2neg_scores"]
+    
     if "encoder" in memory_type:
         label_memory_names = label_memory_names + ["lnk2lbl_input_ids", "lnk2lbl_attention_mask", "lnk2neg_input_ids", "lnk2neg_attention_mask"]
     
