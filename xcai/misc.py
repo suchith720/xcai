@@ -376,7 +376,7 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
                                                                                             tie_memory_encoder_weights=tie_memory_encoder_weights, 
                                                                                             exclude_module_from_tying=exclude_module_from_tying, 
                                                                                             prefix_for_saved_representation_for_indexing=prefix_for_saved_representation_for_indexing, 
-                                                                                            normalize=normalize)
+                                                                                            normalize=normalize, dataset=dataset)
         
         with open(f"{metric_dir}/{dataset}.json", "w") as file:
             json.dump({dataset: tst_metric}, file, indent=4)
@@ -418,9 +418,13 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
              calib_loss_weight:Optional[float]=0.1, update_config_during_inference:Optional[bool]=False, 
              tie_memory_encoder_weights:Optional[bool]=False, exclude_module_from_tying:Optional[str]=None, 
              resume_from_checkpoint:Optional[bool]=None, prefix_for_saved_representation_for_indexing:Optional[str]=None, 
-             normalize:Optional[bool]=False):
+             normalize:Optional[bool]=False, dataset:Optional[str]=None):
 
-    label_names = ["plbl2data_idx", "plbl2data_data2ptr", "plbl2data_scores", "lnk2data_idx", "lnk2data_data2ptr", "lnk2data_scores"]
+    label_names = ["plbl2data_idx", "plbl2data_data2ptr", "lnk2data_idx", "lnk2data_data2ptr", "lnk2data_scores"]
+
+    if dataset is not None and dataset in ["dbpedia-entity", "trec-covid", "webis-touche2020", "nfcorpus"]: 
+        label_names += ["plbl2data_scores"]
+    
     if "encoder" in memory_type: label_names = label_names + ["lnk2data_input_ids", "lnk2data_attention_mask"]
     
     label_memory_names = ["lnk2lbl_idx", "lnk2lbl_data2ptr", "lnk2lbl_lbl2ptr", "lnk2lbl_scores", 
