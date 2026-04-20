@@ -389,7 +389,8 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
 # %% ../nbs/42_miscellaneous.ipynb 22
 def load_upma_block(dataset:str, config_file:str, input_args:argparse.ArgumentParser, n_data_lnk_samples:Optional[int]=5, 
                     n_lbl_lnk_samples:Optional[int]=5, n_neg_lnk_samples:Optional[int]=5, data_lnk_topk:Optional[int]=5, 
-                    lbl_lnk_topk:Optional[int]=5, neg_lnk_topk:Optional[int]=5, data_neg_topk:Optional[int]=None):
+                    lbl_lnk_topk:Optional[int]=5, neg_lnk_topk:Optional[int]=5, data_neg_topk:Optional[int]=None, 
+                    train_label_topk:Optional[int]=None):
     config_key, fname = get_config_key(config_file)
     pkl_file = get_pkl_file(input_args.pickle_dir, f"{dataset}_{fname}_distilbert-base-uncased", input_args.use_sxc_sampler,
                             input_args.exact, input_args.only_test)
@@ -403,10 +404,11 @@ def load_upma_block(dataset:str, config_file:str, input_args:argparse.ArgumentPa
                         n_slbl_samples=1, n_sdata_meta_samples={"lnk_meta": n_data_lnk_samples, "neg_meta": 1},
                         n_slbl_meta_samples={"lnk_meta": n_lbl_lnk_samples, "neg_meta": 1},
                         n_sneg_meta_samples={"lnk_meta": n_neg_lnk_samples, "neg_meta": 1},
+                        train_label_topk=train_label_topk,
                         
                         train_data_meta_topk=train_data_meta_topk, test_data_meta_topk={"lnk_meta": data_lnk_topk}, 
                         train_label_meta_topk={"lnk_meta": lbl_lnk_topk}, test_label_meta_topk={"lnk_meta": lbl_lnk_topk},
-                        train_neg_meta_topk={"lnk_meta": neg_lnk_topk}, test_neg_meta_topk={"lnk_meta": neg_lnk_topk},)
+                        train_neg_meta_topk={"lnk_meta": neg_lnk_topk}, test_neg_meta_topk={"lnk_meta": neg_lnk_topk})
     
     train_dset, test_dset = None if block.train is None else block.train.dset, block.test.dset
 
