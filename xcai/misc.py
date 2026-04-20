@@ -389,10 +389,13 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
 # %% ../nbs/42_miscellaneous.ipynb 22
 def load_upma_block(dataset:str, config_file:str, input_args:argparse.ArgumentParser, n_data_lnk_samples:Optional[int]=5, 
                     n_lbl_lnk_samples:Optional[int]=5, n_neg_lnk_samples:Optional[int]=5, data_lnk_topk:Optional[int]=5, 
-                    lbl_lnk_topk:Optional[int]=5, neg_lnk_topk:Optional[int]=5):
+                    lbl_lnk_topk:Optional[int]=5, neg_lnk_topk:Optional[int]=5, data_neg_topk:Optional[int]=None):
     config_key, fname = get_config_key(config_file)
     pkl_file = get_pkl_file(input_args.pickle_dir, f"{dataset}_{fname}_distilbert-base-uncased", input_args.use_sxc_sampler,
                             input_args.exact, input_args.only_test)
+
+    train_data_meta_topk = {"lnk_meta": data_lnk_topk}
+    if data_neg_topk is not None: train_data_meta_topk.update({"neg_meta": data_neg_topk})
 
     os.makedirs(os.path.dirname(pkl_file), exist_ok=True)
     block = build_block(pkl_file, config_file, input_args.use_sxc_sampler, config_key, do_build=input_args.build_block, 
