@@ -325,7 +325,7 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
                         use_label_memory:Optional[bool]=False, num_input_metadata:Optional[int]=5, use_calib_loss:Optional[bool]=False, 
                         calib_loss_weight:Optional[float]=0.1, metric_dir_name:Optional[str]="metrics", pred_dir_name:Optional[str]=None, 
                         update_config_during_inference:Optional[bool]=False, tie_memory_encoder_weights:Optional[bool]=False, 
-                        exclude_module_from_tying:Optional[str]=None, normalize:Optional[bool]=False):
+                        exclude_module_from_tying:Optional[str]=None, normalize:Optional[bool]=False, use_saved_representation_for_indexing:Optional[bool]=False):
     
     metric_dir = f"{output_dir}/{metric_dir_name}"
     os.makedirs(metric_dir, exist_ok=True)
@@ -374,7 +374,8 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
                                                                                             calib_loss_weight=calib_loss_weight, 
                                                                                             update_config_during_inference=update_config_during_inference, 
                                                                                             tie_memory_encoder_weights=tie_memory_encoder_weights, 
-                                                                                            exclude_module_from_tying=exclude_module_from_tying, 
+                                                                                            exclude_module_from_tying=exclude_module_from_tying,
+                                                                                            use_saved_representation_for_indexing=use_saved_representation_for_indexing,
                                                                                             prefix_for_saved_representation_for_indexing=prefix_for_saved_representation_for_indexing, 
                                                                                             normalize=normalize, dataset=dataset)
         
@@ -417,8 +418,9 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
              use_label_memory:Optional[bool]=False, num_input_metadata:Optional[int]=5, use_calib_loss:Optional[bool]=False, 
              calib_loss_weight:Optional[float]=0.1, update_config_during_inference:Optional[bool]=False, 
              tie_memory_encoder_weights:Optional[bool]=False, exclude_module_from_tying:Optional[str]=None, 
-             resume_from_checkpoint:Optional[bool]=None, prefix_for_saved_representation_for_indexing:Optional[str]=None, 
-             normalize:Optional[bool]=False, dataset:Optional[str]=None):
+             resume_from_checkpoint:Optional[bool]=None, use_saved_representation_for_indexing:Optional[bool]=False, 
+             prefix_for_saved_representation_for_indexing:Optional[str]=None, normalize:Optional[bool]=False, 
+             dataset:Optional[str]=None):
 
     label_names = ["plbl2data_idx", "plbl2data_data2ptr", "lnk2data_idx", "lnk2data_data2ptr", "lnk2data_scores"]
 
@@ -489,7 +491,7 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
         use_cpu_for_clustering=True,
 
         prefix_for_saved_representation_for_indexing=prefix_for_saved_representation_for_indexing,
-        use_saved_representation_for_indexing=True,
+        use_saved_representation_for_indexing=use_saved_representation_for_indexing,
     )
 
     config = UPMAConfig(
