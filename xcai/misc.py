@@ -404,7 +404,7 @@ def load_upma_block(dataset:str, config_file:str, input_args:argparse.ArgumentPa
                         n_slbl_meta_samples={"lnk_meta": n_lbl_lnk_samples, "neg_meta": 1},
                         n_sneg_meta_samples={"lnk_meta": n_neg_lnk_samples, "neg_meta": 1},
                         
-                        train_data_meta_topk={"lnk_meta": data_lnk_topk}, test_data_meta_topk={"lnk_meta": data_lnk_topk}, 
+                        train_data_meta_topk=train_data_meta_topk, test_data_meta_topk={"lnk_meta": data_lnk_topk}, 
                         train_label_meta_topk={"lnk_meta": lbl_lnk_topk}, test_label_meta_topk={"lnk_meta": lbl_lnk_topk},
                         train_neg_meta_topk={"lnk_meta": neg_lnk_topk}, test_neg_meta_topk={"lnk_meta": neg_lnk_topk},)
     
