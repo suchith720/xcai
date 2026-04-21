@@ -96,10 +96,13 @@ def tokenized_query(qry_info_file:str, idx:int, parts:int, instruct_file:str, ds
 
 # %% ../../nbs/45_maggi.utils.ipynb 8
 def get_and_save_representation(learn, dataset, fname:Optional[str]=None):
+    if fname is not None and os.path.exists(fname):
+        return torch.load(fname)
     rep = learn._get_data_representation(dataset)
     rep = rep.to(torch.float16)
     if fname is not None: torch.save(rep, fname)
     return rep
+    
 
 # %% ../../nbs/45_maggi.utils.ipynb 9
 def _get_num_parts(dirname:str, role:str):
@@ -119,7 +122,9 @@ def combine_embeddings(fname:str, role:str):
 # %% ../../nbs/45_maggi.utils.ipynb 11
 def compute_metrics(data_repr:sp.csr_matrix, data_mat:sp.csr_matrix, lbl_repr:sp.csr_matrix, data_batch_sz:Optional[int]=1000, 
                     lbl_batch_sz:Optional[int]=10000, metric_type:Optional[str]="M"):
-    
+    if lbl_repr.shape[1] == data_repr.shape[1]:
+        lbl_repr = lbl_repr.T
+        
     if metric_type == "M":
         metric = PrecReclMrr(lbl_repr.shape[1], pk=10, rk=200, rep_pk=[1, 3, 5, 10], rep_rk=[10, 100, 200], mk=[5, 10, 20])
     elif metric_type == "H":
