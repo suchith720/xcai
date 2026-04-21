@@ -45,7 +45,7 @@ from .mistral import MistralModel, MistralConfig
 
 # %% ../../../nbs/34_models.NVM0XX.ipynb 14
 class BidirectionalMistralConfig(MistralConfig):
-    model_type = "bidir_mistral"
+    model_type = BIDIR_MISTRAL_TYPE
     keys_to_ignore_at_inference = ["past_key_values"]
 
     def __init__(
@@ -228,8 +228,8 @@ class BidirectionalMistralModel(MistralModel):
 
         for i, decoder_layer in enumerate(self.layers):
             if (
-                self.skip_layer_start is not None and self.skip_layer_start is not None 
-                and i >= self.skip_layer_start and i < self.skip_layer_end
+                self.config.skip_layer_start is not None and self.config.skip_layer_end is not None 
+                and i >= self.config.skip_layer_start and i < self.config.skip_layer_end
             ):
                 continue
             
