@@ -10,6 +10,7 @@ import torch.nn.functional as F
 from dataclasses import dataclass
 from typing import Optional, List, Tuple, Mapping, Any, Union
 
+from transformers import AutoConfig, AutoModel
 from transformers.activations import get_activation
 
 from fastcore.meta import *
@@ -33,7 +34,12 @@ from tqdm.auto import tqdm
 from datasets import Dataset
 from torch.utils.data import DataLoader
 
-from .configuration_nvembed import NVEmbedConfig, LatentAttentionConfig, BidirectionalMistralConfig
+from xcai.models.nvembed.configuration_nvembed import (
+    NVEmbedConfig, 
+    LatentAttentionConfig, 
+    BidirectionalMistralConfig, 
+    BIDIR_MISTRAL_TYPE
+)
 from .cache_utils import Cache, DynamicCache
 from .mistral import MistralModel, MistralConfig
 
@@ -49,7 +55,7 @@ class BidirectionalMistralConfig(MistralConfig):
         **kwargs
     ):
         super().__init__(**kwargs)
-        self.skip_layer_start = self.num_layers_to_skip = None
+        self.skip_layer_start = self.skip_layer_end = None
         
         if skip_layer_start is not None:
             self.skip_layer_start = skip_layer_start - 1
@@ -58,9 +64,12 @@ class BidirectionalMistralConfig(MistralConfig):
             assert skip_layer_start <= self.num_hidden_layers and skip_layer_start > 0, (
                 f"Starting layer to be skipped should be less than {self.num_hidden_layers}."
             )
-        
+            
 
-# %% ../../../nbs/34_models.NVM0XX.ipynb 16
+# %% ../../../nbs/34_models.NVM0XX.ipynb 15
+AutoConfig.register(BIDIR_MISTRAL_TYPE, BidirectionalMistralConfig)
+
+# %% ../../../nbs/34_models.NVM0XX.ipynb 17
 class NVM0XXConfig(NVEmbedConfig):
 
     def __init__(
@@ -78,7 +87,7 @@ class NVM0XXConfig(NVEmbedConfig):
         self.use_encoder_parallel, self.normalize = use_encoder_parallel, normalize
         
 
-# %% ../../../nbs/34_models.NVM0XX.ipynb 20
+# %% ../../../nbs/34_models.NVM0XX.ipynb 21
 class Pooling:
 
     @staticmethod
@@ -92,7 +101,7 @@ class Pooling:
         return data_embeds[torch.arange(data_embeds.size(0), device=data_embeds.device), index]
     
 
-# %% ../../../nbs/34_models.NVM0XX.ipynb 21
+# %% ../../../nbs/34_models.NVM0XX.ipynb 22
 class RepresentationHead(torch.nn.Module):
     
     def __init__(self, config):
@@ -119,7 +128,7 @@ class RepresentationHead(torch.nn.Module):
         return x
     
 
-# %% ../../../nbs/34_models.NVM0XX.ipynb 23
+# %% ../../../nbs/34_models.NVM0XX.ipynb 24
 class BidirectionalMistralModel(MistralModel):
     config_class = BidirectionalMistralConfig
 
@@ -218,7 +227,10 @@ class BidirectionalMistralModel(MistralModel):
         next_decoder_cache = None
 
         for i, decoder_layer in enumerate(self.layers):
-            if i >= self.skip_layer_start and i < self.skip_layer_end:
+            if (
+                self.skip_layer_start is not None and self.skip_layer_start is not None 
+                and i >= self.skip_layer_start and i < self.skip_layer_end
+            ):
                 continue
             
             if output_hidden_states:
@@ -261,6 +273,7 @@ class BidirectionalMistralModel(MistralModel):
         next_cache = None
         if use_cache:
             next_cache = next_decoder_cache.to_legacy_cache() if use_legacy_cache else next_decoder_cache
+            next_cache = next_cache[:self.config.skip_layer_start] + next_cache[self.config.skip_layer_end:]
 
         if not return_dict:
             return tuple(v for v in [hidden_states, next_cache, all_hidden_states, all_self_attns] if v is not None)
@@ -272,6 +285,10 @@ class BidirectionalMistralModel(MistralModel):
         )
 
 # %% ../../../nbs/34_models.NVM0XX.ipynb 25
+AutoModel.register(BidirectionalMistralConfig, BidirectionalMistralModel)
+BidirectionalMistralModel.register_for_auto_class("AutoModel")
+
+# %% ../../../nbs/34_models.NVM0XX.ipynb 27
 class NVM009Encoder(NVEmbedModel):
     
     def __init__(
@@ -306,7 +323,7 @@ class NVM009Encoder(NVEmbedModel):
         return outputs, embeds
         
 
-# %% ../../../nbs/34_models.NVM0XX.ipynb 26
+# %% ../../../nbs/34_models.NVM0XX.ipynb 28
 class NVM009(NVEmbedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.embedding_model,encoder.latent_attention_model"]
