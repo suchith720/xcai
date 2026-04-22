@@ -430,7 +430,7 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
 
     label_names = ["plbl2data_idx", "plbl2data_data2ptr", "lnk2data_idx", "lnk2data_data2ptr", "lnk2data_scores"]
 
-    if dataset is not None and dataset in ["dbpedia-entity", "trec-covid", "webis-touche2020", "nfcorpus"]: 
+    if dataset is not None and dataset in ["dbpedia-entity", "trec-covid", "webis-touche2020", "nfcorpus", "trecdl19", "trecdl20"]:
         label_names += ["plbl2data_scores"]
     
     if "encoder" in memory_type: label_names = label_names + ["lnk2data_input_ids", "lnk2data_attention_mask"]
