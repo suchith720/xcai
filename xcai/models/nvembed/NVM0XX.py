@@ -305,12 +305,15 @@ class NVM009Encoder(NVEmbedModel):
         input_ids:Optional[torch.Tensor]=None, 
         attention_mask:Optional[torch.Tensor]=None,
         pool_mask: Optional[torch.Tensor]=None,
-        return_dict: bool=True,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
         **kwargs
     ):
         outputs = self.embedding_model(
             input_ids=input_ids,
             attention_mask=attention_mask,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
         )
         embeds = self.latent_attention_model(
             outputs.last_hidden_state,
@@ -357,17 +360,22 @@ class NVM009(NVEmbedModel):
         lbl2data_pool_mask:Optional[torch.Tensor]=None,
         plbl2data_data2ptr:Optional[torch.Tensor]=None,
         plbl2data_idx:Optional[torch.Tensor]=None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         **kwargs
     ):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
         encoder = nn.DataParallel(module=self.encoder) if self.use_encoder_parallel else self.encoder
         
-        data_o, data_repr = encoder(data_input_ids, data_attention_mask, data_pool_mask)
+        data_o, data_repr = encoder(data_input_ids, data_attention_mask, data_pool_mask, output_attentions=output_attentions, 
+                                    output_hidden_states=output_hidden_states, return_dict=return_dict)
         
         loss, lbl2data_repr = None, None
         if lbl2data_input_ids is not None:
-            lbl2data_o, lbl2data_repr = encoder(lbl2data_input_ids, lbl2data_attention_mask, lbl2data_pool_mask)
+            lbl2data_o, lbl2data_repr = encoder(lbl2data_input_ids, lbl2data_attention_mask, lbl2data_pool_mask, 
+                                                output_attentions=output_attentions, output_hidden_states=output_hidden_states, 
+                                                return_dict=return_dict)
             
             loss = self.loss_fn(data_repr, lbl2data_repr, lbl2data_data2ptr, lbl2data_idx, 
                                 plbl2data_data2ptr, plbl2data_idx, **kwargs)
@@ -379,5 +387,8 @@ class NVM009(NVEmbedModel):
         return XCModelOutput(
             loss=loss,
             data_repr=data_repr,
+            data_output=data_o,
             lbl2data_repr=lbl2data_repr,
+            lbl2data_output=lbl2data_o,
         )
+        

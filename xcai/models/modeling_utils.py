@@ -27,10 +27,13 @@ class XCModelOutput(ModelOutput):
     logits: Optional[torch.FloatTensor] = None
     data_repr: Optional[torch.FloatTensor] = None
     data_fused_repr: Optional[torch.FloatTensor] = None
+    data_output: Optional[torch.FloatTensor] = None
     lbl2data_repr: Optional[torch.FloatTensor] = None
     lbl2data_fused_repr: Optional[torch.FloatTensor] = None
+    lbl2data_output: Optional[torch.FloatTensor] = None
     neg2data_repr: Optional[torch.FloatTensor] = None
     neg2data_fused_repr: Optional[torch.FloatTensor] = None
+    neg2data_output: Optional[torch.FloatTensor] = None
         
 
 # %% ../../nbs/21_models.modeling_utils.ipynb 18
