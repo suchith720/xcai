@@ -15,7 +15,7 @@ import xclib.evaluation.xc_metrics as xm
 from xclib.utils.sparse import rank, binarize
 
 # %% ../nbs/10_metrics.ipynb 5
-def _ndcg(eval_flags, idcg, k=5):
+def _ndcg(eval_flags, idcg, k=5, per_instance=False):
     """
     eval_flags: The relevance scores of the top-k predicted items.
     idcg: The maximum possible DCG for each instance.
@@ -36,7 +36,7 @@ def _ndcg(eval_flags, idcg, k=5):
     ndcg_per_instance = dcg / idcg
 
     # Return the mean nDCG@k across all instances
-    return np.mean(ndcg_per_instance, axis=0)
+    return  ndcg_per_instance if per_instance else np.mean(ndcg_per_instance, axis=0)
     
 
 # %% ../nbs/10_metrics.ipynb 6
@@ -67,7 +67,7 @@ def _get_idcg(true_labels, k):
     
 
 # %% ../nbs/10_metrics.ipynb 7
-def ndcg(X, true_labels, k=5, sorted=False, use_cython=False):
+def ndcg(X, true_labels, k=5, sorted=False, per_instance=False, use_cython=False):
     # Setup metrics and get indices of top-k predictions
     indices, true_labels_ext, _, _ = xm._setup_metric(
         X, true_labels, k=k, sorted=sorted, use_cython=use_cython)
@@ -80,7 +80,7 @@ def ndcg(X, true_labels, k=5, sorted=False, use_cython=False):
     # Note: Use the original true_labels here to get actual scores
     idcg = _get_idcg(true_labels, k)
 
-    return _ndcg(eval_flags, idcg, k)
+    return _ndcg(eval_flags, idcg, k, per_instance=per_instance)
     
 
 # %% ../nbs/10_metrics.ipynb 9
