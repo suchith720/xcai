@@ -16,6 +16,8 @@ from transformers import AutoTokenizer, AutoConfig
 from ..metrics import *
 from ..sdata import SMainXCDataset, SXCDataset, identity_collate_fn
 
+from sugar.core import load_raw_file
+
 # %% ../../nbs/45_maggi.utils.ipynb 3
 DATASETS = {
     "arguana": "ArguAna",
