@@ -168,7 +168,7 @@ def compute_metrics(data_repr:sp.csr_matrix, data_mat:sp.csr_matrix, lbl_repr:sp
     all_indices = torch.hstack(all_indices)
     all_indptr = torch.hstack([torch.zeros(1, dtype=torch.long), torch.hstack(all_indptr).cumsum(dim=0)])
     
-    pred_lbl = sp.csr_matrix((all_data, all_indices, all_indptr), dtype=np.float32)
+    pred_lbl = sp.csr_matrix((all_data, all_indices, all_indptr), shape=data_mat.shape, dtype=np.float32)
 
     return {k:float(v) for k,v in metric.value.items()}, pred_lbl
     
