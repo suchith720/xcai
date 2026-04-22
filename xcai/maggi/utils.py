@@ -46,8 +46,13 @@ def get_instruction(fname:str, dset:str):
     
 
 # %% ../../nbs/45_maggi.utils.ipynb 5
-def tokenized_labels(lbl_info_file:str, idx:int, parts:int, model_name:str):
-    lbl_ids, lbl_txt = load_raw_file(lbl_info_file)
+def tokenized_labels(lbl_info, idx:int, parts:int, model_name:str):
+    if isinstance(lbl_info, str):
+        lbl_ids, lbl_txt = load_raw_file(lbl_info)
+    elif isinstance(lbl_info, tuple) and len(lbl_info) == 2:
+        lbl_ids, lbl_txt = lbl_info
+    else:
+        lbl_ids, lbl_txt = list(range(len(lbl_info))), lbl_info
 
     num_lbls = len(lbl_ids)
     bsize = math.ceil(num_lbls / parts)
@@ -68,8 +73,13 @@ def tokenized_labels(lbl_info_file:str, idx:int, parts:int, model_name:str):
     
 
 # %% ../../nbs/45_maggi.utils.ipynb 6
-def tokenized_query(qry_info_file:str, idx:int, parts:int, instruct_file:str, dset_name:str, model_name:str):
-    qry_ids, qry_txt = load_raw_file(qry_info_file)
+def tokenized_query(qry_info, idx:int, parts:int, instruct_file:str, dset_name:str, model_name:str):
+    if isinstance(qry_info, str):
+        qry_ids, qry_txt = load_raw_file(qry_info)
+    elif isinstance(qry_info, tuple) and len(qry_info) == 2:
+        qry_ids, qry_txt = qry_info
+    else:
+        qry_ids, qry_txt = list(range(len(qry_info))), qry_info
 
     num_qrys = len(qry_ids)
     bsize = math.ceil(num_qrys / parts)
