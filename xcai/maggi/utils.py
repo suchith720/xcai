@@ -46,7 +46,7 @@ def get_instruction(fname:str, dset:str):
     
 
 # %% ../../nbs/45_maggi.utils.ipynb 5
-def tokenized_labels(lbl_info, idx:int, parts:int, model_name:str):
+def tokenized_labels(lbl_info, idx:int, parts:int, model_name:str, max_length:Optional[int]=512):
     if isinstance(lbl_info, str):
         lbl_ids, lbl_txt = load_raw_file(lbl_info)
     elif isinstance(lbl_info, tuple) and len(lbl_info) == 2:
@@ -63,7 +63,7 @@ def tokenized_labels(lbl_info, idx:int, parts:int, model_name:str):
     tokz = AutoTokenizer.from_pretrained(model_name)
     tokz.padding_side = "right"
 
-    lbl_toks = tokz(lbl_txt, padding=True, return_tensors='pt', truncation=True, max_length=512)
+    lbl_toks = tokz(lbl_txt, padding=True, return_tensors='pt', truncation=True, max_length=max_length)
 
     lbl_info = {'input_text': lbl_txt, 'identifier': lbl_ids}
     lbl_info.update(lbl_toks)
@@ -73,7 +73,9 @@ def tokenized_labels(lbl_info, idx:int, parts:int, model_name:str):
     
 
 # %% ../../nbs/45_maggi.utils.ipynb 6
-def tokenized_query(qry_info, idx:int, parts:int, instruct_file:str, dset_name:str, model_name:str):
+def tokenized_query(qry_info, idx:int, parts:int, instruct_file:str, dset_name:str, model_name:str, 
+                    max_length:Optional[int]=512):
+    
     if isinstance(qry_info, str):
         qry_ids, qry_txt = load_raw_file(qry_info)
     elif isinstance(qry_info, tuple) and len(qry_info) == 2:
@@ -93,7 +95,7 @@ def tokenized_query(qry_info, idx:int, parts:int, instruct_file:str, dset_name:s
     tokz = AutoTokenizer.from_pretrained(model_name)
     tokz.padding_side = "right"
 
-    qry_toks = tokz(qry_txt, padding=True, return_tensors='pt', truncation=True, max_length=512)
+    qry_toks = tokz(qry_txt, padding=True, return_tensors='pt', truncation=True, max_length=max_length)
     instruct_len = len(tokz(data_prompt_func(''))["input_ids"]) - 1
 
     qry_info = {'input_text': qry_txt, 'identifier': qry_ids}
