@@ -371,7 +371,7 @@ class NVM009(NVEmbedModel):
         data_o, data_repr = encoder(data_input_ids, data_attention_mask, data_pool_mask, output_attentions=output_attentions, 
                                     output_hidden_states=output_hidden_states, return_dict=return_dict)
         
-        loss, lbl2data_repr = None, None
+        loss = lbl2data_o = lbl2data_repr = None
         if lbl2data_input_ids is not None:
             lbl2data_o, lbl2data_repr = encoder(lbl2data_input_ids, lbl2data_attention_mask, lbl2data_pool_mask, 
                                                 output_attentions=output_attentions, output_hidden_states=output_hidden_states, 
