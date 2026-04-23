@@ -76,5 +76,10 @@
     "SUMM":
         {
             "text": "Given a news summary, retrieve other semantically similar summaries"
+        },
+    "MuSiQue":
+        {
+            "query": "Given a multi-hop question, retrieve documents that can help answer the question",
+            "corpus": ""
         }
 }
