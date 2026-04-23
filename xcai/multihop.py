@@ -122,8 +122,8 @@ class MultihopLearner(XCLearner):
                 {'targ_idx':inputs[self.args.target_indices_key], 'targ_ptr':inputs[self.args.target_pointer_key]}
                 if self.args.target_indices_key in inputs else None
             )
-            if labels is not None and self.args.target_score_key in inputs:
-                labels.update({'targ_score':inputs[self.args.target_score_key]})
+            if labels is not None and self.args.target_scores_key in inputs:
+                labels.update({'targ_score':inputs[self.args.target_scores_key]})
                 
             for k, v in labels.items():
                 beam_output.setdefault(k, []).append(v)
