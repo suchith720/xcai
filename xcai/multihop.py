@@ -46,7 +46,8 @@ class MultihopBeamSearchScorer:
             new_paths = selected_docs.unsqueeze(-1)
         else:
             gathered_paths = torch.gather(
-                beam_paths, 1, beam_indices.unsqueeze(-1).expand(-1, -1, beam_paths.shape[-1])                                                                                                                                                                                                      )
+                beam_paths, 1, beam_indices.unsqueeze(-1).expand(-1, -1, beam_paths.shape[-1])
+            )
             new_paths = torch.cat([gathered_paths, selected_docs.unsqueeze(-1)], dim=-1)
             
         return topk_scores, selected_docs, new_paths, beam_indices
@@ -60,7 +61,8 @@ class MultihopLearner(XCLearner):
 
     def __init__(
         self,
-        tokenizer,                                                                                                                                                                                                                                                                              **kwargs
+        tokenizer,
+        **kwargs
     ):
         super().__init__(**kwargs)
         
@@ -83,7 +85,7 @@ class MultihopLearner(XCLearner):
     ):
         """
         Efficient vectorized multi-hop beam search retrieval.
-        """                                                                                                                                                                                                                                                                             
+        """
         # Index creation
         if self._perform_representation(unwrap_model(self.model)):
             self._build_lbl_index(dataset)
@@ -96,7 +98,7 @@ class MultihopLearner(XCLearner):
         assert lbl_info is not None, "`lbl_info` cannot be empty"
         label_text = lbl_info["input_text"]
 
-        # Multihop setup                                                                                                                                                                                                                                                                
+        # Multihop setup
         dataloader = self.get_test_dataloader(dataset)
 
         model = self._wrap_model(self.model, training=False, dataloader=dataloader)
@@ -133,7 +135,8 @@ class MultihopLearner(XCLearner):
 
             for hop in range(num_hops):
                 loss, output = self.prediction_step(
-                    model,                                                                                                                                                                                                                                                                                  current_inputs,
+                    model,
+                    current_inputs,
                     prediction_loss_only=False,
                     predict_with_generation=False,
                     predict_with_representation=True,
@@ -212,7 +215,7 @@ class MultihopLearner(XCLearner):
             beam_output.setdefault("paths", []).append(final_paths)
             beam_output.setdefault("scores", []).append(final_scores)
 
-        # Collect outputs                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               output = dict()
+        # Collect outputs
         for k,v in beam_output.items():
             output[k] = torch.cat(v, dim=0).to("cpu") if len(v) else None
             
