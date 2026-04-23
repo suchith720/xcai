@@ -120,39 +120,47 @@ def get_and_save_representation(learn, dataset, fname:Optional[str]=None):
     
 
 # %% ../../nbs/45_maggi.utils.ipynb 9
-def _get_num_parts(dirname:str, role:str):
-    return max([int(re.match(role + r"_repr_([0-9]{3}).pth", o)[1]) for o in os.listdir(dirname) if re.match(role + r"_repr_([0-9]{3}).pth", o)]) + 1
+def _get_num_parts(dirname:str, fname:str):
+    parts = [int(re.match(fname + r"00-([0-9]{2}).pth", o)[1]) for o in os.listdir(dirname) if re.match(fname + r"00-([0-9]{2}).pth", o)]
+    assert len(parts) == 1
+    return parts[0]
 
-def combine_embeddings(fname:str, role:str):
+def combine_embeddings(fname:str, role:str, suffix:Optional[str]=None):
+    suffix = "_repr_" if suffix is None else f"_repr{suffix}_"
+    suffix = role + suffix
+
     if os.path.exists(fname):
         rep = torch.load(fname)
     else:
         output_dir = os.path.dirname(fname)
-        num_parts = _get_num_parts(output_dir, role)
-        rep = torch.vstack([torch.load(f'{output_dir}/{role}_repr_{idx:03d}.pth') for idx in range(num_parts)])
+        num_parts = _get_num_parts(output_dir, suffix)
+        rep = torch.vstack([torch.load(f'{output_dir}/{suffix}{idx:02d}-{num_parts:02d}.pth') for idx in range(num_parts)])
         torch.save(rep, fname)
     return rep
     
 
 # %% ../../nbs/45_maggi.utils.ipynb 11
-def compute_metrics(data_repr:sp.csr_matrix, data_mat:sp.csr_matrix, lbl_repr:sp.csr_matrix, data_batch_sz:Optional[int]=1000, 
+def compute_metrics(data_repr:sp.csr_matrix, lbl_repr:sp.csr_matrix, data_mat:Optional[sp.csr_matrix]=None, data_batch_sz:Optional[int]=1000,
                     lbl_batch_sz:Optional[int]=10000, metric_type:Optional[str]="M"):
     if lbl_repr.shape[1] == data_repr.shape[1]:
         lbl_repr = lbl_repr.T
-        
-    if metric_type == "M":
-        metric = PrecReclMrr(lbl_repr.shape[1], pk=10, rk=200, rep_pk=[1, 3, 5, 10], rep_rk=[10, 100, 200], mk=[5, 10, 20])
-    elif metric_type == "H":
-        metric = PrecReclHits(lbl_repr.shape[1], pk=10, rk=200, hk=10, rep_pk=[1, 3, 5, 10], rep_rk=[5, 10, 100, 200], rep_hk=[1, 3, 5, 10])
-    else:
-        raise ValueError(f"Invalid metric type: {metric_type}")
-        
-    metric.reset()
+
+    metric = None
+    if data_mat is not None:
+        if metric_type == "M":
+            metric = PrecReclMrr(lbl_repr.shape[1], pk=10, rk=200, rep_pk=[1, 3, 5, 10], rep_rk=[10, 100, 200], mk=[5, 10, 20])
+        elif metric_type == "H":
+            metric = PrecReclHits(lbl_repr.shape[1], pk=10, rk=200, hk=10, rep_pk=[1, 3, 5, 10], rep_rk=[5, 10, 100, 200], rep_hk=[1, 3, 5, 10])
+        else:
+            raise ValueError(f"Invalid metric type: {metric_type}")
+
+    if metric is not None: metric.reset()
 
     all_data, all_indices, all_indptr = [], [], []
 
     for i in tqdm(range(0, data_repr.shape[0], data_batch_sz)):
-        rep, gt = data_repr[i:i+data_batch_sz].to('cuda'), data_mat[i:i+data_batch_sz]
+        rep = data_repr[i:i+data_batch_sz].to('cuda')
+        if metric is not None: gt = data_mat[i:i+data_batch_sz]
 
         # Compute scores
         scores = []
@@ -167,11 +175,15 @@ def compute_metrics(data_repr:sp.csr_matrix, data_mat:sp.csr_matrix, lbl_repr:sp
             'pred_score': scores.flatten().to(torch.float32),
             'pred_idx': indices.flatten().to(torch.float32),
             'pred_ptr': torch.full((len(rep),), 200, dtype=torch.int64),
-            'targ_idx': torch.tensor(gt.indices, dtype=torch.int64),
-            'targ_score': torch.tensor(gt.data, dtype=torch.float32),
-            'targ_ptr': torch.tensor([p-q for p,q in zip(gt.indptr[1:], gt.indptr)], dtype=torch.int64),
         }
-        metric.accumulate(**o)
+
+        if metric is not None:
+            t = {
+                'targ_idx': torch.tensor(gt.indices, dtype=torch.int64),
+                'targ_score': torch.tensor(gt.data, dtype=torch.float32),
+                'targ_ptr': torch.tensor([p-q for p,q in zip(gt.indptr[1:], gt.indptr)], dtype=torch.int64),
+            }
+            metric.accumulate(**o, **t)
 
         all_data.append(o["pred_score"])
         all_indices.append(o["pred_idx"])
@@ -180,8 +192,8 @@ def compute_metrics(data_repr:sp.csr_matrix, data_mat:sp.csr_matrix, lbl_repr:sp
     all_data = torch.hstack(all_data)
     all_indices = torch.hstack(all_indices)
     all_indptr = torch.hstack([torch.zeros(1, dtype=torch.long), torch.hstack(all_indptr).cumsum(dim=0)])
-    
-    pred_lbl = sp.csr_matrix((all_data, all_indices, all_indptr), shape=data_mat.shape, dtype=np.float32)
 
-    return {k:float(v) for k,v in metric.value.items()}, pred_lbl
+    pred_lbl = sp.csr_matrix((all_data, all_indices, all_indptr), shape=(data_repr.shape[0], lbl_repr.shape[1]), dtype=np.float32)
+
+    return metric if metric is None else {k:float(v) for k,v in metric.value.items()}, pred_lbl
     
