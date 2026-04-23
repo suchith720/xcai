@@ -73,7 +73,7 @@ def tokenized_labels(lbl_info, idx:int, parts:int, model_name:str, max_length:Op
     
 
 # %% ../../nbs/45_maggi.utils.ipynb 6
-def tokenized_query(qry_info, idx:int, parts:int, instruct_file:str, dset_name:str, model_name:str, 
+def tokenized_query(qry_info, idx:int, parts:int, instruction:str, dset_name:str, model_name:str, 
                     max_length:Optional[int]=512):
     
     if isinstance(qry_info, str):
@@ -87,7 +87,8 @@ def tokenized_query(qry_info, idx:int, parts:int, instruct_file:str, dset_name:s
     bsize = math.ceil(num_qrys / parts)
     start_idx, end_idx = idx*bsize, (idx + 1)*bsize
 
-    data_prompt_func = lambda x: "Instruct: " + get_instruction(instruct_file, DATASETS[dset_name])["query"] + f" Query: {x}"
+    instruction = get_instruction(instruction, DATASETS[dset_name])["query"] if os.path.exists(instruction) else instruction
+    data_prompt_func = lambda x: "Instruct: " + instruction + f" Query: {x}"
 
     qry_ids, qry_txt = qry_ids[start_idx:end_idx], qry_txt[start_idx:end_idx]
     qry_txt = [data_prompt_func(o) for o in qry_txt]
