@@ -390,7 +390,7 @@ def upma_beir_inference(output_dir:str, input_args:argparse.ArgumentParser, mnam
 def load_upma_block(dataset:str, config_file:str, input_args:argparse.ArgumentParser, n_data_lnk_samples:Optional[int]=5, 
                     n_lbl_lnk_samples:Optional[int]=5, n_neg_lnk_samples:Optional[int]=5, data_lnk_topk:Optional[int]=5, 
                     lbl_lnk_topk:Optional[int]=5, neg_lnk_topk:Optional[int]=5, data_neg_topk:Optional[int]=None, 
-                    train_label_topk:Optional[int]=None):
+                    train_label_topk:Optional[int]=None, num_label_samples:Optional[int]=1):
     config_key, fname = get_config_key(config_file)
     pkl_file = get_pkl_file(input_args.pickle_dir, f"{dataset}_{fname}_distilbert-base-uncased", input_args.use_sxc_sampler,
                             input_args.exact, input_args.only_test)
@@ -401,7 +401,7 @@ def load_upma_block(dataset:str, config_file:str, input_args:argparse.ArgumentPa
     os.makedirs(os.path.dirname(pkl_file), exist_ok=True)
     block = build_block(pkl_file, config_file, input_args.use_sxc_sampler, config_key, do_build=input_args.build_block, 
                         only_test=input_args.only_test, main_oversample=True, meta_oversample=True, return_scores=True, 
-                        n_slbl_samples=1, n_sdata_meta_samples={"lnk_meta": n_data_lnk_samples, "neg_meta": 1},
+                        n_slbl_samples=num_label_samples, n_sdata_meta_samples={"lnk_meta": n_data_lnk_samples, "neg_meta": 1},
                         n_slbl_meta_samples={"lnk_meta": n_lbl_lnk_samples, "neg_meta": 1},
                         n_sneg_meta_samples={"lnk_meta": n_neg_lnk_samples, "neg_meta": 1},
                         train_label_topk=train_label_topk,
