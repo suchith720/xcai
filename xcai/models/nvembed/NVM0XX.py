@@ -8,7 +8,7 @@ __all__ = ['BidirectionalMistralConfig', 'NVM0XXConfig', 'Pooling', 'Representat
 import torch, re, inspect, pickle, os, torch.nn as nn
 import torch.nn.functional as F
 from dataclasses import dataclass
-from typing import Optional, List, Tuple, Mapping, Any, Union
+from typing import Optional, List, Tuple, Mapping, Any, Union, Callable
 
 from transformers import AutoConfig, AutoModel
 from transformers.activations import get_activation
@@ -52,10 +52,12 @@ class BidirectionalMistralConfig(MistralConfig):
         self,
         skip_layer_start:Optional[int]=None,
         num_layers_to_skip:Optional[int]=None,
+        skip_layer_func:Optional[Callable]=None,
         **kwargs
     ):
         super().__init__(**kwargs)
         self.skip_layer_start = self.skip_layer_end = None
+        self.skip_layer_func = skip_layer_func
         
         if skip_layer_start is not None:
             self.skip_layer_start = skip_layer_start - 1
@@ -228,8 +230,9 @@ class BidirectionalMistralModel(MistralModel):
 
         for i, decoder_layer in enumerate(self.layers):
             if (
-                self.config.skip_layer_start is not None and self.config.skip_layer_end is not None 
-                and i >= self.config.skip_layer_start and i < self.config.skip_layer_end
+                (self.config.skip_layer_func is not None and self.config.skip_layer_func(i)) or 
+                (self.config.skip_layer_start is not None and self.config.skip_layer_end is not None and 
+                i >= self.config.skip_layer_start and i < self.config.skip_layer_end)
             ):
                 continue
             
