@@ -228,6 +228,7 @@ class BidirectionalMistralModel(MistralModel):
         all_self_attns = () if output_attentions else None
         next_decoder_cache = None
 
+        used_layer_idx = []
         for i, decoder_layer in enumerate(self.layers):
             if (
                 (self.config.skip_layer_func is not None and self.config.skip_layer_func(i)) or 
@@ -235,6 +236,8 @@ class BidirectionalMistralModel(MistralModel):
                 i >= self.config.skip_layer_start and i < self.config.skip_layer_end)
             ):
                 continue
+                
+            used_layer_idx.append(i)
             
             if output_hidden_states:
                 all_hidden_states += (hidden_states,)
@@ -276,7 +279,7 @@ class BidirectionalMistralModel(MistralModel):
         next_cache = None
         if use_cache:
             next_cache = next_decoder_cache.to_legacy_cache() if use_legacy_cache else next_decoder_cache
-            next_cache = next_cache[:self.config.skip_layer_start] + next_cache[self.config.skip_layer_end:]
+            next_cache = [next_cache[i] for i in used_layer_idx]
 
         if not return_dict:
             return tuple(v for v in [hidden_states, next_cache, all_hidden_states, all_self_attns] if v is not None)
