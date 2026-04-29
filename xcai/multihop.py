@@ -232,7 +232,7 @@ class MultihopLearner(XCLearner):
         def metric_func(inputs):
             if self.compute_metrics is not None and len(labels):
                 metrics = self.compute_metrics(**inputs, **labels)
-                print(f"Hop number: {hop}\n{metrics}")
+                print(f"Hop number: {hop+1}\n{metrics}")
                 for k,v in metrics.items(): hop_metrics[f"{metric_key_prefix}_hop-{hop+1}_{k}"] = v
                     
         hop_metrics = dict()
