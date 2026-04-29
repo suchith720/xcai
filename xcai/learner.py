@@ -322,7 +322,7 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
         store_attr('generation_num_beams,generation_length_penalty,generation_max_info,generation_eos_token')
         store_attr('representation_accumulation_steps,representation_num_beams,representation_search_type')
         store_attr('index_space,index_efc,index_m,index_efs,index_num_threads,use_cpu_for_searching,search_normalize')
-        store_attr('prefix_for_saved_representation_for_indexing,use_saved_representation_for_indexing')
+        store_attr('prefix_for_saved_representation_for_indexing,use_saved_representation_for_indexing,label_representation_for_indexing_file')
         store_attr('predict_with_generation,predict_with_representation,output_concatenation_weight')
         store_attr('group_by_cluster,num_cluster_update_epochs,num_cluster_size_update_epochs,num_clustering_warmup_epochs')
         store_attr('clustering_devices,clustering_type,maximum_cluster_size,use_cpu_for_clustering')
