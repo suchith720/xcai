@@ -245,6 +245,7 @@ class XCLearningArguments(Seq2SeqTrainingArguments):
         use_cpu_for_searching:Optional[bool]=False,
         use_saved_representation_for_indexing:Optional[bool]=False,
         prefix_for_saved_representation_for_indexing:Optional[str]=None,
+        label_representation_for_indexing_file:Optional[str]=None,
         
         predict_with_generation:Optional[bool]=False,
         predict_with_representation:Optional[bool]=False,
@@ -527,13 +528,19 @@ def _build_lbl_index(self:XCLearner, dataset:Optional[Dataset]=None):
     if dataset is not None: 
         to_cpu = True if isinstance(self.idxs, IndexSearch) else self.args.use_cpu_for_searching
 
-        index_dir = f"{self.args.output_dir}/representation/"
-        os.makedirs(index_dir, exist_ok=True)
-        index_file = (
-            f"{index_dir}/lbl_repr.pth" 
-            if self.args.prefix_for_saved_representation_for_indexing is None else 
-            f"{index_dir}/{self.args.prefix_for_saved_representation_for_indexing}_lbl_repr.pth"
-        )
+        if (
+            self.args.label_representation_for_indexing_file is not None and 
+            os.path.exists(self.args.label_representation_for_indexing_file) 
+        ):
+            index_file = self.args.label_representation_for_indexing_file
+        else:
+            index_dir = f"{self.args.output_dir}/representation/"
+            os.makedirs(index_dir, exist_ok=True)
+            index_file = (
+                f"{index_dir}/lbl_repr.pth" 
+                if self.args.prefix_for_saved_representation_for_indexing is None else 
+                f"{index_dir}/{self.args.prefix_for_saved_representation_for_indexing}_lbl_repr.pth"
+            )
 
         if os.path.exists(index_file) and self.args.use_saved_representation_for_indexing:
             lbl_rep = torch.load(index_file)
