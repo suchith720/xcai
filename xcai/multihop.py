@@ -9,6 +9,7 @@ import torch, numpy as np, json, os, torch.nn.functional as F
 from tqdm.auto import tqdm
 from typing import Dict, List, Optional
 from fastcore.utils import patch
+from torch.utils.data import Dataset
 
 from transformers import AutoTokenizer
 from transformers.modeling_utils import unwrap_model
@@ -108,26 +109,14 @@ class MultihopLearner(XCLearner):
             model = self.accelerator.prepare_model(model, evaluation_mode=True)
             
         model.eval()
-
-        beam_output = dict()
-        all_beam_output = {i:dict() for i in range(num_hops)}
-
+        
+        beam_output, all_hop_beam_output, labels  = dict(), {i:dict() for i in range(num_hops)}, dict()
         for step, inputs in tqdm(enumerate(dataloader), total=len(dataloader)):
             assert "data_input_text" in inputs, "`data_input_text` not present in the inputs"
 
             base_queries = inputs["data_input_text"]
             batch_size = len(base_queries)
-
-            labels = (
-                {'targ_idx':inputs[self.args.target_indices_key], 'targ_ptr':inputs[self.args.target_pointer_key]}
-                if self.args.target_indices_key in inputs else None
-            )
-            if labels is not None and self.args.target_scores_key in inputs:
-                labels.update({'targ_score':inputs[self.args.target_scores_key]})
-                
-            for k, v in labels.items():
-                beam_output.setdefault(k, []).append(v)
-
+            
             scorer = MultihopBeamSearchScorer(batch_size, beam_size, device)
 
             beam_paths = torch.zeros((batch_size, beam_size, 0), dtype=torch.long, device=device)
@@ -143,7 +132,9 @@ class MultihopLearner(XCLearner):
                 )
                 
                 pred_idx, pred_score, pred_ptr = output["pred_idx"], output["pred_score"], output["pred_ptr"]
-                
+                for k,v in output.items():
+                    if k.startswith("targ_"): labels.setdefault(k, []).append(v)
+                        
                 topk = pred_ptr[0]
                 pred_idx, pred_score = pred_idx.view(batch_size, -1, topk), pred_score.view(batch_size, -1, topk)
                 pred_score = F.log_softmax(pred_score, dim=-1)
@@ -168,13 +159,12 @@ class MultihopLearner(XCLearner):
                 )
 
                 paths, scores = scorer.finalize(beam_paths, topk_scores)
-                all_beam_output[hop].setdefault("paths", []).append(paths)
-                all_beam_output[hop].setdefault("scores", []).append(scores)
+                all_hop_beam_output[hop].setdefault("paths", []).append(paths)
+                all_hop_beam_output[hop].setdefault("scores", []).append(scores)
 
                 # Reformulated query
 
                 k = topk_scores.shape[1]
-                
                 if hop < num_hops - 1:
                     new_queries = []
                     
@@ -211,89 +201,78 @@ class MultihopLearner(XCLearner):
                         current_inputs["data_token_type_ids"] = tokenized["token_type_ids"]
 
             final_paths, final_scores = scorer.finalize(beam_paths, topk_scores)
-            
             beam_output.setdefault("paths", []).append(final_paths)
             beam_output.setdefault("scores", []).append(final_scores)
 
         # Collect outputs
-        for k,v in beam_output.items():
-            output[k] = torch.cat(v, dim=0).to("cpu") if len(v) else None
+        
+        def collect_output(output):
+            for k,v in output.items():
+                output[k] = torch.cat(v, dim=0).to("cpu") if len(v) else None
+            return output
             
-        all_output = dict()
-        for hop in range(num_hops):
-            all_output[hop] = dict()
-            for k,v in all_beam_output[hop].items():
-                all_output[hop][k] = torch.cat(v, dim=0).to("cpu") if len(v) else None
-
-        return output, all_output
+        output, labels = collect_output(beam_output), collect_output(labels)
+        all_output = {k:collect_output(v) for k,v in all_hop_beam_output.items()}
+        
+        return output, all_output, labels
         
 
     def predict(
         self,
-        test_dataset,
-        ignore_keys: Optional[List[str]] = None,
-        metric_key_prefix: str = "test",
+        test_dataset:Dataset,
+        ignore_keys:Optional[List[str]]=None,
+        metric_key_prefix:Optional[str]="test",
+        metric_type:Optional[str]="individual",
         **kwargs
     ):
-        output, all_output = self.evaluation_loop(test_dataset, **kwargs)
+        output, all_output, labels = self.evaluation_loop(test_dataset, **kwargs)
+
+        if len(all_output) == 0: raise ValueError("Output of prediction is empty.")
+
+        def metric_func(inputs):
+            if self.compute_metrics is not None and len(labels):
+                metrics = self.compute_metrics(**inputs, **labels)
+                print(f"Hop number: {hop}\n{metrics}")
+                for k,v in metrics.items(): hop_metrics[f"{metric_key_prefix}_hop-{hop+1}_{k}"] = v
+                    
+        hop_metrics = dict()
+        if metric_type == "combined":
+
+            for hop, o in all_output.items():
+                paths, scores = o.get("paths"), o.get("scores")
+
+                batch_size, num_items = paths.shape[0], paths.shape[1] * paths.shape[2]
+                scores = torch.arange(num_items, 0, -1).unsqueeze(0).expand(batch_size, -1)
+
+                inputs = {
+                    "pred_score": scores.flatten(),
+                    "pred_idx": paths.flatten(),
+                    "pred_ptr": torch.full((batch_size,), num_items),
+                }
+                metric_func(inputs)
         
-        # debug
+        elif metric_type == "individual":
+            for hop, o in all_output.items():
+                paths, scores = o.get("paths"), o.get("scores")
+                inputs = {
+                    "pred_score": scores.flatten(),
+                    "pred_idx": paths[:, :, -1].flatten(),
+                    "pred_ptr": torch.full((scores.shape[0],), scores.shape[1]),
+                }
+                metric_func(inputs)
+        else:
+            raise ValueError(f"Invalid multihop metric type: {metric_type}")
+            
+        return XCPredictionOutput(pred_idx=inputs["pred_idx"], pred_score=inputs["pred_score"], pred_ptr=inputs["pred_ptr"], 
+                                  metrics=hop_metrics)
+
         
-        metric_input_keys = ["targ_idx", "targ_ptr", "targ_score"]
-        for hop, o in all_output.items():
-            print(f"Hop number: {hop}")
-
-            paths, scores = o.get("paths"), o.get("scores")
-
-            inputs = {k:output[k] for k in metric_input_keys if k != "targ_score" or k in output}
-
-            batch_size, num_items = paths.shape[0], paths.shape[1] * paths.shape[2]
-            
-            # scores = scores.unsqueeze(-1).expand(-1, -1, paths.shape[2])
-            scores = torch.arange(num_items, 0, -1).unsqueeze(0).expand(batch_size, -1)
-            
-            inputs["pred_score"] = scores.flatten()
-            inputs["pred_idx"] = paths.flatten()
-            inputs["pred_ptr"] = torch.full((batch_size,), num_items)
-
-            metrics = self.compute_metrics(**inputs)
-            
-            print(metrics)
-
-        # debug
-
-        # paths, scores = output.get("paths"), output.get("scores")
-
-        # pred_ptr = torch.full((scores.shape[0],), scores.shape[1])
-        # pred_score = scores.flatten()
-        # pred_idx = paths[:, :, -1].flatten()
-        #
-        # metrics, metric_input_keys = {}, ["targ_idx", "targ_ptr", "targ_score"]
-        # if (
-        #     self.compute_metrics is not None and paths is not None and
-        #     "targ_idx" in output and output["targ_idx"] is not None
-        # ):
-        #     num_hops = paths.shape[-1]
-        #     inputs = {o:output[o] for o in metric_input_keys if o != "targ_score" or o in output}
-        #     inputs["pred_ptr"] = pred_ptr
-        #     inputs["pred_score"] = pred_score
-
-        #     for hop in range(num_hops):
-        #         inputs["pred_idx"] = paths[:, :, hop].flatten()
-        #         hop_metrics = self.compute_metrics(**inputs)
-        #         for k, v in hop_metrics.items():
-        #             metrics[f"{metric_key_prefix}_hop_{hop}_{k}"] = v
-
-        # return XCPredictionOutput(pred_idx=pred_idx, pred_score=pred_score, pred_ptr=pred_ptr, metrics=metrics)
-        
-        return XCPredictionOutput(pred_idx=inputs["pred_idx"], pred_score=inputs["pred_score"], pred_ptr=inputs["pred_ptr"], metrics=metrics)
-
-    
     def evaluate(
         self,
-        eval_dataset = None,
-        ignore_keys: Optional[List[str]] = None,
-        metric_key_prefix: str = "eval",
+        eval_dataset:Optional[Dataset]=None,
+        ignore_keys:Optional[List[str]]=None,
+        metric_key_prefix:Optional[str]="eval",
+        metric_type:Optional[str]="individual",
         **kwargs
     ):
         eval_dataset = eval_dataset if eval_dataset is not None else self.eval_dataset
@@ -301,6 +280,7 @@ class MultihopLearner(XCLearner):
             test_dataset=eval_dataset,
             ignore_keys=ignore_keys,
             metric_key_prefix=metric_key_prefix,
+            metric_type=metric_type,
             **kwargs
         )
 
