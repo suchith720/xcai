@@ -222,7 +222,7 @@ class MultihopLearner(XCLearner):
         test_dataset:Dataset,
         ignore_keys:Optional[List[str]]=None,
         metric_key_prefix:Optional[str]="test",
-        metric_type:Optional[str]="individual",
+        metric_type:Optional[str]="hop-wise",
         **kwargs
     ):
         output, all_output, labels = self.evaluation_loop(test_dataset, **kwargs)
@@ -237,7 +237,6 @@ class MultihopLearner(XCLearner):
                     
         hop_metrics = dict()
         if metric_type == "combined":
-
             for hop, o in all_output.items():
                 paths, scores = o.get("paths"), o.get("scores")
 
@@ -251,7 +250,7 @@ class MultihopLearner(XCLearner):
                 }
                 metric_func(inputs)
         
-        elif metric_type == "individual":
+        elif metric_type == "hop-wise":
             for hop, o in all_output.items():
                 paths, scores = o.get("paths"), o.get("scores")
                 inputs = {
@@ -260,6 +259,28 @@ class MultihopLearner(XCLearner):
                     "pred_ptr": torch.full((scores.shape[0],), scores.shape[1]),
                 }
                 metric_func(inputs)
+
+        elif metric_type == "constrained-hop-wise":
+            targ_indptr = torch.hstack([torch.zeros(1, dtype=torch.long), labels['targ_ptr'].cumsum(dim=0)])
+            
+            for hop, o in all_output.items():
+                paths, scores = o.get("paths"), o.get("scores")
+
+                mask, pred_ptr = [], []
+                for i in range(paths.shape[0]):
+                    start, end = targ_indptr[i], targ_indptr[i+1]
+                    mask_ = (paths[i][:, :-1].unsqueeze(-1) == labels['targ_idx'][start:end]).any(dim=-1).all(dim=-1)
+                    mask.append(mask_)
+                    pred_ptr.append(mask_.sum())
+                mask, pred_ptr = torch.hstack(mask), torch.hstack(pred_ptr)
+
+                inputs = {
+                    "pred_score": scores.flatten()[mask],
+                    "pred_idx": paths[:, :, -1].flatten()[mask],
+                    "pred_ptr": pred_ptr,
+                }
+                metric_func(inputs)
+                
         else:
             raise ValueError(f"Invalid multihop metric type: {metric_type}")
             
@@ -272,7 +293,7 @@ class MultihopLearner(XCLearner):
         eval_dataset:Optional[Dataset]=None,
         ignore_keys:Optional[List[str]]=None,
         metric_key_prefix:Optional[str]="eval",
-        metric_type:Optional[str]="individual",
+        metric_type:Optional[str]="hop-wise",
         **kwargs
     ):
         eval_dataset = eval_dataset if eval_dataset is not None else self.eval_dataset
