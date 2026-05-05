@@ -12,9 +12,11 @@ from numba import njit, prange
 from xclib.utils import graph
 from tqdm.auto import tqdm
 
+from typing import Optional, List, Tuple, Union
+
 
 # %% ../../nbs/18_graph.random_walk.ipynb 3
-def normalize_graph(mat):
+def normalize_graph(mat:sp.csr_matrix):
     col_nnz = np.sqrt(1/(np.ravel(mat.sum(axis=0))+1e-6))
     row_nnz = np.sqrt(1/(np.ravel(mat.sum(axis=1))+1e-6))
     c_diags = sp.diags(col_nnz)
@@ -25,7 +27,7 @@ def normalize_graph(mat):
     
 
 # %% ../../nbs/18_graph.random_walk.ipynb 4
-def clean_graphs(min_freq=2, max_freq=100, *graphs):
+def clean_graphs(min_freq:Optional[int]=2, max_freq:Optional[int]=100, *graphs):
     smats = sp.vstack([graph.data for graph in graphs], "csr")
     node_freq = np.ravel(smats.getnnz(axis=0))
     num_nodes = node_freq.size
@@ -70,8 +72,8 @@ def print_stats(mat, k=10):
 
 # %% ../../nbs/18_graph.random_walk.ipynb 8
 @njit(parallel=True, nogil=True)
-def _random_walk(data_lbl_indices:np.ndarray, data_lbl_indptr:np.ndarray, lbl_data_indices:np.ndarray, lbl_data_indptr:np.ndarray, 
-                 walk_to:int, p_reset:float, hops_per_step:int, start:int, end:int):
+def _random_walk(data_lbl_indices:np.ndarray, data_lbl_indptr:np.ndarray, lbl_data_indices:np.ndarray, lbl_data_indptr:np.ndarray,
+                 walk_to:int, p_reset:Union[float, np.ndarray], hops_per_step:int, start:int, end:int):
     n_data = end - start
     nbr_idx = np.zeros((n_data, walk_to), dtype=np.int32)
     nbr_data = np.zeros((n_data, walk_to), dtype=np.float32)
@@ -79,7 +81,8 @@ def _random_walk(data_lbl_indices:np.ndarray, data_lbl_indptr:np.ndarray, lbl_da
     for idx in range(0, n_data):
         for walk in np.arange(0, walk_to):
             p = np.random.random()
-            if walk == 0 or p < p_reset: data_i = idx + start
+            pr = p_reset if isinstance(p_reset, float) else p_reset[idx + start]
+            if walk == 0 or p < pr: data_i = idx + start
         
             data_start, data_end = data_lbl_indptr[data_i], data_lbl_indptr[data_i+1]
             if data_start - data_end == 0: continue
@@ -98,14 +101,19 @@ def _random_walk(data_lbl_indices:np.ndarray, data_lbl_indptr:np.ndarray, lbl_da
 # %% ../../nbs/18_graph.random_walk.ipynb 9
 class PrunedWalk(graph.RandomWalk):
     
-    def __init__(self, data_lbl):
+    def __init__(self, data_lbl:sp.csr_matrix):
         self.data_lbl = data_lbl.tocsr()
         self.data_lbl.sort_indices()
         self.data_lbl.eliminate_zeros()
 
-    def simulate(self, walk_to=100, p_reset=0.2, k=None, hops_per_step=2, b_size=1000):
+    def simulate(self, walk_to:Optional[int]=100, p_reset:Optional[Union[float, np.ndarray]]=0.2, k:Optional[int]=None,
+                 hops_per_step:Optional[int]=2, b_size:Optional[int]=1000):
         assert hops_per_step == 1 or hops_per_step == 2, f"Invalid hops per step: {hops_per_step}"
-        
+
+        if isinstance(p_reset, np.ndarray):
+            assert p_reset.ndim == 1
+            assert p_reset.shape[0] == self.data_lbl.shape[0]
+            
         data_lbl_indices = self.data_lbl.indices
         data_lbl_indptr = self.data_lbl.indptr
         
@@ -141,7 +149,7 @@ class PrunedWalk(graph.RandomWalk):
 
 
 # %% ../../nbs/18_graph.random_walk.ipynb 10
-def remove_cols(matrix, idx):
+def remove_cols(matrix:sp.csr_matrix, idx:int):
     num_cols = matrix.shape[1]
     col_mask = np.ones(num_cols, dtype=np.int32)
     col_mask[idx] = 0
@@ -150,7 +158,7 @@ def remove_cols(matrix, idx):
 
 
 # %% ../../nbs/18_graph.random_walk.ipynb 11
-def remove_rows(matrix, idx):
+def remove_rows(matrix:sp.csr_matrix, idx:int):
     num_rows = matrix.shape[0]
     row_mask = np.ones(num_rows, dtype=np.int32)
     row_mask[idx] = 0
@@ -159,7 +167,8 @@ def remove_rows(matrix, idx):
     
 
 # %% ../../nbs/18_graph.random_walk.ipynb 13
-def random_walk(matrix, row_head_thresh=500, col_head_thresh=500, walk_length=400, p_reset=0.8, topk=10, batch_size=1023):
+def random_walk(matrix:sp.csr_matrix, row_head_thresh:Optional[int]=500, col_head_thresh:Optional[int]=500, walk_length:Optional[int]=400,
+                p_reset:Optional[Union[np.ndarray, float]]=0.8, topk:Optional[int]=10, batch_size:Optional[int]=1023):
     matrix = matrix.tocsr()
     
     idxs = np.where(matrix.getnnz(axis=1) > row_head_thresh)[0]
