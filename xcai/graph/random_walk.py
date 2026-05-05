@@ -73,16 +73,16 @@ def print_stats(mat, k=10):
 # %% ../../nbs/18_graph.random_walk.ipynb 8
 @njit(parallel=True, nogil=True)
 def _random_walk(data_lbl_indices:np.ndarray, data_lbl_indptr:np.ndarray, lbl_data_indices:np.ndarray, lbl_data_indptr:np.ndarray,
-                 walk_to:int, p_reset:Union[float, np.ndarray], hops_per_step:int, start:int, end:int):
+                 walk_to:int, p_reset:float, hops_per_step:int, start:int, end:int):
     n_data = end - start
     nbr_idx = np.zeros((n_data, walk_to), dtype=np.int32)
     nbr_data = np.zeros((n_data, walk_to), dtype=np.float32)
     
     for idx in range(0, n_data):
+        data_i = idx + start
         for walk in np.arange(0, walk_to):
             p = np.random.random()
-            pr = p_reset if isinstance(p_reset, float) else p_reset[idx + start]
-            if walk == 0 or p < pr: data_i = idx + start
+            if p < p_reset: data_i = idx + start
         
             data_start, data_end = data_lbl_indptr[data_i], data_lbl_indptr[data_i+1]
             if data_start - data_end == 0: continue
@@ -106,14 +106,10 @@ class PrunedWalk(graph.RandomWalk):
         self.data_lbl.sort_indices()
         self.data_lbl.eliminate_zeros()
 
-    def simulate(self, walk_to:Optional[int]=100, p_reset:Optional[Union[float, np.ndarray]]=0.2, k:Optional[int]=None,
+    def simulate(self, walk_to:Optional[int]=100, p_reset:Optional[float]=0.2, k:Optional[int]=None,
                  hops_per_step:Optional[int]=2, b_size:Optional[int]=1000):
         assert hops_per_step == 1 or hops_per_step == 2, f"Invalid hops per step: {hops_per_step}"
-
-        if isinstance(p_reset, np.ndarray):
-            assert p_reset.ndim == 1
-            assert p_reset.shape[0] == self.data_lbl.shape[0]
-            
+        
         data_lbl_indices = self.data_lbl.indices
         data_lbl_indptr = self.data_lbl.indptr
         
@@ -168,7 +164,7 @@ def remove_rows(matrix:sp.csr_matrix, idx:int):
 
 # %% ../../nbs/18_graph.random_walk.ipynb 13
 def random_walk(matrix:sp.csr_matrix, row_head_thresh:Optional[int]=500, col_head_thresh:Optional[int]=500, walk_length:Optional[int]=400,
-                p_reset:Optional[Union[np.ndarray, float]]=0.8, topk:Optional[int]=10, batch_size:Optional[int]=1023):
+                p_reset:Optional[float]=0.8, topk:Optional[int]=10, batch_size:Optional[int]=1023):
     matrix = matrix.tocsr()
     
     idxs = np.where(matrix.getnnz(axis=1) > row_head_thresh)[0]
