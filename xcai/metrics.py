@@ -2,7 +2,8 @@
 
 # %% auto 0
 __all__ = ['ndcg', 'XCMetric', 'precision', 'Precision', 'recall', 'Recall', 'prec_recl', 'PrecRecl', 'mrr', 'Mrr',
-           'prec_recl_mrr', 'PrecReclMrr', 'hits', 'Hits', 'prec_recl_hits', 'PrecReclHits', 'sort_xc_metrics']
+           'prec_recl_mrr', 'PrecReclMrr', 'hits', 'Hits', 'prec_recl_hits', 'PrecReclHits', 'beir_metric',
+           'BeirMetric', 'sort_xc_metrics']
 
 # %% ../nbs/10_metrics.ipynb 3
 import torch, numpy as np, scipy.sparse as sp
@@ -13,6 +14,8 @@ from fastcore.meta import *
 
 import xclib.evaluation.xc_metrics as xm
 from xclib.utils.sparse import rank, binarize
+
+from beir.retrieval.evaluation import EvaluateRetrieval
 
 # %% ../nbs/10_metrics.ipynb 5
 def _ndcg(eval_flags, idcg, k=5, per_instance=False):
@@ -131,14 +134,15 @@ class XCMetric:
 
 
 # %% ../nbs/10_metrics.ipynb 11
-def precision(inp:sp.csr_matrix, 
-              targ:sp.csr_matrix, 
-              prop:sp.csr_matrix=None, 
-              k:Optional[int]=5, 
-              pa:Optional[float]=0.55, 
-              pb:Optional[float]=1.5, 
-              repk:Optional[List]=None):
-    
+def precision(
+    inp:sp.csr_matrix,
+    targ:sp.csr_matrix, 
+    prop:sp.csr_matrix=None, 
+    k:Optional[int]=5, 
+    pa:Optional[float]=0.55, 
+    pb:Optional[float]=1.5, 
+    repk:Optional[List]=None
+):    
     name = ['P', 'N'] if prop is None else ['P', 'N', 'PSP', 'PSN']
     repk = [k] if repk is None else set(repk+[k])
     prop = None if prop is None else xm.compute_inv_propesity(prop, A=pa, B=pb)
@@ -207,7 +211,7 @@ def PrecRecl(n_lbl, filterer=None, **kwargs):
     return XCMetric(prec_recl, n_lbl, filterer, **kwargs)
     
 
-# %% ../nbs/10_metrics.ipynb 20
+# %% ../nbs/10_metrics.ipynb 21
 def mrr(
     inp:sp.csr_matrix,
     targ:sp.csr_matrix,
@@ -229,7 +233,7 @@ def Mrr(n_lbl, filterer=None, **kwargs):
     return XCMetric(mrr, n_lbl, filterer, **kwargs)
     
 
-# %% ../nbs/10_metrics.ipynb 21
+# %% ../nbs/10_metrics.ipynb 22
 def prec_recl_mrr(
     inp:sp.csr_matrix,
     targ:sp.csr_matrix,
@@ -252,7 +256,7 @@ def PrecReclMrr(n_lbl, filterer=None, **kwargs):
     return XCMetric(prec_recl_mrr, n_lbl, filterer, **kwargs)
 
 
-# %% ../nbs/10_metrics.ipynb 23
+# %% ../nbs/10_metrics.ipynb 24
 def hits(
     inp:sp.csr_matrix,
     targ:sp.csr_matrix,
@@ -272,7 +276,7 @@ def Hits(n_lbl, filterer=None, **kwargs):
     return XCMetric(hits, n_lbl, filterer, **kwargs)
     
 
-# %% ../nbs/10_metrics.ipynb 24
+# %% ../nbs/10_metrics.ipynb 25
 def prec_recl_hits(
     inp:sp.csr_matrix,
     targ:sp.csr_matrix,
@@ -295,7 +299,28 @@ def PrecReclHits(n_lbl, filterer=None, **kwargs):
     return XCMetric(prec_recl_hits, n_lbl, filterer, **kwargs)
 
 
-# %% ../nbs/10_metrics.ipynb 26
+# %% ../nbs/10_metrics.ipynb 27
+def beir_metric(
+    inp:sp.csr_matrix,
+    targ:sp.csr_matrix,
+    k_values:Optional[List]=[1, 3, 5, 10],
+):
+    evaluator = EvaluateRetrieval()
+    ndcg, _map, recall, precision = evaluator.evaluate(qrels, results, [1, 3, 5, 10, 100])
+    mrr = evaluator.evaluate_custom(qrels, results, k_values, metric="mrr")
+
+    metrics = {}
+    for name, vals in [("NDCG", ndcg), ("Recall", recall), ("Precision", precision), ("MAP", _map), ("MRR", mrr)]:
+        for k, v in vals.items(): metrics.update({f"{name}@{k.split('@')[1]}": v})
+    return metrics
+    
+
+# %% ../nbs/10_metrics.ipynb 28
+def BeirMetric(n_lbl, filterer=None, **kwargs):
+    return XCMetric(beir_metric, n_lbl, filterer, **kwargs)
+    
+
+# %% ../nbs/10_metrics.ipynb 31
 def sort_xc_metrics(metric):
     order = {'P':1, 'N':2, 'PSP':3, 'PSN':4, 'R':5, 'PSR':6, 'MRR':7, 'Hits':8}
     def get_key(a,b): return (order.get(a,7), int(b)) 
