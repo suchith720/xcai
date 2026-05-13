@@ -307,8 +307,8 @@ def beir_metric(
     lbl_ids:Optional[List]=None,
     k_values:Optional[List]=[1, 3, 5, 10],
 ):
-    if qry_ids is not None: qry_ids = np.arange(inp.shape[0])
-    if lbl_ids is not None: lbl_ids = np.arange(inp.shape[1])
+    if qry_ids is None: qry_ids = np.arange(inp.shape[0])
+    if lbl_ids is None: lbl_ids = np.arange(inp.shape[1])
 
     assert len(qry_ids) == inp.shape[0], "Query identifiers should be same as number of input queries."
     assert len(lbl_ids) == inp.shape[1], "Label identifiers should be same as number of input labels."
