@@ -312,9 +312,9 @@ def beir_metric(
 
     assert len(qry_ids) == inp.shape[0], "Query identifiers should be same as number of input queries."
     assert len(lbl_ids) == inp.shape[1], "Label identifiers should be same as number of input labels."
-    
-    qrels = {str(i): {str(lbl_ids[p]):int(q) for p,q in zip(r.indices, r.data)} for i,r in zip(qry_ids, inp)}
-    results = {str(i): {str(lbl_ids[p]):float(q) for p,q in zip(r.indices, r.data)} for i,r in zip(lbl_ids, targ)}
+
+    results = {str(i): {str(lbl_ids[p]):float(q) for p,q in zip(r.indices, r.data)} for i,r in zip(lbl_ids, inp)}
+    qrels = {str(i): {str(lbl_ids[p]):int(q) for p,q in zip(r.indices, r.data)} for i,r in zip(qry_ids, targ)}
     
     evaluator = EvaluateRetrieval()
     ndcg, _map, recall, precision = evaluator.evaluate(qrels, results, k_values)
