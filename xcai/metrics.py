@@ -305,8 +305,11 @@ def beir_metric(
     targ:sp.csr_matrix,
     k_values:Optional[List]=[1, 3, 5, 10],
 ):
+    qrels = {str(i): {str(p):int(q) for p,q in zip(r.indices, r.data)} for i,r in enumerate(inp)}
+    results = {str(i): {str(p):float(q) for p,q in zip(r.indices, r.data)} for i,r in enumerate(targ)}
+    
     evaluator = EvaluateRetrieval()
-    ndcg, _map, recall, precision = evaluator.evaluate(qrels, results, [1, 3, 5, 10, 100])
+    ndcg, _map, recall, precision = evaluator.evaluate(qrels, results, k_values)
     mrr = evaluator.evaluate_custom(qrels, results, k_values, metric="mrr")
 
     metrics = {}
