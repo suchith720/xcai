@@ -88,24 +88,25 @@ def ndcg(X, true_labels, k=5, sorted=False, per_instance=False, use_cython=False
 
 # %% ../nbs/10_metrics.ipynb 9
 class Metrics(object):
-    
+
     def __init__(self, true_labels, inv_psp=None, remove_invalid=False):
         self.true_labels = true_labels
         self.num_instances, self.num_labels = true_labels.shape
         self.remove_invalid = remove_invalid
         self.valid_idx = None
-        
+        self.use_relevance = np.any(true_labels.data != 1)
+
         if self.remove_invalid:
             samples = np.sum(self.true_labels, axis=1)
             self.valid_idx = np.arange(self.num_instances).reshape(-1, 1)[samples > 0]
             self.true_labels = self.true_labels[self.valid_idx]
             self.num_instances = self.valid_idx.size
-            
+
         self.ndcg_denominator = np.cumsum(1/np.log2(np.arange(1, self.num_labels+1)+1))
         self.inv_psp = None
         if inv_psp is not None: self.inv_psp = np.ravel(inv_psp)
 
-    def eval(self, pred_labels, K=5, sorted=False, use_relevance=False, use_cython=False):
+    def eval(self, pred_labels, K=5, sorted=False, use_cython=False):
         if self.valid_idx is not None:
             if isinstance(pred_labels, dict):
                 pred_labels['indices'] = pred_labels['indices'][self.valid_idx]
@@ -113,7 +114,7 @@ class Metrics(object):
             else:
                 pred_labels = pred_labels[self.valid_idx]
 
-        assert compatible_shapes(self.true_labels, pred_labels), "Shapes must be compatible for ground truth and predictions"
+        assert xm.compatible_shapes(self.true_labels, pred_labels), "Shapes must be compatible for ground truth and predictions"
         indices, true_labels, ps_indices, inv_psp = xm._setup_metric(
             pred_labels, self.true_labels, self.inv_psp, k=K, sorted=sorted, use_cython=use_cython
         )
@@ -121,17 +122,17 @@ class Metrics(object):
         n = self.ndcg_denominator[_total_pos - 1]
         eval_flags = xm._eval_flags(indices, true_labels, None)
         prec = xm._precision(eval_flags, K)
-        if use_relevance:
+        if self.use_relevance:
             idcg = _get_idcg(true_labels, K)
             ndcg = _ndcg(eval_flags, idcg, K)
         else:
             ndcg = xm._ndcg(eval_flags, n, K)
-        
+
         if self.inv_psp is not None:
             eval_flags = np.multiply(inv_psp[indices], eval_flags)
             ps_eval_flags = xm._eval_flags(ps_indices, true_labels, inv_psp)
             PSprec = xm._precision(eval_flags, K)/_precision(ps_eval_flags, K)
-            if use_relevance:
+            if self.use_relevance:
                 PSnDCG = _ndcg(eval_flags, idcg, K)/_ndcg(ps_eval_flags, idcg, K)
             else:
                 PSnDCG = xm._ndcg(eval_flags, n, K)/_ndcg(ps_eval_flags, n, K)
@@ -200,19 +201,11 @@ def precision(
     name = ['P', 'N'] if prop is None else ['P', 'N', 'PSP', 'PSN']
     repk = [k] if repk is None else set(repk+[k])
     prop = None if prop is None else xm.compute_inv_propesity(prop, A=pa, B=pb)
-
-    targ_ext = targ.copy()
-    targ_ext.data[:] = 1.0
     
-    metric = xm.Metrics(true_labels=targ_ext, inv_psp=prop)
+    metric = Metrics(true_labels=targ, inv_psp=prop)
     prec = metric.eval(inp, k)
     
-    results = {f'{n}@{r}': prec[i][r-1] for i,n in enumerate(name) for r in repk if r <= k}
-    
-    metric = ndcg(inp, targ, k=k)
-    for r in repk:
-        if r <= k: results[f"N@{r}"] = metric[r-1]
-    return results
+    return {f'{n}@{r}': prec[i][r-1] for i,n in enumerate(name) for r in repk if r <= k}
     
 
 # %% ../nbs/10_metrics.ipynb 14
@@ -386,7 +379,7 @@ def BeirMetric(n_lbl, filterer=None, **kwargs):
     return XCMetric(beir_metric, n_lbl, filterer, **kwargs)
     
 
-# %% ../nbs/10_metrics.ipynb 33
+# %% ../nbs/10_metrics.ipynb 32
 def sort_xc_metrics(metric):
     order = {'P':1, 'N':2, 'PSP':3, 'PSN':4, 'R':5, 'PSR':6, 'MRR':7, 'Hits':8}
     def get_key(a,b): return (order.get(a,7), int(b)) 
