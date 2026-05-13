@@ -8,7 +8,7 @@ __all__ = ['DATASETS', 'get_instruction', 'tokenized_labels', 'tokenized_query',
 import os, torch, json, torch.multiprocessing as mp, joblib, numpy as np, scipy.sparse as sp, argparse, math, re
 import torch.nn.functional as F
 
-from typing import Optional
+from typing import Optional, List
 from tqdm.auto import tqdm
 
 from transformers import AutoTokenizer, AutoConfig
@@ -141,18 +141,20 @@ def combine_embeddings(fname:str, role:str, suffix:Optional[str]=None):
 
 # %% ../../nbs/45_maggi.utils.ipynb 11
 def compute_metrics(data_repr:sp.csr_matrix, lbl_repr:sp.csr_matrix, data_mat:Optional[sp.csr_matrix]=None, data_batch_sz:Optional[int]=1000,
-                    lbl_batch_sz:Optional[int]=10000, metric_type:Optional[str]="M"):
-    if lbl_repr.shape[1] == data_repr.shape[1]:
-        lbl_repr = lbl_repr.T
+                    lbl_batch_sz:Optional[int]=10000, qry_ids:Optional[List]=None, lbl_ids:Optional[List]=None, metric_type:Optional[str]="M"):
+    
+    if lbl_repr.shape[1] == data_repr.shape[1]:lbl_repr = lbl_repr.T
 
-    metric = None
-    if data_mat is not None:
-        if metric_type == "M":
-            metric = PrecReclMrr(lbl_repr.shape[1], pk=10, rk=200, rep_pk=[1, 3, 5, 10], rep_rk=[10, 100, 200], mk=[5, 10, 20])
-        elif metric_type == "H":
-            metric = PrecReclHits(lbl_repr.shape[1], pk=10, rk=200, hk=10, rep_pk=[1, 3, 5, 10], rep_rk=[5, 10, 100, 200], rep_hk=[1, 3, 5, 10])
-        else:
-            raise ValueError(f"Invalid metric type: {metric_type}")
+    metric = BeirMetric(lbl_repr.shape[1], k_values=[1, 3, 5, 10], qry_ids=tst_ids, lbl_ids=lbl_ids)
+    
+    # metric = None
+    # if data_mat is not None:
+    #     if metric_type == "M":
+    #         metric = PrecReclMrr(lbl_repr.shape[1], pk=10, rk=200, rep_pk=[1, 3, 5, 10], rep_rk=[10, 100, 200], mk=[5, 10, 20])
+    #     elif metric_type == "H":
+    #         metric = PrecReclHits(lbl_repr.shape[1], pk=10, rk=200, hk=10, rep_pk=[1, 3, 5, 10], rep_rk=[5, 10, 100, 200], rep_hk=[1, 3, 5, 10])
+    #     else:
+    #         raise ValueError(f"Invalid metric type: {metric_type}")
 
     if metric is not None: metric.reset()
 

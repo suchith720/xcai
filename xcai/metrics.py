@@ -188,7 +188,7 @@ class XCMetric:
         return self.func(pred, targ, **self.kwargs)
 
 
-# %% ../nbs/10_metrics.ipynb 13
+# %% ../nbs/10_metrics.ipynb 14
 def precision(
     inp:sp.csr_matrix,
     targ:sp.csr_matrix, 
@@ -208,13 +208,13 @@ def precision(
     return {f'{n}@{r}': prec[i][r-1] for i,n in enumerate(name) for r in repk if r <= k}
     
 
-# %% ../nbs/10_metrics.ipynb 14
+# %% ../nbs/10_metrics.ipynb 15
 @delegates(precision)
 def Precision(n_lbl, filterer=None, **kwargs):
     return XCMetric(precision, n_lbl, filterer, **kwargs)
     
 
-# %% ../nbs/10_metrics.ipynb 16
+# %% ../nbs/10_metrics.ipynb 17
 def recall(
     inp:sp.csr_matrix, 
     targ:sp.csr_matrix, 
@@ -230,13 +230,13 @@ def recall(
     return {f'R@{o}':recl[o-1] for o in repk if o <= k}
     
 
-# %% ../nbs/10_metrics.ipynb 17
+# %% ../nbs/10_metrics.ipynb 18
 @delegates(precision)
 def Recall(n_lbl, filterer=None, **kwargs):
     return XCMetric(recall, n_lbl, filterer, **kwargs)
     
 
-# %% ../nbs/10_metrics.ipynb 18
+# %% ../nbs/10_metrics.ipynb 19
 def prec_recl(
     inp:sp.csr_matrix, 
     targ:sp.csr_matrix,
@@ -253,13 +253,13 @@ def prec_recl(
     return metric
     
 
-# %% ../nbs/10_metrics.ipynb 19
+# %% ../nbs/10_metrics.ipynb 20
 @delegates(prec_recl)
 def PrecRecl(n_lbl, filterer=None, **kwargs):
     return XCMetric(prec_recl, n_lbl, filterer, **kwargs)
     
 
-# %% ../nbs/10_metrics.ipynb 23
+# %% ../nbs/10_metrics.ipynb 24
 def mrr(
     inp:sp.csr_matrix,
     targ:sp.csr_matrix,
@@ -281,7 +281,7 @@ def Mrr(n_lbl, filterer=None, **kwargs):
     return XCMetric(mrr, n_lbl, filterer, **kwargs)
     
 
-# %% ../nbs/10_metrics.ipynb 24
+# %% ../nbs/10_metrics.ipynb 25
 def prec_recl_mrr(
     inp:sp.csr_matrix,
     targ:sp.csr_matrix,
@@ -304,7 +304,7 @@ def PrecReclMrr(n_lbl, filterer=None, **kwargs):
     return XCMetric(prec_recl_mrr, n_lbl, filterer, **kwargs)
 
 
-# %% ../nbs/10_metrics.ipynb 26
+# %% ../nbs/10_metrics.ipynb 27
 def hits(
     inp:sp.csr_matrix,
     targ:sp.csr_matrix,
@@ -324,7 +324,7 @@ def Hits(n_lbl, filterer=None, **kwargs):
     return XCMetric(hits, n_lbl, filterer, **kwargs)
     
 
-# %% ../nbs/10_metrics.ipynb 27
+# %% ../nbs/10_metrics.ipynb 28
 def prec_recl_hits(
     inp:sp.csr_matrix,
     targ:sp.csr_matrix,
@@ -347,7 +347,7 @@ def PrecReclHits(n_lbl, filterer=None, **kwargs):
     return XCMetric(prec_recl_hits, n_lbl, filterer, **kwargs)
 
 
-# %% ../nbs/10_metrics.ipynb 29
+# %% ../nbs/10_metrics.ipynb 30
 def beir_metric(
     inp:sp.csr_matrix,
     targ:sp.csr_matrix,
@@ -374,12 +374,12 @@ def beir_metric(
     return metrics
     
 
-# %% ../nbs/10_metrics.ipynb 30
+# %% ../nbs/10_metrics.ipynb 31
 def BeirMetric(n_lbl, filterer=None, **kwargs):
     return XCMetric(beir_metric, n_lbl, filterer, **kwargs)
     
 
-# %% ../nbs/10_metrics.ipynb 32
+# %% ../nbs/10_metrics.ipynb 33
 def sort_xc_metrics(metric):
     order = {'P':1, 'N':2, 'PSP':3, 'PSN':4, 'R':5, 'PSR':6, 'MRR':7, 'Hits':8}
     def get_key(a,b): return (order.get(a,7), int(b)) 
