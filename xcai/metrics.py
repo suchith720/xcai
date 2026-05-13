@@ -303,10 +303,18 @@ def PrecReclHits(n_lbl, filterer=None, **kwargs):
 def beir_metric(
     inp:sp.csr_matrix,
     targ:sp.csr_matrix,
+    qry_ids:Optional[List]=None,
+    lbl_ids:Optional[List]=None,
     k_values:Optional[List]=[1, 3, 5, 10],
 ):
-    qrels = {str(i): {str(p):int(q) for p,q in zip(r.indices, r.data)} for i,r in enumerate(inp)}
-    results = {str(i): {str(p):float(q) for p,q in zip(r.indices, r.data)} for i,r in enumerate(targ)}
+    if qry_ids is not None: qry_ids = np.arange(inp.shape[0])
+    if lbl_ids is not None: lbl_ids = np.arange(inp.shape[1])
+
+    assert len(qry_ids) == inp.shape[0], "Query identifiers should be same as number of input queries."
+    assert len(lbl_ids) == inp.shape[1], "Label identifiers should be same as number of input labels."
+    
+    qrels = {str(i): {str(lbl_ids[p]):int(q) for p,q in zip(r.indices, r.data)} for i,r in zip(qry_ids, inp)}
+    results = {str(i): {str(lbl_ids[p]):float(q) for p,q in zip(r.indices, r.data)} for i,r in zip(lbl_ids, targ)}
     
     evaluator = EvaluateRetrieval()
     ndcg, _map, recall, precision = evaluator.evaluate(qrels, results, k_values)
