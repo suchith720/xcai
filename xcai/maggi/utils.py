@@ -144,9 +144,11 @@ def compute_metrics(data_repr:sp.csr_matrix, lbl_repr:sp.csr_matrix, data_mat:Op
                     lbl_batch_sz:Optional[int]=10000, qry_ids:Optional[List]=None, lbl_ids:Optional[List]=None, metric_type:Optional[str]="M"):
     
     if lbl_repr.shape[1] == data_repr.shape[1]:lbl_repr = lbl_repr.T
-
-    if data_mat is not None:
-        metric = BeirMetric(lbl_repr.shape[1], k_values=[1, 3, 5, 10], qry_ids=qry_ids, lbl_ids=lbl_ids)
+    
+    metric = (
+        None if data_mat is None else 
+        BeirMetric(lbl_repr.shape[1], k_values=[1, 3, 5, 10], qry_ids=qry_ids, lbl_ids=lbl_ids)
+    )
         
     # metric = None
     # if data_mat is not None:
