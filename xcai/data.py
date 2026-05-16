@@ -40,7 +40,7 @@ class MainXCData:
     
     @classmethod
     @delegates(Info.from_txt)
-    def from_file(cls, data_info:str, lbl_info:Optional[Union[str, Dict]]=None, data_lbl:Optional[str]=None, data_lbl_filterer:Optional[str]=None, 
+    def from_file(cls, data_info, lbl_info:Optional[Union[str, Dict]]=None, data_lbl:Optional[str]=None, data_lbl_filterer:Optional[str]=None, 
                   main_max_data_sequence_length:Optional[int]=None, main_max_lbl_sequence_length:Optional[int]=None, 
                   data_prompt_func:Optional[Callable]=None, lbl_prompt_func:Optional[Callable]=None, **kwargs):
         return {
@@ -83,7 +83,7 @@ class MetaXCData:
         }
     
 
-# %% ../nbs/02_data.ipynb 23
+# %% ../nbs/02_data.ipynb 24
 class BaseXCDataset(Dataset):
     def __init__(self):
         self.n_data = self.n_lbl = self.n_neg = self.n_meta = self.n_samples = None
@@ -180,7 +180,7 @@ class BaseXCDataset(Dataset):
         return cls(**kwargs)
         
 
-# %% ../nbs/02_data.ipynb 25
+# %% ../nbs/02_data.ipynb 26
 class MainXCDataset(BaseXCDataset):
     def __init__(
         self,
@@ -309,7 +309,7 @@ class MainXCDataset(BaseXCDataset):
             return BaseXCDataset.score_data_lbl(self.data_lbl, data_repr, lbl_repr, batch_size=batch_size, normalize=normalize)
             
 
-# %% ../nbs/02_data.ipynb 26
+# %% ../nbs/02_data.ipynb 27
 @patch
 def __getitem__(cls:MainXCDataset, idx:int):
     x = {f'data_{k}': v[idx] for k,v in cls.data_info.items() if k in cls.data_info_keys}
@@ -339,7 +339,7 @@ def __getitem__(cls:MainXCDataset, idx:int):
     return x
     
 
-# %% ../nbs/02_data.ipynb 39
+# %% ../nbs/02_data.ipynb 41
 class MetaXCDataset(BaseXCDataset):
 
     def __init__(
@@ -546,7 +546,7 @@ class MetaXCDataset(BaseXCDataset):
             return BaseXCDataset.score_data_lbl(self.lbl_meta, lbl_repr, meta_repr, batch_size=batch_size, normalize=normalize)
         
 
-# %% ../nbs/02_data.ipynb 58
+# %% ../nbs/02_data.ipynb 60
 class Operations:
 
     @staticmethod
@@ -736,7 +736,7 @@ class Operations:
         return dset._getitems(valid_idx)
         
 
-# %% ../nbs/02_data.ipynb 60
+# %% ../nbs/02_data.ipynb 62
 class MetaXCDatasets(dict):
 
     def __init__(self, meta:Dict):
@@ -752,7 +752,7 @@ class MetaXCDatasets(dict):
         delattr(self, key)
         
 
-# %% ../nbs/02_data.ipynb 61
+# %% ../nbs/02_data.ipynb 63
 class XCDataset(BaseXCDataset):
 
     def __init__(self, data:MainXCDataset, **kwargs):
@@ -893,7 +893,7 @@ class XCDataset(BaseXCDataset):
                                                            meta_info=self.data.lbl_info, **kwargs)
 
 
-# %% ../nbs/02_data.ipynb 76
+# %% ../nbs/02_data.ipynb 78
 class XCCollator:
 
     def __init__(self, tfms):
@@ -903,7 +903,7 @@ class XCCollator:
         return self.tfms(x)
         
 
-# %% ../nbs/02_data.ipynb 93
+# %% ../nbs/02_data.ipynb 95
 class BaseXCDataBlock:
 
     @delegates(DataLoader.__init__)
@@ -997,7 +997,7 @@ class BaseXCDataBlock:
         return cls._getitems(rnd_idx[:cut])
         
 
-# %% ../nbs/02_data.ipynb 103
+# %% ../nbs/02_data.ipynb 105
 class XCDataBlock:
 
     def __init__(self, train=None, valid=None, test=None):
