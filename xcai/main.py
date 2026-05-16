@@ -3,8 +3,8 @@
 # %% auto 0
 __all__ = ['parse_args', 'check_inference_mode', 'get_metadata_representation', 'get_cluster_mapping', 'Filter',
            'filter_metadata_dset', 'filter_metadata_block', 'retain_topk_metadata', 'retain_topk_labels',
-           'get_valid_dset', 'get_config', 'tokenize_info', 'augment_metadata', 'get_pkl_file', 'build_block',
-           'raw_mapping', 'load_model', 'get_output', 'main']
+           'retain_topk_negatives', 'get_valid_dset', 'get_config', 'tokenize_info', 'augment_metadata', 'get_pkl_file',
+           'build_block', 'raw_mapping', 'load_model', 'get_output', 'main']
 
 # %% ../nbs/36_main.ipynb 3
 import os, torch, scipy.sparse as sp, joblib, argparse, pickle, numpy as np, inspect
@@ -282,6 +282,21 @@ def retain_topk_labels(block, train_k:int=5, test_k:int=3):
         block.test.dset.data._store_indices()
         if block.test.dset.data.use_main_distribution or block.test.dset.data.return_scores:
             block.test.dset.data._store_scores()
+
+def retain_topk_negatives(block, train_k:int=5, test_k:int=3):
+    if train_k is not None and block.train is not None:
+        block.train.dset.data.data_neg = retain_topk(block.train.dset.data.data_neg, k=train_k)
+        
+        block.train.dset.data._store_indices()
+        if block.train.dset.data.use_main_distribution or block.train.dset.data.return_scores: 
+            block.train.dset.data._store_scores()
+            
+    if test_k is not None and block.test is not None:
+        block.test.dset.data.data_neg = retain_topk(block.test.dset.data.data_neg, k=test_k)
+        
+        block.test.dset.data._store_indices()
+        if block.test.dset.data.use_main_distribution or block.test.dset.data.return_scores:
+            block.test.dset.data._store_scores()
     
 
 # %% ../nbs/36_main.ipynb 17
@@ -350,9 +365,11 @@ def get_pkl_file(pkl_dir:str, fname:str, use_sxc_sampler:bool, use_exact:Optiona
     
 
 # %% ../nbs/36_main.ipynb 23
-def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=True, config_key:Optional[str]=None, 
-                do_build:Optional[bool]=False, only_test:Optional[bool]=False, use_oracle:Optional[bool]=False, 
-                remove_empty_datapoints:Optional[bool]=False, train_label_topk:Optional[int]=None, test_label_topk:Optional[int]=None, 
+def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=True, config_key:Optional[str]=None, do_build:Optional[bool]=False, 
+                only_test:Optional[bool]=False, use_oracle:Optional[bool]=False, remove_empty_datapoints:Optional[bool]=False, 
+                
+                train_label_topk:Optional[int]=None, test_label_topk:Optional[int]=None, 
+                train_negative_topk:Optional[int]=None, test_negative_topk:Optional[int]=None, 
                 
                 train_data_meta_topk:Optional[int]=None, test_data_meta_topk:Optional[int]=None, train_label_meta_topk:Optional[int]=None, 
                 test_label_meta_topk:Optional[int]=None, train_neg_meta_topk:Optional[int]=None, test_neg_meta_topk:Optional[int]=None,
@@ -371,12 +388,18 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
     if do_build:
         if isinstance(config, str) and os.path.exists(config): 
             config = load_config(config, config_key)
+
             if ignore_data_info:
+                if 'data_info' in config['path']['test']: del config['path']['test']['data_info']
+                if 'data_info' in config['path']['train']: del config['path']['train']['data_info']
+                    
+            if ignore_lbl_info:
                 if 'lbl_info' in config['path']['test']: del config['path']['test']['lbl_info']
                 if 'lbl_info' in config['path']['train']: del config['path']['train']['lbl_info']
 
-                if 'data_info' in config['path']['test']: del config['path']['test']['data_info']
-                if 'data_info' in config['path']['train']: del config['path']['train']['data_info']
+            if ignore_neg_info:
+                if 'neg_info' in config['path']['test']: del config['path']['test']['neg_info']
+                if 'neg_info' in config['path']['train']: del config['path']['train']['neg_info']
             
             if only_test and 'train' in config['path']:
                 if 'lbl_info' not in config['path']['test']:
@@ -432,6 +455,9 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
 
     if train_label_topk is not None or test_label_topk is not None:
         retain_topk_labels(block, train_k=train_label_topk, test_k=test_label_topk)
+
+    if train_negative_topk is not None or test_negative_topk is not None:
+        retain_topk_negatives(block, train_k=train_negative_topk, test_k=test_negative_topk)
 
     if (
         train_data_meta_topk is not None or test_data_meta_topk is not None or
