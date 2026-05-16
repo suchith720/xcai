@@ -217,8 +217,8 @@ class MEM001(DistilBertPreTrainedModel):
     @torch.no_grad()
     def init_encoder_embeddings(self, trn_embeds:torch.Tensor, tst_embeds:torch.Tensor, lbl_embeds:torch.Tensor):
         self.encoder._init_train_embeddings(trn_embeds)
-        self.encoder._init_test_embeddings(trn_embeds)
-        self.encoder._init_label_embeddings(trn_embeds)
+        self.encoder._init_test_embeddings(tst_embeds)
+        self.encoder._init_label_embeddings(lbl_embeds)
 
     def get_label_representation(self, data_idx:Optional[torch.Tensor]=None):
         return encoder(data_idx, data_type="lbl")
