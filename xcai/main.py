@@ -381,7 +381,7 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
                 aug_exclude_sep:Optional[bool]=False, perform_data_meta_aug:Optional[bool]=False, perform_lbl_meta_aug:Optional[bool]=False, 
                 prompt:Optional[Callable]=None, data_dir:Optional[str]=None, 
                 
-                ignore_data_info:Optional[bool]=False, ignore_lbl_info:Optional[bool]=False, **kwargs):
+                ignore_data_info:Optional[bool]=False, ignore_lbl_info:Optional[bool]=False, ignore_neg_info:Optional[bool]=False, **kwargs):
 
     if not os.path.exists(pkl_file): do_build = True
 
@@ -479,7 +479,7 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
     return block
         
 
-# %% ../nbs/36_main.ipynb 25
+# %% ../nbs/36_main.ipynb 26
 def raw_mapping(src_file, targ_file):
     src_ids, src_txt = load_raw_file(src_file)
     targ_ids, targ_txt = load_raw_file(targ_file)
@@ -492,7 +492,7 @@ def raw_mapping(src_file, targ_file):
     for i,id in enumerate(src_ids): src2targ_idx[i] = targ_ids2idx[id]
 
 
-# %% ../nbs/36_main.ipynb 26
+# %% ../nbs/36_main.ipynb 27
 def load_model(output_dir:str, model_fn:Callable, model_args:Optional[Dict]=dict(), init_fn:Optional[Callable]=None, 
                init_args:Optional[Dict]=dict(), do_inference:Optional[bool]=False, use_pretrained:Optional[bool]=False,
                type:Optional[str]="best", update_config_during_inference:Optional[bool]=False, config=None):
@@ -514,7 +514,7 @@ def load_model(output_dir:str, model_fn:Callable, model_args:Optional[Dict]=dict
     return model
     
 
-# %% ../nbs/36_main.ipynb 28
+# %% ../nbs/36_main.ipynb 29
 def get_output(pred_idx:torch.Tensor, pred_ptr:torch.Tensor, pred_score:torch.Tensor, n_lbl:int, **kwargs):
     n_data = pred_ptr.shape[0]
     pred_ptr = torch.cat([torch.zeros((1,), dtype=torch.long), pred_ptr.cumsum(dim=0)])
@@ -522,7 +522,7 @@ def get_output(pred_idx:torch.Tensor, pred_ptr:torch.Tensor, pred_score:torch.Te
     return pred
     
 
-# %% ../nbs/36_main.ipynb 30
+# %% ../nbs/36_main.ipynb 31
 def main(learn, args, n_lbl:int, eval_dataset=None, train_dataset=None, label_dataset=None, meta_dataset=None, 
          eval_k:Optional[int]=None, train_k:Optional[int]=None, label_k:Optional[int]=None, meta_k:Optional[int]=None, 
          save_teacher:bool=False, save_classifier:bool=False, resume_from_checkpoint:Optional[bool]=None, 
