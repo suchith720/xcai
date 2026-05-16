@@ -40,18 +40,18 @@ class MainXCData:
     
     @classmethod
     @delegates(Info.from_txt)
-    def from_file(cls, data_info, lbl_info:Optional[Union[str, Dict]]=None, data_lbl:Optional[str]=None, data_lbl_filterer:Optional[str]=None, 
-                  main_max_data_sequence_length:Optional[int]=None, main_max_lbl_sequence_length:Optional[int]=None, 
+    def from_file(cls, data_info:Optional[Union[str, Dict]]=None, lbl_info:Optional[Union[str, Dict]]=None, data_lbl:Optional[str]=None, 
+                  data_lbl_filterer:Optional[str]=None, main_max_data_sequence_length:Optional[int]=None, main_max_lbl_sequence_length:Optional[int]=None, 
                   data_prompt_func:Optional[Callable]=None, lbl_prompt_func:Optional[Callable]=None, **kwargs):
         return {
             'data_lbl': _read_sparse_file(data_lbl),
-            'data_info': Info.from_txt(data_info, max_sequence_length=main_max_data_sequence_length, prompt_func=data_prompt_func, **kwargs),
+            'data_info': Info.from_txt(data_info, max_sequence_length=main_max_data_sequence_length, prompt_func=data_prompt_func, **kwargs) if isinstance(data_info, str) else data_info,
             'lbl_info': Info.from_txt(lbl_info, max_sequence_length=main_max_lbl_sequence_length, prompt_func=lbl_prompt_func, **kwargs) if isinstance(lbl_info, str) else lbl_info,
             'data_lbl_filterer': Filterer.load_filter(data_lbl_filterer),
         }
     
 
-# %% ../nbs/02_data.ipynb 13
+# %% ../nbs/02_data.ipynb 15
 class NegXCData:
     
     @classmethod
@@ -67,7 +67,7 @@ class NegXCData:
         }
     
 
-# %% ../nbs/02_data.ipynb 16
+# %% ../nbs/02_data.ipynb 18
 class MetaXCData:
     
     @classmethod
@@ -83,7 +83,7 @@ class MetaXCData:
         }
     
 
-# %% ../nbs/02_data.ipynb 24
+# %% ../nbs/02_data.ipynb 26
 class BaseXCDataset(Dataset):
     def __init__(self):
         self.n_data = self.n_lbl = self.n_neg = self.n_meta = self.n_samples = None
@@ -180,11 +180,11 @@ class BaseXCDataset(Dataset):
         return cls(**kwargs)
         
 
-# %% ../nbs/02_data.ipynb 26
+# %% ../nbs/02_data.ipynb 28
 class MainXCDataset(BaseXCDataset):
     def __init__(
         self,
-        data_info:Dict,
+        data_info:Optional[Dict]=None,
         data_lbl:Optional[sparse.csr_matrix]=None,
         lbl_info:Optional[Dict]=None,
         data_lbl_filterer:Optional[Union[sparse.csr_matrix,np.array]]=None,
@@ -227,8 +227,14 @@ class MainXCDataset(BaseXCDataset):
         return cls(**MainXCData.from_file(**data_args, **shared_args), **NegXCData.from_file(**negs_args, **shared_args), **kwargs)
     
     def _verify_inputs(cls):
-        cls.n_data = cls._verify_info(cls.data_info)
-        if cls.data_info_keys is None: cls.data_info_keys = list(cls.data_info.keys())
+        if cls.data_info is None:
+            if cls.data_lbl is None: 
+                raise ValueError(f"Both `data_info` and `data_lbl` cannot be empty.")
+            cls.n_data = cls.data_lbl.shape[0]
+            cls.data_info = {}
+        else:
+            cls.n_data = cls._verify_info(cls.data_info)
+            if cls.data_info_keys is None: cls.data_info_keys = list(cls.data_info.keys())
             
         if cls.data_lbl is not None:
             if cls.n_data != cls.data_lbl.shape[0]:
@@ -244,8 +250,6 @@ class MainXCDataset(BaseXCDataset):
             if cls.lbl_info_keys is None: cls.lbl_info_keys = list(cls.lbl_info.keys())
 
         if cls.data_neg is not None:
-            if cls.neg_info is None:
-                raise ValueError(f"`neg_info` cannot be empty when `data_neg` is provided.")
             if cls.n_data != cls.data_neg.shape[0]:
                 raise ValueError(f'`data_lbl`({cls.n_data}) should have same number of datapoints as `data_neg`({cls.data_neg.shape[0]})')
             cls.n_neg = cls.data_neg.shape[1]
@@ -309,7 +313,7 @@ class MainXCDataset(BaseXCDataset):
             return BaseXCDataset.score_data_lbl(self.data_lbl, data_repr, lbl_repr, batch_size=batch_size, normalize=normalize)
             
 
-# %% ../nbs/02_data.ipynb 27
+# %% ../nbs/02_data.ipynb 29
 @patch
 def __getitem__(cls:MainXCDataset, idx:int):
     x = {f'data_{k}': v[idx] for k,v in cls.data_info.items() if k in cls.data_info_keys}
@@ -339,7 +343,7 @@ def __getitem__(cls:MainXCDataset, idx:int):
     return x
     
 
-# %% ../nbs/02_data.ipynb 41
+# %% ../nbs/02_data.ipynb 43
 class MetaXCDataset(BaseXCDataset):
 
     def __init__(
@@ -546,7 +550,7 @@ class MetaXCDataset(BaseXCDataset):
             return BaseXCDataset.score_data_lbl(self.lbl_meta, lbl_repr, meta_repr, batch_size=batch_size, normalize=normalize)
         
 
-# %% ../nbs/02_data.ipynb 60
+# %% ../nbs/02_data.ipynb 62
 class Operations:
 
     @staticmethod
@@ -736,7 +740,7 @@ class Operations:
         return dset._getitems(valid_idx)
         
 
-# %% ../nbs/02_data.ipynb 62
+# %% ../nbs/02_data.ipynb 64
 class MetaXCDatasets(dict):
 
     def __init__(self, meta:Dict):
@@ -752,7 +756,7 @@ class MetaXCDatasets(dict):
         delattr(self, key)
         
 
-# %% ../nbs/02_data.ipynb 63
+# %% ../nbs/02_data.ipynb 65
 class XCDataset(BaseXCDataset):
 
     def __init__(self, data:MainXCDataset, **kwargs):
@@ -893,7 +897,7 @@ class XCDataset(BaseXCDataset):
                                                            meta_info=self.data.lbl_info, **kwargs)
 
 
-# %% ../nbs/02_data.ipynb 78
+# %% ../nbs/02_data.ipynb 80
 class XCCollator:
 
     def __init__(self, tfms):
@@ -903,7 +907,7 @@ class XCCollator:
         return self.tfms(x)
         
 
-# %% ../nbs/02_data.ipynb 95
+# %% ../nbs/02_data.ipynb 97
 class BaseXCDataBlock:
 
     @delegates(DataLoader.__init__)
@@ -997,7 +1001,7 @@ class BaseXCDataBlock:
         return cls._getitems(rnd_idx[:cut])
         
 
-# %% ../nbs/02_data.ipynb 105
+# %% ../nbs/02_data.ipynb 107
 class XCDataBlock:
 
     def __init__(self, train=None, valid=None, test=None):
