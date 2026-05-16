@@ -362,13 +362,22 @@ def build_block(pkl_file:str, config:Union[str,Dict], use_sxc:Optional[bool]=Tru
                 
                 aug_meta_name:Optional[str]=None, aug_data_seq_length:Optional[int]=128, aug_lbl_seq_length:Optional[int]=128, 
                 aug_exclude_sep:Optional[bool]=False, perform_data_meta_aug:Optional[bool]=False, perform_lbl_meta_aug:Optional[bool]=False, 
-                prompt:Optional[Callable]=None, data_dir:Optional[str]=None, **kwargs):
+                prompt:Optional[Callable]=None, data_dir:Optional[str]=None, 
+                
+                ignore_data_info:Optional[bool]=False, ignore_lbl_info:Optional[bool]=False, **kwargs):
 
     if not os.path.exists(pkl_file): do_build = True
 
     if do_build:
         if isinstance(config, str) and os.path.exists(config): 
             config = load_config(config, config_key)
+            if ignore_data_info:
+                if 'lbl_info' in config['path']['test']: del config['path']['test']['lbl_info']
+                if 'lbl_info' in config['path']['train']: del config['path']['train']['lbl_info']
+
+                if 'data_info' in config['path']['test']: del config['path']['test']['data_info']
+                if 'data_info' in config['path']['train']: del config['path']['train']['data_info']
+            
             if only_test and 'train' in config['path']:
                 if 'lbl_info' not in config['path']['test']:
                     config['path']['test']['lbl_info'] = config['path']['train']['lbl_info']
