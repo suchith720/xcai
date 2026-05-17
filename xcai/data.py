@@ -197,12 +197,13 @@ class MainXCDataset(BaseXCDataset):
         use_main_distribution:Optional[bool]=False,
         return_scores:Optional[bool]=False,
         enable_delayed_indexing:Optional[bool]=False,
+        n_data:Optional[int]=None,
         **kwargs
     ):
         super().__init__()
         store_attr('data_info,data_lbl,lbl_info,data_lbl_filterer,n_lbl_samples,data_info_keys')
         store_attr('lbl_info_keys,use_main_distribution,return_scores,enable_delayed_indexing')
-        store_attr('neg_info,data_neg,n_neg_samples')
+        store_attr('neg_info,data_neg,n_neg_samples,n_data')
         
         self.curr_data_lbl = self.data_lbl_scores = None
         self.curr_data_neg = self.data_neg_scores = None
@@ -228,9 +229,10 @@ class MainXCDataset(BaseXCDataset):
     
     def _verify_inputs(cls):
         if cls.data_info is None:
-            if cls.data_lbl is None: 
-                raise ValueError(f"Both `data_info` and `data_lbl` cannot be empty.")
-            cls.n_data = cls.data_lbl.shape[0]
+            if cls.data_lbl is None and cls.n_data is None: 
+                raise ValueError(f"Both `data_info`, `data_lbl` and `n_data` cannot be empty.")
+            elif cls.n_data is None:
+                cls.n_data = cls.data_lbl.shape[0]
             cls.data_info = {}
         else:
             cls.n_data = cls._verify_info(cls.data_info)

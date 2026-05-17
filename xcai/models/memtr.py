@@ -186,7 +186,7 @@ class Encoder(DistilBertPreTrainedModel):
         return data_rep, fused_data_rep, meta_rep
         
 
-# %% ../../nbs/47_models.memtr.ipynb 25
+# %% ../../nbs/47_models.memtr.ipynb 24
 class MEM001(DistilBertPreTrainedModel):
     use_generation,use_representation = False,True
     _tied_weights_keys = ["encoder.distilbert"]
@@ -221,6 +221,7 @@ class MEM001(DistilBertPreTrainedModel):
         self.encoder._init_label_embeddings(lbl_embeds)
 
     def get_label_representation(self, data_idx:Optional[torch.Tensor]=None):
+        encoder = nn.DataParallel(module=self.encoder) if self.config.use_encoder_parallel else self.encoder
         return encoder(data_idx, data_type="lbl")
 
     def forward(
@@ -245,8 +246,8 @@ class MEM001(DistilBertPreTrainedModel):
 
         encoder = nn.DataParallel(module=self.encoder) if self.config.use_encoder_parallel else self.encoder
 
-        data_meta_kwargs = Parameters.from_feat_meta_aug_prefix('data', config.data_aug_meta_prefix, **kwargs)
-        data_repr, fused_data_repr, _ = encoder(data_idx=data_idx, data_aug_meta_prefix=config.data_aug_meta_prefix, 
+        data_meta_kwargs = Parameters.from_feat_meta_aug_prefix('data', self.config.data_aug_meta_prefix, **kwargs)
+        data_repr, fused_data_repr, _ = encoder(data_idx=data_idx, data_aug_meta_prefix=self.config.data_aug_meta_prefix, 
                                                 data_type="trn" if self.train else "tst", **data_meta_kwargs)
         
         loss = lbl2data_repr = neg2data_repr = None
