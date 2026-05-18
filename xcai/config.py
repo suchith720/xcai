@@ -62,6 +62,10 @@ PARAM = {
     'n_slbl_samples': 1,
     'n_sneg_samples': 1,
     'main_oversample': False,
+
+    'data_meta_topk': None,
+    'lbl_meta_topk': None,
+    'neg_meta_topk': None,
     
     'n_data_meta_samples': None,
     'n_lbl_meta_samples': None,

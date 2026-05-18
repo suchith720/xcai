@@ -73,12 +73,13 @@ class MetaXCData:
     @classmethod
     @delegates(Info.from_txt)
     def from_file(cls, prefix:str, data_meta:str, lbl_meta:Optional[str]=None, neg_meta:Optional[str]=None, meta_info:Optional[str]=None, 
-                  meta_max_sequence_length:Optional[int]=None, meta_prompt_func:Optional[Callable]=None, **kwargs):
+                  meta_max_sequence_length:Optional[int]=None, meta_prompt_func:Optional[Callable]=None, data_meta_topk:Optional[int]=None, 
+                  lbl_meta_topk:Optional[int]=None, neg_meta_topk:Optional[int]=None, **kwargs):
         return {
             'prefix': prefix,
-            'data_meta': _read_sparse_file(data_meta),
-            'lbl_meta': _read_sparse_file(lbl_meta),
-            'neg_meta': _read_sparse_file(neg_meta),
+            'data_meta': _read_sparse_file(data_meta) if data_meta_topk is None else retain_topk(_read_sparse_file(data_meta), k=data_meta_topk),
+            'lbl_meta': _read_sparse_file(lbl_meta) if lbl_meta_topk is None else retain_topk(_read_sparse_file(lbl_meta), k=lbl_meta_topk),
+            'neg_meta': _read_sparse_file(neg_meta) if neg_meta_topk is None else retain_topk(_read_sparse_file(neg_meta), k=neg_meta_topk),
             'meta_info': Info.from_txt(meta_info, max_sequence_length=meta_max_sequence_length, prompt_func=meta_prompt_func, **kwargs) if isinstance(meta_info, str) else meta_info,
         }
     
