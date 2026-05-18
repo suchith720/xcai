@@ -27,11 +27,13 @@ class MEMConfig(DBTConfig):
         num_labels:Optional[int]=None,
         num_metadata:Optional[int]=None,
         data_aug_meta_prefix:Optional[str]=None,
+        combiner_heads:Optional[int]=16,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.base_model_dim, self.num_train_data, self.num_test_data = base_model_dim, num_train_data, num_test_data
         self.num_labels, self.num_metadata, self.data_aug_meta_prefix = num_labels, num_metadata, data_aug_meta_prefix
+        self.combiner_heads = combiner_heads
         
 
 # %% ../../nbs/47_models.memtr.ipynb 20
@@ -103,30 +105,14 @@ class Encoder(DistilBertPreTrainedModel):
         self.config = config
         self.distilbert = DistilBertModel(config)
         
-        self.register_buffer("trn_embeds", torch.randn(config.num_train_data, config.base_model_dim))
-        self.register_buffer("tst_embeds", torch.randn(config.num_test_data, config.base_model_dim))
-        self.register_buffer("lbl_embeds", torch.randn(config.num_labels, config.base_model_dim))
-        
         self.projector = nn.Linear(config.dim, config.base_model_dim)
         
-        config.dim = config.base_model_dim
+        config.dim, config.n_head = config.base_model_dim, config.combiner_heads
         self.combiner = CrossCombinerBlock(config)
         
     @torch.no_grad()
     def init_dr_head(self):
         torch.nn.init.eye_(self.projector.weight)
-
-    @torch.no_grad()
-    def _init_train_embeddings(self, x:torch.Tensor):
-        self.trn_embeds.copy_(x)
-
-    @torch.no_grad()
-    def _init_test_embeddings(self, x:torch.Tensor):
-        self.tst_embeds.copy_(x)
-
-    @torch.no_grad()
-    def _init_label_embeddings(self, x:torch.Tensor):
-        self.lbl_embeds.copy_(x)
 
     def _init_weights(self, module: nn.Module):
         super()._init_weights(module)
@@ -159,21 +145,11 @@ class Encoder(DistilBertPreTrainedModel):
         return F.normalize(self.projector(meta_rep), dim=1)
             
     def forward(
-        self, 
-        data_idx:Optional[torch.Tensor] = None,
+        self,
+        data_rep:Optional[torch.Tensor] = None,
         data_aug_meta_prefix: Optional[str]=None,
-        data_type:Optional[str]=None,
         **kwargs
     ):
-        if data_type == "trn":
-            data_rep = self.trn_embeds[data_idx]
-        elif data_type == "tst":
-            data_rep = self.tst_embeds[data_idx]
-        elif data_type == "lbl":
-            data_rep = self.lbl_embeds[data_idx]
-        else:
-            raise ValueError(f"Invalid input type: {data_type}")
-        
         data_rep = F.normalize(data_rep, dim=1)
 
         fused_data_rep = meta_rep = None
@@ -198,6 +174,10 @@ class MEM001(DistilBertPreTrainedModel):
         super().__init__(config)
         self.config = config
         self.encoder = Encoder(config)
+
+        self.trn_embeds_shards = []
+        self.tst_embeds_shards = []
+        self.lbl_embeds_shards = []
         
         loss_kwargs = {
             'margin': config.margin, 'n_negatives': config.num_negatives, 'tau': config.tau, 
@@ -205,6 +185,46 @@ class MEM001(DistilBertPreTrainedModel):
         }
         self.loss_fn = get_loss_function(config.loss_function)(**loss_kwargs)
         self.post_init()
+
+    def _shard_tensor(self, x: torch.Tensor) -> List[torch.Tensor]:
+        if not torch.cuda.is_available():
+            return [x.to("cpu")]
+        
+        num_gpus = torch.cuda.device_count()
+        if num_gpus == 0:
+            return [x.to("cpu")]
+            
+        chunk_size = (x.shape[0] + num_gpus - 1) // num_gpus
+        shards = []
+        for i in range(num_gpus):
+            start = i * chunk_size
+            end = min((i + 1) * chunk_size, x.shape[0])
+            if start < x.shape[0]:
+                shard = x[start:end].to(f"cuda:{i}")
+                shards.append(shard)
+        return shards
+
+    def _fetch_from_shards(self, shards: List[torch.Tensor], idx: torch.Tensor) -> torch.Tensor:
+        if len(shards) == 0:
+            raise ValueError("Shards list is empty")
+        
+        if len(shards) == 1:
+            return shards[0][idx].to(idx.device)
+            
+        chunk_size = shards[0].shape[0]
+        shard_indices = idx // chunk_size
+        local_indices = idx % chunk_size
+        
+        out = torch.empty((idx.shape[0], shards[0].shape[1]), dtype=shards[0].dtype, device=idx.device)
+        
+        unique_shards = torch.unique(shard_indices)
+        for s in unique_shards:
+            s_item = s.item()
+            mask = (shard_indices == s)
+            if mask.any():
+                local_idx_s = local_indices[mask]
+                out[mask] = shards[s_item][local_idx_s].to(idx.device)
+        return out
 
     def _init_weights(self, module: nn.Module):
         super()._init_weights(module)
@@ -216,13 +236,18 @@ class MEM001(DistilBertPreTrainedModel):
 
     @torch.no_grad()
     def init_encoder_embeddings(self, trn_embeds:torch.Tensor, tst_embeds:torch.Tensor, lbl_embeds:torch.Tensor):
-        self.encoder._init_train_embeddings(trn_embeds)
-        self.encoder._init_test_embeddings(tst_embeds)
-        self.encoder._init_label_embeddings(lbl_embeds)
+        self.trn_embeds_shards = self._shard_tensor(trn_embeds)
+        self.tst_embeds_shards = self._shard_tensor(tst_embeds)
+        self.lbl_embeds_shards = self._shard_tensor(lbl_embeds)
 
     def get_label_representation(self, data_idx:Optional[torch.Tensor]=None):
         encoder = nn.DataParallel(module=self.encoder) if self.config.use_encoder_parallel else self.encoder
-        return encoder(data_idx, data_type="lbl")
+        lbl_raw = self._fetch_from_shards(self.lbl_embeds_shards, data_idx)
+        data_repr, fused_data_repr, _  = encoder(data_rep=lbl_raw)
+        return XCModelOutput(
+            data_fused_repr=fused_data_repr,
+            data_repr=data_repr,
+        )
 
     def forward(
         self,
@@ -247,14 +272,23 @@ class MEM001(DistilBertPreTrainedModel):
         encoder = nn.DataParallel(module=self.encoder) if self.config.use_encoder_parallel else self.encoder
 
         data_meta_kwargs = Parameters.from_feat_meta_aug_prefix('data', self.config.data_aug_meta_prefix, **kwargs)
-        data_repr, fused_data_repr, _ = encoder(data_idx=data_idx, data_aug_meta_prefix=self.config.data_aug_meta_prefix, 
-                                                data_type="trn" if self.train else "tst", **data_meta_kwargs)
+
+        if getattr(self, "training", False) or getattr(self, "train", False) is True: 
+            data_raw = self._fetch_from_shards(self.trn_embeds_shards, data_idx)
+        else:
+            data_raw = self._fetch_from_shards(self.tst_embeds_shards, data_idx)
+            
+        data_repr, fused_data_repr, _ = encoder(data_rep=data_raw, data_aug_meta_prefix=self.config.data_aug_meta_prefix, 
+                                                **data_meta_kwargs)
         
         loss = lbl2data_repr = neg2data_repr = None
         if lbl2data_idx is not None and neg2data_idx is not None:
-            lbl2data_repr, _, _ = encoder(lbl2data_idx, data_type="lbl")
-            neg2data_repr, _, _ = encoder(neg2data_idx, data_type="lbl")
+            lbl2data_raw = self._fetch_from_shards(self.lbl_embeds_shards, lbl2data_idx)
+            neg2data_raw = self._fetch_from_shards(self.lbl_embeds_shards, neg2data_idx)
 
+            lbl2data_repr, _, _ = encoder(data_rep=lbl2data_raw)
+            neg2data_repr, _, _ = encoder(data_rep=neg2data_raw)
+            
             loss = self.loss_fn(fused_data_repr, pos_targ=lbl2data_repr, n_pos=lbl2data_data2ptr, pos_idx=lbl2data_idx, 
                                 neg_targ=neg2data_repr, n_neg=neg2data_data2ptr, neg_idx=neg2data_idx, 
                                 n_ppos=plbl2data_data2ptr, ppos_idx=plbl2data_idx, **kwargs)
