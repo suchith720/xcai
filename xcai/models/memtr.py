@@ -107,7 +107,7 @@ class Encoder(DistilBertPreTrainedModel):
         
         self.projector = nn.Linear(config.dim, config.base_model_dim)
         
-        config.dim, config.n_head = config.base_model_dim, config.combiner_heads
+        config.dim, config.n_heads = config.base_model_dim, config.combiner_heads
         self.combiner = CrossCombinerBlock(config)
         
     @torch.no_grad()
