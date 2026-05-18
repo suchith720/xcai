@@ -220,9 +220,10 @@ class MEM001(DistilBertPreTrainedModel):
         unique_shards = torch.unique(shard_indices)
         for s in unique_shards:
             s_item = s.item()
+            shard_device = shards[s_item].device
             mask = (shard_indices == s)
             if mask.any():
-                local_idx_s = local_indices[mask]
+                local_idx_s = local_indices[mask].to(shard_device)
                 out[mask] = shards[s_item][local_idx_s].to(idx.device)
         return out
 

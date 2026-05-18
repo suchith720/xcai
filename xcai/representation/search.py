@@ -12,19 +12,24 @@ from ..core import *
 # %% ../../nbs/11_representation.search.ipynb 4
 class IndexSearch:
 
-    def __init__(self, 
-                 index:Optional[hnswlib.Index]=None, 
-                 space:Optional[str]='cosine', 
-                 efc:Optional[int]=200, 
-                 m:Optional[int]=16, 
-                 efs:Optional[int]=50, 
-                 n_bm:Optional[int]=50, 
-                 n_threads:Optional[int]=84):
+    def __init__(
+        self, 
+        index:Optional[hnswlib.Index]=None, 
+        space:Optional[str]='cosine', 
+        efc:Optional[int]=200, 
+        m:Optional[int]=16, 
+        efs:Optional[int]=50, 
+        n_bm:Optional[int]=50, 
+        n_threads:Optional[int]=84
+    ):
         store_attr('index,space,efc,m,efs,n_bm,n_threads')
         self.data,self.info = None,None
 
     def build(self, data:Optional[Union[torch.Tensor,np.array]], info:Optional[Union[torch.Tensor,np.array]]=None):
         if info is None: info = np.arange(data.shape[0])
+        
+        if self.index.dtype != inputs.dtype: self.index.to(dtype=inputs.dtype)
+        
         if data.shape[0] != info.shape[0]: 
             raise ValueError(f'`data`({data.shape[0]}) and `info`({info.shape[0]}) should have same size.')
             
@@ -71,8 +76,13 @@ class BruteForceSearch:
     
     def proc(self, inputs:Optional[torch.Tensor], n_bm:Optional[int]=None):
         store_attr('n_bm', is_none=False)
+
         index, info = self.index
-        
+
+        if index.dtype != inputs.dtype:
+            index = index.to(dtype=inputs.dtype)
+            self.index = (index, info)
+            
         inputs = F.normalize(inputs, dim=1) if self.normalize else inputs
         inputs = inputs.to(index.device)
         
