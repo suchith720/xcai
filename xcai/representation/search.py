@@ -79,10 +79,17 @@ class BruteForceSearch:
 
         index, info = self.index
 
+<<<<<<< HEAD
         if index.dtype != inputs.dtype:
             index = index.to(dtype=inputs.dtype)
             self.index = (index, info)
             
+=======
+        if index.dtype != inputs.dtype: 
+            index = index.to(dtype=inputs.dtype)
+            self.index = (index, info)
+        
+>>>>>>> ea13738 (made changes to memtr)
         inputs = F.normalize(inputs, dim=1) if self.normalize else inputs
         inputs = inputs.to(index.device)
         

@@ -818,7 +818,7 @@ class XCDataset(BaseXCDataset):
     def lbl_dset(self):
         kwargs = {k:getattr(self.data, k) for k in [o for o in vars(self.data).keys() if not o.startswith('__')]}
         for k in ['data_lbl', 'lbl_info', 'data_lbl_filterer', 'data_neg', 'neg_info']: kwargs.pop(k, None)
-        kwargs['data_info'] = self.data.lbl_info
+        kwargs['data_info'], kwargs['n_data'] = self.data.lbl_info, self.data.n_lbl
         return type(self.data)(**kwargs)
 
     def lbl_meta_dset(self, meta_name):
@@ -836,6 +836,8 @@ class XCDataset(BaseXCDataset):
     def data_dset(self):
         kwargs = {k:getattr(self.data, k) for k in [o for o in vars(self.data).keys() if not o.startswith('__')]}
         for k in ['data_lbl', 'lbl_info', 'data_lbl_filterer', 'data_neg', 'neg_info']: kwargs.pop(k, None)
+        if kwargs['data_info'] is not None and len(kwargs['data_info']) == 0: kwargs['data_info'] = None
+        kwargs['n_data'] = self.data.n_data
         return type(self.data)(**kwargs)
 
     def data_meta_dset(self, meta_name):

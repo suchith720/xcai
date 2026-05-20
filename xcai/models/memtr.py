@@ -15,6 +15,7 @@ from ..losses import *
 from .PPP0XX import *
 
 from .modeling_utils import *
+from ..learner import XCDataParallel
 
 # %% ../../nbs/47_models.memtr.ipynb 18
 class MEMConfig(DBTConfig):
@@ -24,7 +25,7 @@ class MEMConfig(DBTConfig):
         base_model_dim:Optional[int]=None,
         num_train_data:Optional[int]=None,
         num_test_data:Optional[int]=None,
-        num_labels:Optional[int]=None,
+        num_lbls:Optional[int]=None,
         num_metadata:Optional[int]=None,
         data_aug_meta_prefix:Optional[str]=None,
         combiner_heads:Optional[int]=16,
@@ -32,7 +33,7 @@ class MEMConfig(DBTConfig):
     ):
         super().__init__(**kwargs)
         self.base_model_dim, self.num_train_data, self.num_test_data = base_model_dim, num_train_data, num_test_data
-        self.num_labels, self.num_metadata, self.data_aug_meta_prefix = num_labels, num_metadata, data_aug_meta_prefix
+        self.num_lbls, self.num_metadata, self.data_aug_meta_prefix = num_lbls, num_metadata, data_aug_meta_prefix
         self.combiner_heads = combiner_heads
         
 
@@ -124,6 +125,7 @@ class Encoder(DistilBertPreTrainedModel):
         assert (
             (data2ptr == num_metadata).all()
         ), "All the queries should have the same number of metadata."
+        assert num_metadata * data_rep.shape[0] == meta_rep.shape[0]
         
         data_rep, meta_rep = data_rep.unsqueeze(1), meta_rep.view(data_rep.shape[0], num_metadata, -1)
         fused_data_rep = self.combiner(data_rep, meta_rep)[0]
@@ -146,6 +148,7 @@ class Encoder(DistilBertPreTrainedModel):
             
     def forward(
         self,
+        data_idx:Optional[torch.Tensor]=None,
         data_rep:Optional[torch.Tensor] = None,
         data_aug_meta_prefix: Optional[str]=None,
         **kwargs
@@ -155,6 +158,19 @@ class Encoder(DistilBertPreTrainedModel):
         fused_data_rep = meta_rep = None
         if data_aug_meta_prefix is not None:
             meta_kwargs = Parameters.from_meta_aug_prefix(data_aug_meta_prefix, **kwargs)            
+
+            # # debug
+
+            # from transformers import AutoTokenizer
+            # tokz = AutoTokenizer.from_pretrained("distilbert-base-uncased")
+
+            # print(data_idx.to("cpu").detach())
+            # print(tokz.batch_decode(meta_kwargs[data_aug_meta_prefix]["input_ids"].to("cpu").detach()))
+            # print("--------")
+            # print()
+
+            # # debug
+
             meta_rep = self.get_metadata_representation(meta_kwargs[data_aug_meta_prefix]["input_ids"],
                                                         meta_kwargs[data_aug_meta_prefix]["attention_mask"])
             fused_data_rep = self.fuse_metadata(data_rep, meta_rep, meta_kwargs[data_aug_meta_prefix]["data2ptr"])
@@ -270,7 +286,7 @@ class MEM001(DistilBertPreTrainedModel):
     ):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        encoder = nn.DataParallel(module=self.encoder) if self.config.use_encoder_parallel else self.encoder
+        encoder = XCDataParallel(module=self.encoder) if self.config.use_encoder_parallel else self.encoder
 
         data_meta_kwargs = Parameters.from_feat_meta_aug_prefix('data', self.config.data_aug_meta_prefix, **kwargs)
 
@@ -279,7 +295,7 @@ class MEM001(DistilBertPreTrainedModel):
         else:
             data_raw = self._fetch_from_shards(self.tst_embeds_shards, data_idx)
             
-        data_repr, fused_data_repr, _ = encoder(data_rep=data_raw, data_aug_meta_prefix=self.config.data_aug_meta_prefix, 
+        data_repr, fused_data_repr, _ = encoder(data_idx=data_idx, data_rep=data_raw, data_aug_meta_prefix=self.config.data_aug_meta_prefix, 
                                                 **data_meta_kwargs)
         
         loss = lbl2data_repr = neg2data_repr = None
