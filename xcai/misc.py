@@ -554,6 +554,9 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
 
     if qry_ids is None: qry_ids = test_dset.data.data_info["identifier"]
     if lbl_ids is None: lbl_ids = test_dset.data.lbl_info["identifier"]
+    
+    assert qry_ids is not None
+    assert lbl_ids is not None
 
     metric = BeirMetric(test_dset.n_lbl, k_values=[1, 3, 5, 10], qry_ids=qry_ids, lbl_ids=lbl_ids)
 
