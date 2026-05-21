@@ -23,17 +23,13 @@ class MEMConfig(DBTConfig):
     def __init__(
         self,
         base_model_dim:Optional[int]=None,
-        num_train_data:Optional[int]=None,
-        num_test_data:Optional[int]=None,
-        num_lbls:Optional[int]=None,
-        num_metadata:Optional[int]=None,
         data_aug_meta_prefix:Optional[str]=None,
         combiner_heads:Optional[int]=16,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.base_model_dim, self.num_train_data, self.num_test_data = base_model_dim, num_train_data, num_test_data
-        self.num_lbls, self.num_metadata, self.data_aug_meta_prefix = num_lbls, num_metadata, data_aug_meta_prefix
+        self.base_model_dim = base_model_dim
+        self.data_aug_meta_prefix = data_aug_meta_prefix
         self.combiner_heads = combiner_heads
         
 
@@ -253,7 +249,7 @@ class MEM001(DistilBertPreTrainedModel):
 
     @torch.no_grad()
     def init_encoder_embeddings(self, trn_embeds:torch.Tensor, tst_embeds:torch.Tensor, lbl_embeds:torch.Tensor):
-        self.trn_embeds_shards = self._shard_tensor(trn_embeds)
+        self.trn_embeds_shards = None if trn_embeds is None else self._shard_tensor(trn_embeds)
         self.tst_embeds_shards = self._shard_tensor(tst_embeds)
         self.lbl_embeds_shards = self._shard_tensor(lbl_embeds)
 
@@ -291,6 +287,7 @@ class MEM001(DistilBertPreTrainedModel):
         data_meta_kwargs = Parameters.from_feat_meta_aug_prefix('data', self.config.data_aug_meta_prefix, **kwargs)
 
         if getattr(self, "training", False) or getattr(self, "train", False) is True: 
+            assert len(self.trn_embeds_shards), "Training embedding is empty."
             data_raw = self._fetch_from_shards(self.trn_embeds_shards, data_idx)
         else:
             data_raw = self._fetch_from_shards(self.tst_embeds_shards, data_idx)

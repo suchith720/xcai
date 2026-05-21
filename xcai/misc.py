@@ -426,7 +426,7 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
              tie_memory_encoder_weights:Optional[bool]=False, exclude_module_from_tying:Optional[str]=None, 
              resume_from_checkpoint:Optional[bool]=None, use_saved_representation_for_indexing:Optional[bool]=False, 
              prefix_for_saved_representation_for_indexing:Optional[str]=None, normalize:Optional[bool]=False, 
-             dataset:Optional[str]=None, load_model_type:Optional[str]="best"):
+             dataset:Optional[str]=None, load_model_type:Optional[str]="best", qry_ids:Optional[List]=None, lbl_ids:Optional[List]=None):
 
     label_names = ["plbl2data_idx", "plbl2data_data2ptr", "lnk2data_idx", "lnk2data_data2ptr", "lnk2data_scores"]
 
@@ -549,8 +549,13 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
         model = UPA000.from_pretrained(config, mname=mname, meta_dset=meta_dset, batch_size=1000)
         return model
 
-    metric = PrecReclMrr(test_dset.n_lbl, test_dset.data.data_lbl_filterer, pk=10, rk=200, rep_pk=[1, 3, 5, 10],
-                         rep_rk=[10, 100, 200], mk=[5, 10, 20])
+    # metric = PrecReclMrr(test_dset.n_lbl, test_dset.data.data_lbl_filterer, pk=10, rk=200, rep_pk=[1, 3, 5, 10],
+    #                      rep_rk=[10, 100, 200], mk=[5, 10, 20])
+
+    if qry_ids is None: qry_ids = test_dset.data.data_info["identifier"]
+    if lbl_ids is None: lbl_ids = test_dset.data.lbl_info["identifier"]
+
+    metric = BeirMetric(test_dset.n_lbl, k_values=[1, 3, 5, 10], qry_ids=qry_ids, lbl_ids=lbl_ids)
 
     model = load_model(args.output_dir, model_fn, do_inference=check_inference_mode(input_args), use_pretrained=input_args.use_pretrained, 
                        update_config_during_inference=update_config_during_inference, config=config, type=load_model_type)
