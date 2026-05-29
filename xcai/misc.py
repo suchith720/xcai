@@ -602,7 +602,7 @@ def early_fusion_run(output_dir:str, input_args:argparse.ArgumentParser, mname:s
         warmup_steps=1000,
         weight_decay=0.01,
         learning_rate=6e-5,
-        label_names=['plbl2data_idx', 'plbl2data_data2ptr'],
+        label_names=['plbl2data_idx', 'plbl2data_data2ptr', 'plbl2data_scores'],
 
         group_by_cluster=True,
         num_clustering_warmup_epochs=10,
@@ -638,8 +638,13 @@ def early_fusion_run(output_dir:str, input_args:argparse.ArgumentParser, mname:s
     model = load_model(args.output_dir, model_fn, {"mname": mname, "config": config}, do_inference=do_inference,
                        use_pretrained=input_args.use_pretrained)
 
-    metric = PrecReclMrr(test_dset.data.n_lbl, test_dset.data.data_lbl_filterer, prop=None if train_dset is None else train_dset.data.data_lbl,
-                         pk=10, rk=200, rep_pk=[1, 3, 5, 10], rep_rk=[10, 100, 200], mk=[5, 10, 20])
+    if qry_ids is None: qry_ids = test_dset.data.data_info["identifier"]
+    if lbl_ids is None: lbl_ids = test_dset.data.lbl_info["identifier"]
+    
+    assert qry_ids is not None
+    assert lbl_ids is not None
+
+    metric = BeirMetric(test_dset.n_lbl, k_values=[1, 3, 5, 10], qry_ids=qry_ids, lbl_ids=lbl_ids)
 
     learn = XCLearner(
         model=model,
