@@ -579,7 +579,8 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
 # %% ../nbs/42_miscellaneous.ipynb 27
 def early_fusion_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test_dset:Union[XCDataset, SXCDataset],
                      train_dset:Optional[Union[XCDataset, SXCDataset]]=None, collator:Optional[Callable]=identity_collate_fn, 
-                     save_dir_name:Optional[str]=None, eval_batch_size:Optional[int]=1600):
+                     save_dir_name:Optional[str]=None, eval_batch_size:Optional[int]=1600, qry_ids:Optional[List]=None, 
+                     lbl_ids:Optional[List]=None):
 
     args = XCLearningArguments(
         output_dir=output_dir,
@@ -612,7 +613,7 @@ def early_fusion_run(output_dir:str, input_args:argparse.ArgumentParser, mname:s
         minimum_cluster_size=2,
         maximum_cluster_size=1600,
 
-        metric_for_best_model='P@1',
+        metric_for_best_model='NDCG@10',
         load_best_model_at_end=True,
         target_indices_key='plbl2data_idx',
         target_pointer_key='plbl2data_data2ptr',
@@ -707,8 +708,10 @@ def early_fusion_beir_inference(output_dir:str, input_args:argparse.ArgumentPars
         test_dset = SXCDataset(SMainXCDataset(data_info=data_info, data_lbl=test_dset.data.data_lbl, lbl_info=test_dset.data.lbl_info))
 
         input_args.prediction_suffix = dataset
-        trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred, trn_metric, tst_metric = early_fusion_run(output_dir, input_args, mname, test_dset, train_dset, 
-                                                                                                    save_dir_name=pred_dir_name, eval_batch_size=eval_batch_size)
+        trn_repr, tst_repr, lbl_repr, trn_pred, tst_pred, trn_metric, tst_metric = early_fusion_run(output_dir, input_args, mname, 
+                                                                                                    test_dset, train_dset, 
+                                                                                                    save_dir_name=pred_dir_name, 
+                                                                                                    eval_batch_size=eval_batch_size)
         with open(f"{metric_dir}/{dataset}.json", "w") as file:
             json.dump({dataset: tst_metric}, file, indent=4)
 
