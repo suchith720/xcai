@@ -64,7 +64,8 @@ def get_instruction(fname:str, dset:str):
     
 
 # %% ../../nbs/45_maggi.utils.ipynb 5
-def tokenized_labels(lbl_info, idx:int, parts:int, model_name:str, instruction:Optional[str]=None, max_length:Optional[int]=512):
+def tokenized_labels(lbl_info, idx:int, parts:int, model_name:str, instruction:Optional[str]=None, dset_name:Optional[str]=None, 
+                     max_length:Optional[int]=512):
     if isinstance(lbl_info, str):
         lbl_ids, lbl_txt = load_raw_file(lbl_info)
     elif isinstance(lbl_info, tuple) and len(lbl_info) == 2:
