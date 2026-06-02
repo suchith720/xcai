@@ -69,6 +69,66 @@
             "query": "Given a financial question, retrieve relevant passages that answer the query",
             "corpus": ""
         },
+    "CQADupStackAndroid":
+	{
+	    "query": "Given a question about Android, retrieve questions that are semantically equivalent or duplicates of the given question",
+	    "corpus": "Given a question about Android, retrieve questions that are semantically equivalent or duplicates of the given question"
+	},
+    "CQADupStackEnglish":
+	{
+	    "query": "Given a question about the English language and usage, retrieve questions that are semantically equivalent or duplicates of the given question",
+	    "corpus": "Given a question about the English language and usage, retrieve questions that are semantically equivalent or duplicates of the given question"
+	},
+    "CQADupStackGaming":
+	{
+	    "query": "Given a question about video games, retrieve questions that are semantically equivalent or duplicates of the given question",
+	    "corpus": "Given a question about video games, retrieve questions that are semantically equivalent or duplicates of the given question"
+	},
+    "CQADupStackGis":
+	{
+	    "query": "Given a question about geographic information systems, retrieve questions that are semantically equivalent or duplicates of the given question",
+	    "corpus": "Given a question about geographic information systems, retrieve questions that are semantically equivalent or duplicates of the given question"
+	},
+    "CQADupStackMathematica":
+	{
+	    "query": "Given a question about Mathematica, retrieve questions that are semantically equivalent or duplicates of the given question",
+	    "corpus": "Given a question about Mathematica, retrieve questions that are semantically equivalent or duplicates of the given question"
+	},
+    "CQADupStackPhysics":
+	{
+	    "query": "Given a question about physics, retrieve questions that are semantically equivalent or duplicates of the given question",
+	    "corpus": "Given a question about physics, retrieve questions that are semantically equivalent or duplicates of the given question"
+	},
+    "CQADupStackProgrammers":
+	{
+	    "query": "Given a software engineering question, retrieve questions that are semantically equivalent or duplicates of the given question",
+	    "corpus": "Given a software engineering question, retrieve questions that are semantically equivalent or duplicates of the given question"
+	},
+    "CQADupStackStats":
+	{
+	    "query": "Given a question about statistics or machine learning, retrieve questions that are semantically equivalent or duplicates of the given question",
+	    "corpus": "Given a question about statistics or machine learning, retrieve questions that are semantically equivalent or duplicates of the given question"
+	},
+    "CQADupStackTex":
+	{
+	    "query": "Given a question about TeX or LaTeX, retrieve questions that are semantically equivalent or duplicates of the given question",
+	    "corpus": "Given a question about TeX or LaTeX, retrieve questions that are semantically equivalent or duplicates of the given question"
+	},
+    "CQADupStackUnix":
+	{
+	    "query": "Given a question about Unix or Linux systems, retrieve questions that are semantically equivalent or duplicates of the given question",
+	    "corpus": "Given a question about Unix or Linux systems, retrieve questions that are semantically equivalent or duplicates of the given question"
+	},
+    "CQADupStackWebmasters":
+	{
+	    "query": "Given a question about website administration or web development, retrieve questions that are semantically equivalent or duplicates of the given question",
+	    "corpus": "Given a question about website administration or web development, retrieve questions that are semantically equivalent or duplicates of the given question"
+	},
+    "CQADupStackWordpress":
+	{
+	    "query": "Given a question about WordPress, retrieve questions that are semantically equivalent or duplicates of the given question",
+	    "corpus": "Given a question about WordPress, retrieve questions that are semantically equivalent or duplicates of the given question"
+	},
     "STS":
         {
             "text": "Retrieve semantically similar text"

@@ -21,19 +21,37 @@ from sugar.core import load_raw_file
 # %% ../../nbs/45_maggi.utils.ipynb 3
 DATASETS = {
     "arguana": "ArguAna",
-    "msmarco": "MSMARCO",
-    "climate-fever": "ClimateFEVER",
-    "dbpedia-entity": "DBPedia",
-    "fever": "FEVER",
-    "fiqa": "FiQA2018",
-    "hotpotqa": "HotpotQA",
-    "nfcorpus": "NFCorpus",
-    "nq": "NQ",
-    "quora": "QuoraRetrieval",
     "scidocs": "SCIDOCS",
     "scifact": "SciFact",
     "webis-touche2020": "Touche2020",
     "trec-covid": "TRECCOVID",
+
+    "cqadupstack/android": "CQADupStackAndroid",
+    "cqadupstack/english": "CQADupStackEnglish",
+    "cqadupstack/gaming": "CQADupStackGaming",
+    "cqadupstack/gis": "CQADupStackGis",
+    "cqadupstack/mathematica": "CQADupStackMathematica",
+    "cqadupstack/physics": "CQADupStackPhysics",
+    "cqadupstack/programmers": "CQADupStackProgrammers",
+    "cqadupstack/stats": "CQADupStackStats",
+    "cqadupstack/tex": "CQADupStackTex",
+    "cqadupstack/unix": "CQADupStackUnix",
+    "cqadupstack/webmasters": "CQADupStackWebmasters",
+    "cqadupstack/wordpress": "CQADupStackWordpress",
+
+    "fiqa": "FiQA2018",
+    "quora": "QuoraRetrieval",
+    "msmarco": "MSMARCO",
+    "climate-fever": "ClimateFEVER",
+    "dbpedia-entity": "DBPedia",
+    "fever": "FEVER",
+    "hotpotqa": "HotpotQA",
+    "nfcorpus": "NFCorpus",
+    "nq": "NQ",
+
+    "trecdl19": "MSMARCO",
+    "trecdl20": "MSMARCO",
+
     "musique": "MuSiQue",
 }
 
@@ -46,7 +64,7 @@ def get_instruction(fname:str, dset:str):
     
 
 # %% ../../nbs/45_maggi.utils.ipynb 5
-def tokenized_labels(lbl_info, idx:int, parts:int, model_name:str, max_length:Optional[int]=512):
+def tokenized_labels(lbl_info, idx:int, parts:int, model_name:str, instruction:Optional[str]=None, max_length:Optional[int]=512):
     if isinstance(lbl_info, str):
         lbl_ids, lbl_txt = load_raw_file(lbl_info)
     elif isinstance(lbl_info, tuple) and len(lbl_info) == 2:
@@ -59,6 +77,14 @@ def tokenized_labels(lbl_info, idx:int, parts:int, model_name:str, max_length:Op
     start_idx, end_idx = idx*bsize, (idx + 1)*bsize
 
     lbl_ids, lbl_txt = lbl_ids[start_idx:end_idx], lbl_txt[start_idx:end_idx]
+
+    instruction = (
+        get_instruction(instruction, DATASETS[dset_name])["corpus"] 
+        if instruction is not None and os.path.exists(instruction) else instruction
+    )
+    if instruction is not None and len(instruction):
+        data_prompt_func = lambda x: "Instruct: " + instruction + f"\nQuery: {x}"
+        lbl_txt = [data_prompt_func(o) for o in lbl_txt]
 
     tokz = AutoTokenizer.from_pretrained(model_name)
     tokz.padding_side = "right"
@@ -88,7 +114,7 @@ def tokenized_query(qry_info, idx:int, parts:int, instruction:str, dset_name:str
     start_idx, end_idx = idx*bsize, (idx + 1)*bsize
 
     instruction = get_instruction(instruction, DATASETS[dset_name])["query"] if os.path.exists(instruction) else instruction
-    data_prompt_func = lambda x: "Instruct: " + instruction + f" Query: {x}"
+    data_prompt_func = lambda x: "Instruct: " + instruction + f"\nQuery: {x}"
 
     qry_ids, qry_txt = qry_ids[start_idx:end_idx], qry_txt[start_idx:end_idx]
     qry_txt = [data_prompt_func(o) for o in qry_txt]
