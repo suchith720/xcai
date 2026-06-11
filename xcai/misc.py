@@ -504,7 +504,7 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
         memory_module_names = memory_type,
         memory_injection_layers = memory_injection_layer,
 
-        num_total_metadata = test_dset.meta["lnk_meta"].n_meta,
+        num_total_metadata = test_dset.meta["lnk_meta"].n_meta if "lnk_meta" in test_dset.meta else 0,
         num_input_metadata = num_input_metadata,
         metadata_dropout = 0.1,
 
@@ -545,7 +545,7 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
     )
 
     def model_fn(mname:Optional[str]=None):
-        meta_dset = test_dset.meta_dset("lnk_meta")
+        meta_dset = test_dset.meta_dset("lnk_meta") if "lnk_meta" in test_dset.meta else None
         model = UPA000.from_pretrained(config, mname=mname, meta_dset=meta_dset, batch_size=1000)
         return model
 
@@ -580,7 +580,7 @@ def upma_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test
 def early_fusion_run(output_dir:str, input_args:argparse.ArgumentParser, mname:str, test_dset:Union[XCDataset, SXCDataset],
                      train_dset:Optional[Union[XCDataset, SXCDataset]]=None, collator:Optional[Callable]=identity_collate_fn, 
                      save_dir_name:Optional[str]=None, eval_batch_size:Optional[int]=1600, qry_ids:Optional[List]=None, 
-                     lbl_ids:Optional[List]=None):
+                     lbl_ids:Optional[List]=None, search_normalize:Optional[bool]=False):
 
     args = XCLearningArguments(
         output_dir=output_dir,
@@ -597,7 +597,7 @@ def early_fusion_run(output_dir:str, input_args:argparse.ArgumentParser, mname:s
         num_train_epochs=50,
         predict_with_representation=True,
         representation_search_type='BRUTEFORCE',
-        search_normalize=False,
+        search_normalize=search_normalize,
 
         adam_epsilon=1e-6,
         warmup_steps=1000,
